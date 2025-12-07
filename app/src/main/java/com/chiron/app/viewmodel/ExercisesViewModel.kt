@@ -1,0 +1,141 @@
+package com.chiron.app.viewmodel
+
+import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.chiron.app.data.ChironRepository
+import com.chiron.app.data.entities.Exercise
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class ExercisesUiState(
+    val exercises: List<Exercise> = emptyList(),
+    val searchQuery: String = "",
+    val searchResults: List<Exercise> = emptyList(),
+    val selectedExerciseId: Long? = null,
+    val isDetailOpen: Boolean = false
+)
+
+class ExercisesViewModel(
+    private val repository: ChironRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(ExercisesUiState())
+    val uiState: StateFlow<ExercisesUiState> = _uiState.asStateFlow()
+
+    private var searchJob: Job? = null
+    private val searchDebounceMs = 300L
+
+    init {
+        viewModelScope.launch {
+            repository.exercisesFlow.collect { exercises ->
+                _uiState.update { it.copy(exercises = exercises) }
+            }
+        }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(searchDebounceMs)
+            if (query.isBlank()) {
+                _uiState.update { it.copy(searchResults = emptyList()) }
+            } else {
+                val results = repository.searchExercises(query)
+                _uiState.update { it.copy(searchResults = results) }
+            }
+        }
+    }
+
+    fun clearSearch() {
+        _uiState.update { it.copy(searchQuery = "", searchResults = emptyList()) }
+    }
+
+    fun openDetail(exerciseId: Long) {
+        _uiState.update { it.copy(isDetailOpen = true, selectedExerciseId = exerciseId) }
+    }
+
+    fun closeDetail() {
+        _uiState.update { it.copy(isDetailOpen = false, selectedExerciseId = null) }
+    }
+
+    fun createExercise(name: String, description: String? = null) {
+        viewModelScope.launch {
+            val exercise = Exercise(
+                name = name.trim(),
+                description = description?.trim()
+            )
+            repository.insertExercise(exercise)
+        }
+    }
+
+    fun updateExercise(exercise: Exercise) {
+        viewModelScope.launch {
+            repository.updateExercise(exercise)
+        }
+    }
+
+    fun renameExercise(exerciseId: Long, newName: String) {
+        viewModelScope.launch {
+            val exercise = repository.getExerciseById(exerciseId) ?: return@launch
+            repository.updateExercise(exercise.copy(name = newName.trim()))
+        }
+    }
+
+    fun updateDescription(exerciseId: Long, description: String?) {
+        viewModelScope.launch {
+            val exercise = repository.getExerciseById(exerciseId) ?: return@launch
+            repository.updateExercise(exercise.copy(description = description?.trim()))
+        }
+    }
+
+    fun setImage(exerciseId: Long, imageUri: Uri) {
+        viewModelScope.launch {
+            val exercise = repository.getExerciseById(exerciseId) ?: return@launch
+
+            // Delete old image if exists
+            exercise.imageUri?.let { repository.deleteImage(it) }
+
+            // Copy new image
+            val newUri = repository.copyImageToStorage(imageUri, exerciseId)
+            if (newUri != null) {
+                repository.updateExercise(exercise.copy(imageUri = newUri))
+            }
+        }
+    }
+
+    fun deleteImage(exerciseId: Long) {
+        viewModelScope.launch {
+            val exercise = repository.getExerciseById(exerciseId) ?: return@launch
+            exercise.imageUri?.let { repository.deleteImage(it) }
+            repository.updateExercise(exercise.copy(imageUri = null))
+        }
+    }
+
+    fun archiveExercise(exerciseId: Long) {
+        viewModelScope.launch {
+            repository.archiveExercise(exerciseId)
+            closeDetail()
+        }
+    }
+
+    suspend fun getExerciseById(id: Long): Exercise? = repository.getExerciseById(id)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Factory
+    // ─────────────────────────────────────────────────────────────────────────
+
+    class Factory(
+        private val repository: ChironRepository
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return ExercisesViewModel(repository) as T
+        }
+    }
+}

@@ -1,0 +1,35 @@
+package com.chiron.app.ui.components
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+
+enum class NavTab(val label: String, val icon: ImageVector) {
+    HISTORY("History", Icons.Default.DateRange),
+    EXERCISES("Exercises", Icons.Default.FitnessCenter),
+    TIMER("Timer", Icons.Default.Timer)
+}
+
+@Composable
+fun BottomNavBar(
+    selectedTab: NavTab,
+    onTabSelected: (NavTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    NavigationBar(modifier = modifier) {
+        NavTab.entries.forEach { tab ->
+            NavigationBarItem(
+                selected = selectedTab == tab,
+                onClick = { onTabSelected(tab) },
+                icon = { Icon(tab.icon, contentDescription = tab.label) },
+                label = { Text(tab.label) }
+            )
+        }
+    }
+}

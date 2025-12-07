@@ -1,0 +1,4 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Use Material Components DayNight NoActionBar as the app theme parent (night). -->
+    <style name="Theme.Chiron" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+</resources>
