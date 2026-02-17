@@ -14,9 +14,6 @@ import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Database(
     entities = [
@@ -56,25 +53,64 @@ abstract class ChironDatabase : RoomDatabase() {
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)
-                        // Populate default exercises on first launch
-                        CoroutineScope(Dispatchers.IO).launch {
-                            val exerciseDao = getInstance(context).exerciseDao()
-                            val defaultExercises = listOf(
-                                Exercise(name = "Bench Press", iconName = "benchpress"),
-                                Exercise(name = "Incline Bench Press", iconName = "incline_bench"),
-                                Exercise(name = "Machine Chest Press", iconName = "chest_press"),
-                                Exercise(name = "Overhead Press", iconName = "overhead_press"),
-                                Exercise(name = "Chest Flies", iconName = "machine"),
-                                Exercise(name = "Hammer Curls", iconName = "curl"),
-                                Exercise(name = "Machine Preacher Curls", iconName = "curl"),
-                                Exercise(name = "Deadlift", iconName = "deadlift"),
-                                Exercise(name = "Leg Extension", iconName = "leg_extension"),
-                                Exercise(name = "Leg Curl", iconName = "leg_curl"),
-                                Exercise(name = "Squat", iconName = "squat"),
-                                Exercise(name = "Leg Raises", iconName = "leg_raise"),
-                                Exercise(name = "Tricep Pushdowns", iconName = "pushdown")
-                            )
-                            defaultExercises.forEach { exerciseDao.insertExercise(it) }
+                        // Populate default exercises on first launch using raw SQL to avoid recursion issues
+                        val defaults = listOf(
+                            "Bench Press" to "benchpress",
+                            "Incline Bench Press" to "incline-bench",
+                            "Machine Chest Press" to "chest-press",
+                            "Overhead Press" to "overhead-press",
+                            "Chest Flies" to "machine",
+                            "Lateral Raises" to "lateral-raise",
+                            "Push-ups" to "push-up",
+                            "Dips" to "dip",
+                            
+                            "Pull-ups" to "pull-up",
+                            "Lat Pulldowns" to "pulldown",
+                            "Barbell Rows" to "barbell",
+                            "Cable Rows" to "cables",
+                            "Deadlift" to "deadlift",
+                            
+                            "Squat" to "squat",
+                            "Leg Press" to "leg-press",
+                            "Lunges" to "lunge",
+                            "Leg Extension" to "leg-extension",
+                            "Leg Curl" to "leg-curl",
+                            "Hip Thrusts" to "hip-thrust",
+                            "Calf Raises" to "default",
+                            
+                            "Smith Machine Squat" to "smith",
+                            "Box Jumps" to "jump",
+                            "Band Pull Aparts" to "bands",
+                            "Cable Crossovers" to "cables",
+                            "Ring Dips" to "rings",
+
+                            "Bicep Curls" to "curl",
+                            "Hammer Curls" to "curl",
+                            "Tricep Pushdowns" to "pushdown",
+                            "Skullcrushers" to "barbell",
+                            
+                            "Sit-ups" to "sit-up",
+                            "Leg Raises" to "leg-raise",
+                            "Plank" to "plate",
+                            
+                            "Kettlebell Swing" to "kettlebell",
+                            "Medicine Ball Slate" to "medicine-ball",
+                            "Stationary Bike" to "stationary-bike"
+                        )
+
+                        db.beginTransaction()
+                        try {
+                            defaults.forEach { (name, iconName) ->
+                                val values = android.content.ContentValues().apply {
+                                    put("name", name)
+                                    put("icon_name", iconName)
+                                    put("archived", 0)
+                                }
+                                db.insert("exercise", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, values)
+                            }
+                            db.setTransactionSuccessful()
+                        } finally {
+                            db.endTransaction()
                         }
                     }
                 })

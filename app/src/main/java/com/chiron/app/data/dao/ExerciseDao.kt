@@ -23,7 +23,7 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise ORDER BY name ASC")
     fun getAllExercisesFlow(): Flow<List<Exercise>>
 
-    @Query("SELECT * FROM exercise WHERE archived = 0")
+    @Query("SELECT * FROM exercise WHERE archived = 0 ORDER BY name ASC")
     suspend fun getAllNonArchived(): List<Exercise>
 
     @Query("SELECT * FROM exercise WHERE id = :id")

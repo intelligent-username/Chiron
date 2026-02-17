@@ -6,18 +6,21 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.chiron.app.viewmodel.HistoryViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +31,13 @@ fun HistoryScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    
+    // Deletion states
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var workoutToDelete by remember { mutableStateOf<com.chiron.app.data.entities.WorkoutSession?>(null) }
+    var expandedWorkoutId by remember { mutableStateOf<Long?>(null) }
+    
+    val scope = rememberCoroutineScope()
 
     // If editor is open, show WorkoutEditor instead
     if (state.isEditorOpen && state.editingWorkoutId != null) {
@@ -91,10 +101,34 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 items(filteredWorkouts) { workout ->
-                    WorkoutCard(
-                        workout = workout,
-                        onClick = { viewModel.openEditor(workout.id) }
-                    )
+                    Box {
+                        WorkoutCard(
+                            workout = workout,
+                            onClick = { viewModel.openEditor(workout.id) },
+                            onLongClick = { expandedWorkoutId = workout.id }
+                        )
+                        
+                        DropdownMenu(
+                            expanded = expandedWorkoutId == workout.id,
+                            onDismissRequest = { expandedWorkoutId = null }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    expandedWorkoutId = null
+                                    workoutToDelete = workout
+                                    showDeleteDialog = true
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete, // Needs import if not present, but verified above
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -119,8 +153,45 @@ fun HistoryScreen(
                     showCreateDialog = false
                 },
                 settingsRepository = viewModel.getSettingsRepository(),
-                existingLocations = existingLocations
+                existingLocations = existingLocations,
+                existingDayTags = state.dayTags
             )
         }
+    }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteDialog && workoutToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { 
+                showDeleteDialog = false
+                workoutToDelete = null
+            },
+            title = { Text("Delete Workout?") },
+            text = { Text("Are you sure you want to delete '${workoutToDelete?.dayTag}'? This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        workoutToDelete?.let {
+                            viewModel.archiveWorkout(it.id)
+                        }
+                        showDeleteDialog = false
+                        workoutToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showDeleteDialog = false
+                        workoutToDelete = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

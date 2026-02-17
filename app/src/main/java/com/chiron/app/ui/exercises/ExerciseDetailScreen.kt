@@ -94,7 +94,7 @@ fun ExerciseDetailScreen(
             IconPicker(
                 selectedIcon = iconState,
                 onIconSelected = { iconState = it },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().weight(1f)
             )
         }
 

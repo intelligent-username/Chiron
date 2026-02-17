@@ -29,42 +29,47 @@ data class ExerciseIcon(val name: String, val fileName: String)
 val AVAILABLE_ICONS = listOf(
     ExerciseIcon("default", "default.svg"),
     ExerciseIcon("benchpress", "benchpress.svg"),
-    ExerciseIcon("chest_press", "chest-press.svg"),
+    ExerciseIcon("chest-press", "chest-press.svg"),
     ExerciseIcon("curl", "curl.svg"),
     ExerciseIcon("deadlift", "deadlift.svg"),
-    ExerciseIcon("incline_bench", "incline-bench.svg"),
+    ExerciseIcon("incline-bench", "incline-bench.svg"),
     ExerciseIcon("jump", "jump.svg"),
-    ExerciseIcon("leg_curl", "leg-curl.svg"),
-    ExerciseIcon("leg_extension", "leg-extension.svg"),
-    ExerciseIcon("leg_raise", "leg-raise.svg"),
+    ExerciseIcon("leg-curl", "leg-curl.svg"),
+    ExerciseIcon("leg-extension", "leg-extension.svg"),
+    ExerciseIcon("leg-raise", "leg-raise.svg"),
     ExerciseIcon("machine", "machine.svg"),
-    ExerciseIcon("overhead_press", "overhead-press.svg"),
+    ExerciseIcon("overhead-press", "overhead-press.svg"),
     ExerciseIcon("pulldown", "pulldown.svg"),
     ExerciseIcon("pushdown", "pushdown.svg"),
     ExerciseIcon("squat", "squat.svg"),
     ExerciseIcon("plate", "plate.svg"),
-    ExerciseIcon("pull_up", "pull-up.svg"),
+    ExerciseIcon("pull-up", "pull-up.svg"),
     ExerciseIcon("smiley", "smiley.svg"),
-    ExerciseIcon("push_up", "push-up.svg"),
-    ExerciseIcon("sit_up", "sit-up.svg"),
+    ExerciseIcon("push-up", "push-up.svg"),
+    ExerciseIcon("sit-up", "sit-up.svg"),
     ExerciseIcon("lunge", "lunge.svg"),
-    ExerciseIcon("hip_thrust", "hip-thrust.svg"),
+    ExerciseIcon("hip-thrust", "hip-thrust.svg"),
     ExerciseIcon("dip", "dip.svg"),
     ExerciseIcon("kettlebell", "kettlebell.svg"),
-    ExerciseIcon("lateral_raise", "lateral-raise.svg"),
+    ExerciseIcon("lateral-raise", "lateral-raise.svg"),
     ExerciseIcon("barbell", "barbell.svg"),
-    ExerciseIcon("medicine_ball", "medicine-ball.svg"),
-    ExerciseIcon("stationary_bike", "staionary-bike.svg"), // Note typo in original filename
-    ExerciseIcon("leg_press", "leg-press.svg"),
+    ExerciseIcon("medicine-ball", "medicine-ball.svg"),
+    ExerciseIcon("stationary-bike", "staionary-bike.svg"), // Typped filename
+    ExerciseIcon("leg-press", "leg-press.svg"),
     ExerciseIcon("smith", "smith.svg"),
     ExerciseIcon("cables", "cables.svg"),
-    ExerciseIcon("heart_rate", "heart-rate.svg"),
+    ExerciseIcon("heart-rate", "heart-rate.svg"),
     ExerciseIcon("bands", "bands.svg"),
     ExerciseIcon("rings", "rings.svg")
 )
 
 fun getIconUrl(iconName: String?): String {
-    val fileName = AVAILABLE_ICONS.find { it.name == iconName }?.fileName ?: "default.svg"
+    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
+    val underscoreMatch = if (exactMatch == null && iconName != null) {
+        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
+    } else null
+    
+    val fileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.svg"
     return "file:///android_asset/fitness_icons/$fileName"
 }
 
@@ -113,7 +118,7 @@ fun IconPicker(
             columns = GridCells.Fixed(5),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.height(200.dp)
+            modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
             items(AVAILABLE_ICONS) { icon ->
                 val isSelected = icon.name == selectedIcon

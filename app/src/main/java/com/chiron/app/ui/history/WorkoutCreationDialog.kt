@@ -18,32 +18,52 @@ fun WorkoutCreationDialog(
     onDismiss: () -> Unit,
     onCreate: (dayTag: String, locationTag: String, dateIso: String) -> Unit,
     settingsRepository: UserSettingsRepository? = null,
-    existingLocations: List<String> = emptyList()
+    existingLocations: List<String> = emptyList(),
+    existingDayTags: List<String> = emptyList()
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    
+    // Day Tag State (Default: Full Body Day)
+    var selectedDayTag by remember { mutableStateOf("Full Body Day") }
+    var customDayTagInput by remember { mutableStateOf("") }
+    
+    // Location State
     var selectedLocation by remember { mutableStateOf("") }
     var customLocationInput by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
 
     // Load custom locations from settings
     val customLocations by settingsRepository?.customLocationsFlow?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList()) }
 
-    // Merge custom locations with existing workout locations (unique, sorted)
+    // Merge locations
     val allLocations = remember(customLocations, existingLocations) {
         (customLocations + existingLocations).distinct().sorted()
     }
+    
+    // Merge day tags (ensure efficient distinct)
+    val allDayTags = remember(existingDayTags) {
+        existingDayTags.distinct().sorted()
+    }
 
-    // Calculate day tag from selected date
-    val dayTag = selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    // Calculate derived values
     val dateIso = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+    val dayOfWeek = selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
-    // Determine which location to use
+    // Determine final values
     val finalLocation = if (selectedLocation == "Custom" && customLocationInput.isNotBlank()) {
         customLocationInput
     } else if (selectedLocation.isNotBlank()) {
         selectedLocation
+    } else {
+        ""
+    }
+    
+    val finalDayTag = if (selectedDayTag == "Custom" && customDayTagInput.isNotBlank()) {
+        customDayTagInput
+    } else if (selectedDayTag.isNotBlank()) {
+        selectedDayTag
     } else {
         ""
     }
@@ -54,87 +74,56 @@ fun WorkoutCreationDialog(
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Date display
                 Text(
-                    text = "Date: $dateIso ($dayTag)",
-                    style = MaterialTheme.typography.bodyLarge
+                    text = "Date: $dateIso ($dayOfWeek)",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Location dropdown
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
-                ) {
-                    OutlinedTextField(
-                        value = if (selectedLocation == "Custom") "Custom..." else selectedLocation,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Location") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        // Show all locations (from history + custom)
-                        allLocations.forEach { location ->
-                            DropdownMenuItem(
-                                text = { Text(location) },
-                                onClick = {
-                                    selectedLocation = location
-                                    customLocationInput = ""
-                                    expanded = false
-                                }
-                            )
-                        }
-                        
-                        // Add divider if there are locations
-                        if (allLocations.isNotEmpty()) {
-                            HorizontalDivider()
-                        }
-                        
-                        // "Custom" option to add new location
-                        DropdownMenuItem(
-                            text = { Text("Custom...") },
-                            onClick = {
-                                selectedLocation = "Custom"
-                                expanded = false
-                            }
-                        )
-                    }
-                }
+                // Workout Name (Day Tag) Selection
+                SelectionInput(
+                    label = "Workout Name",
+                    options = allDayTags,
+                    selectedOption = selectedDayTag,
+                    onOptionSelected = { 
+                        selectedDayTag = it 
+                        if (it != "Custom") customDayTagInput = ""
+                    },
+                    customInput = customDayTagInput,
+                    onCustomInputChange = { customDayTagInput = it }
+                )
 
-                // Show custom location input if "Custom" is selected
-                if (selectedLocation == "Custom") {
-                    OutlinedTextField(
-                        value = customLocationInput,
-                        onValueChange = { customLocationInput = it },
-                        label = { Text("Enter location") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
+                // Location Selection
+                SelectionInput(
+                    label = "Location",
+                    options = allLocations,
+                    selectedOption = selectedLocation,
+                    onOptionSelected = { 
+                        selectedLocation = it
+                        if (it != "Custom") customLocationInput = ""
+                    },
+                    customInput = customLocationInput,
+                    onCustomInputChange = { customLocationInput = it }
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (finalLocation.isNotBlank()) {
-                        // Save custom location if it's new
+                    if (finalLocation.isNotBlank() && finalDayTag.isNotBlank()) {
+                        // Save custom location if it's new (Day tags are saved implicitly via usage)
                         if (selectedLocation == "Custom" && customLocationInput.isNotBlank()) {
                             scope.launch {
                                 settingsRepository?.addCustomLocation(customLocationInput)
                             }
                         }
-                        onCreate("Full Body Day", finalLocation, dateIso)
+                        onCreate(finalDayTag, finalLocation, dateIso)
                     }
                 },
-                enabled = finalLocation.isNotBlank()
+                enabled = finalLocation.isNotBlank() && finalDayTag.isNotBlank()
             ) {
                 Text("Create")
             }
@@ -145,4 +134,71 @@ fun WorkoutCreationDialog(
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionInput(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit,
+    customInput: String,
+    onCustomInputChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = if (selectedOption == "Custom") "Custom..." else selectedOption,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(label) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onOptionSelected(option)
+                            expanded = false
+                        }
+                    )
+                }
+                
+                if (options.isNotEmpty()) {
+                    HorizontalDivider()
+                }
+                
+                DropdownMenuItem(
+                    text = { Text("Custom...") },
+                    onClick = {
+                        onOptionSelected("Custom")
+                        expanded = false
+                    }
+                )
+            }
+        }
+
+        if (selectedOption == "Custom") {
+            OutlinedTextField(
+                value = customInput,
+                onValueChange = onCustomInputChange,
+                label = { Text("Enter custom $label") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+        }
+    }
 }

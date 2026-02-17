@@ -14,6 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chiron.app.ui.components.WheelPicker
 import com.chiron.app.viewmodel.TimerTab
 import com.chiron.app.viewmodel.TimerViewModel
 
@@ -27,10 +29,11 @@ fun TimerScreen(
 
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        SingleChoiceSegmentedButtonRow {
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+        ) {
             SegmentedButton(
                 selected = state.activeTab == TimerTab.TIMER,
                 onClick = { viewModel.selectTab(TimerTab.TIMER) },
@@ -43,29 +46,111 @@ fun TimerScreen(
             ) { Text("Stopwatch") }
         }
 
-        when (state.activeTab) {
-            TimerTab.TIMER -> CountdownContent(viewModel)
-            TimerTab.STOPWATCH -> StopwatchContent(viewModel)
+        Spacer(modifier = Modifier.weight(1.5f)) // Push content down
+        
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            when (state.activeTab) {
+                TimerTab.TIMER -> CountdownContent(viewModel)
+                TimerTab.STOPWATCH -> StopwatchContent(viewModel)
+            }
         }
+        
+        Spacer(modifier = Modifier.weight(1f)) // Push content up slightly from bottom to be "lower down" but not bottom
     }
 }
 
 @Composable
-private fun CountdownContent(viewModel: TimerViewModel) {
+fun CountdownContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = TimerViewModel.formatCountdown(state.countdownRemaining),
-            style = MaterialTheme.typography.displayMedium
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.startCountdown() }) { Text("Start") }
-            Button(onClick = { viewModel.pauseCountdown() }) { Text("Pause") }
-            Button(onClick = { viewModel.resetCountdown() }) { Text("Reset") }
+        if (state.isCountdownRunning) {
+            Text(
+                text = TimerViewModel.formatCountdown(state.countdownRemaining),
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 80.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            )
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                // Minutes
+                WheelPicker(
+                    count = 100, // Allow up to 99 minutes
+                    value = state.countdownRemaining / 60,
+                    onValueChange = { newMin ->
+                        val currentSec = state.countdownRemaining % 60
+                        viewModel.setCountdownPreset(newMin * 60 + currentSec)
+                    },
+                    itemHeight = 120.dp,
+                    textStyle = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp)
+                )
+                
+                Text(
+                    ":",
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontSize = 80.sp, 
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.padding(horizontal = 8.dp).offset(y = (-8).dp) // Visual alignment
+                )
+
+                // Seconds
+                WheelPicker(
+                    count = 60,
+                    value = state.countdownRemaining % 60,
+                    onValueChange = { newSec ->
+                        val currentMin = state.countdownRemaining / 60
+                        viewModel.setCountdownPreset(currentMin * 60 + newSec)
+                    },
+                    itemHeight = 120.dp,
+                    textStyle = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp)
+                )
+            }
+        }
+        
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Start/Pause Button (Main Action)
+            Button(
+                onClick = { 
+                    if (state.isCountdownRunning) viewModel.pauseCountdown() else viewModel.startCountdown() 
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(80.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    if (state.isCountdownRunning) "Pause" else "Start",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            }
+            
+            // Reset Button (Secondary Action)
+            Button(
+                onClick = { viewModel.resetCountdown() },
+                modifier = Modifier
+                    .weight(1f) // Changed from 0.5f to 1f for equal size
+                    .height(80.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors()
+            ) {
+                Text("Reset", style = MaterialTheme.typography.headlineSmall) // Match style
+            }
         }
     }
 }

@@ -13,6 +13,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.chiron.app.di.ServiceLocator
 import com.chiron.app.ui.components.BottomNavBar
 import com.chiron.app.ui.components.NavTab
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
 
                 val tabs = NavTab.values()
                 val pagerState = rememberPagerState(initialPage = selectedTab.ordinal)
+                val scope = rememberCoroutineScope()
 
                 // Keep pager and bottom nav in sync
                 LaunchedEffect(selectedTab) {
@@ -55,6 +58,26 @@ class MainActivity : ComponentActivity() {
                 }
                 LaunchedEffect(pagerState.currentPage) {
                     selectedTab = tabs[pagerState.currentPage]
+                }
+
+                androidx.activity.compose.BackHandler(enabled = true) {
+                    when {
+                        isExerciseDetailOpen -> {
+                            isExerciseDetailOpen = false
+                            activeExerciseId = null
+                        }
+                        historyViewModel.uiState.value.isEditorOpen -> {
+                            historyViewModel.closeEditor()
+                        }
+                        pagerState.currentPage > 0 -> {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                            }
+                        }
+                        else -> {
+                            finish()
+                        }
+                    }
                 }
 
                 androidx.compose.material3.Scaffold(
