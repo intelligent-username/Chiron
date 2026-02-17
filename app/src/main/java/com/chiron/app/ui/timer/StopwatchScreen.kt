@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.chiron.app.viewmodel.TimerViewModel
@@ -20,7 +21,10 @@ import com.chiron.app.viewmodel.TimerViewModel
 fun StopwatchContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = TimerViewModel.formatStopwatch(state.stopwatchMillis),
             style = MaterialTheme.typography.displayMedium
@@ -32,10 +36,21 @@ fun StopwatchContent(viewModel: TimerViewModel) {
             Button(onClick = { viewModel.resetStopwatch() }) { Text("Reset") }
         }
 
+        // Lap button (separate row for emphasis)
+        Button(
+            onClick = { viewModel.recordLap() },
+            enabled = state.isStopwatchRunning || state.stopwatchMillis > 0
+        ) {
+            Text("Lap")
+        }
+
         Spacer(Modifier.height(8.dp))
-        Text("Laps", style = MaterialTheme.typography.titleSmall)
-        state.laps.forEachIndexed { index, lap ->
-            Text("Lap ${index + 1}: ${TimerViewModel.formatStopwatch(lap)}")
+        
+        if (state.laps.isNotEmpty()) {
+            Text("Laps", style = MaterialTheme.typography.titleSmall)
+            state.laps.forEachIndexed { index, lap ->
+                Text("Lap ${index + 1}: ${TimerViewModel.formatStopwatch(lap)}")
+            }
         }
     }
 }

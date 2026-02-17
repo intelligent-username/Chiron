@@ -16,3 +16,13 @@ Chiron/
 ├── LICENSE       # APACHE 2.0
 └── README.md     # This file
 ```
+
+## Compilation
+
+Run
+
+```bash
+.\gradlew.bat assembleDebug
+```
+
+And look the file at `app\build\outputs\apk\debug\app-debug.apk`

@@ -27,9 +27,9 @@ fun SetPill(
     val weightText = if (weightLbs != null) {
         if (displayInKg) {
             val kg = UnitConversion.lbsToDisplayKg(weightLbs)
-            "${formatNumber(kg)}"
+            "${formatNumber(kg)}kgs"
         } else {
-            "${formatNumber(weightLbs)}"
+            "${formatNumber(weightLbs)}lbs"
         }
     } else "—"
 

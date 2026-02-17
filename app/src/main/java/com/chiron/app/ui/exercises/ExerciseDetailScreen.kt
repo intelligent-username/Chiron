@@ -1,62 +1,129 @@
 package com.chiron.app.ui.exercises
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.chiron.app.data.entities.Exercise
+import com.chiron.app.ui.components.IconPicker
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseDetailScreen(
     exercise: Exercise?,
     onSave: (Exercise) -> Unit,
+    onDelete: ((Long) -> Unit)? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val nameState = remember(exercise) { mutableStateOf(exercise?.name ?: "") }
-    val descState = remember(exercise) { mutableStateOf(exercise?.description ?: "") }
-
-    LaunchedEffect(exercise?.id) {
-        // Placeholder for future side effects (load image, history)
+    if (exercise == null) {
+        onClose()
+        return
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
-        Text("Exercise Detail", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(12.dp))
+    var nameState by remember { mutableStateOf(exercise.name) }
+    var descState by remember { mutableStateOf(exercise.description ?: "") }
+    var iconState by remember { mutableStateOf(exercise.iconName ?: "default") }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
-        OutlinedTextField(
-            value = nameState.value,
-            onValueChange = { nameState.value = it },
-            label = { Text("Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = descState.value,
-            onValueChange = { descState.value = it },
-            label = { Text("Description") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(16.dp))
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Edit Exercise") },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, "Close")
+                    }
+                },
+                actions = {
+                    if (onDelete != null) {
+                        IconButton(onClick = { showDeleteConfirmation = true }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                "Delete",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            onSave(exercise.copy(
+                                name = nameState.trim(),
+                                description = descState.trim().ifBlank { null },
+                                iconName = iconState
+                            ))
+                            onClose()
+                        },
+                        enabled = nameState.trim().isNotBlank()
+                    ) {
+                        Text("Save")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedTextField(
+                value = nameState,
+                onValueChange = { nameState = it },
+                label = { Text("Exercise Name") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
 
-        Button(onClick = {
-            if (exercise != null) {
-                onSave(exercise.copy(name = nameState.value.trim(), description = descState.value.trim()))
-            }
-            onClose()
-        }) {
-            Text("Save")
+            OutlinedTextField(
+                value = descState,
+                onValueChange = { descState = it },
+                label = { Text("Description (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 6
+            )
+            
+            // Icon picker
+            IconPicker(
+                selectedIcon = iconState,
+                onIconSelected = { iconState = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Delete confirmation dialog
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Delete Exercise") },
+                text = { Text("Are you sure you want to delete \"${exercise.name}\"? This action cannot be undone.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDelete?.invoke(exercise.id)
+                            showDeleteConfirmation = false
+                            onClose()
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

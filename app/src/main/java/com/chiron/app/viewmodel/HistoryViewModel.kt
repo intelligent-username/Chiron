@@ -139,11 +139,28 @@ class HistoryViewModel(
         }
     }
 
+    fun updateExerciseEntry(entry: ExerciseEntry) {
+        debounceJob?.cancel()
+        debounceJob = viewModelScope.launch {
+            delay(debounceDelayMs)
+            repository.updateExerciseEntry(entry)
+        }
+    }
+
     fun deleteExerciseEntry(workoutId: Long, entryId: Long) {
         viewModelScope.launch {
             repository.deleteExerciseEntry(workoutId, entryId)
         }
     }
+
+    suspend fun getExerciseName(exerciseId: Long): String? =
+        repository.getExerciseById(exerciseId)?.name
+
+    suspend fun getExerciseById(exerciseId: Long): com.chiron.app.data.entities.Exercise? =
+        repository.getExerciseById(exerciseId)
+
+    suspend fun getAllExercises(): List<com.chiron.app.data.entities.Exercise> =
+        repository.getAllExercises()
 
     // ─────────────────────────────────────────────────────────────────────────
     // Set operations
@@ -191,6 +208,8 @@ class HistoryViewModel(
      */
     suspend fun checkPr(exerciseId: Long, weightLbs: Double, reps: Int): Boolean =
         repository.isNewPr(exerciseId, weightLbs, reps)
+
+    fun getSettingsRepository(): UserSettingsRepository = settingsRepository
 
     // ─────────────────────────────────────────────────────────────────────────
     // Factory

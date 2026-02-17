@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.chiron.app"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.chiron.app"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -42,7 +42,9 @@ android {
         compose = true
     }
 
-    // Kotlin 2.0+ includes the Compose compiler; explicit compiler version is not required
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
+    }
 }
 
 dependencies {
@@ -64,6 +66,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

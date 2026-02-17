@@ -1,315 +1,355 @@
-# Chiron — Full specification (minimal, local-first workout tracker)
+## Introduction and Intent
 
-**Intention.** Chiron is a small, simple, modern workout tracker for a single user on Android. It is offline-only, fast to use in-gym, and deliberately feature-minimal: record exercises, sets (weight + reps), notes, and lightweight tags (Day, Date, Location). The app must be one-screen-simple for logging and easy to edit afterwards. No cloud, no analytics, no templates, no exports. Build only what you explicitly specified.
+Chiron is a small, personal, offline-first Android workout tracking application. Its purpose is not to compete with commercial fitness apps, but to replace a notes app with something purpose-built, clean, and fast. The design goal is simplicity without ambiguity: every feature exists because it solves a real logging problem during training. There are no social features, no cloud sync, no templates, no analytics, and no defaults imposed by the app. Everything is user-defined.
 
-Below is a complete, implementation-ready specification: features, data model, app architecture, tech stack, UX flows, DB schema, DAOs, ViewModels, timing and autosave rules, PR logic, unit behavior, image handling, testing notes, and finally a precise file tree ready for import into Android Studio.
+Chiron is designed for a single user, on a single device. All data lives locally. Nothing is ever deleted; items can only be archived. The app is structured so that future expansion is possible, but the initial implementation must remain minimal, readable, and stable.
 
----
-
-# Core feature summary (explicit)
-
-1. **Three tabs** (bottom navigation + swipe):
-
-   * **History** — chronological stack of workouts, inline editor for “Today” or editing past workouts. Filter by Day tag. Workouts ordered by timestamp.
-   * **Exercises** — global exercise list (name, description, image URI, archived flag). Search/autocomplete (Jaccard). Edit name (cascades), description, image.
-   * **Timer** — stopwatch and countdown timer (two segmented sub-tabs). Minimal controls only.
-
-2. **Workout identity** — Each workout is defined and strictly enforced by the triple: `day_tag` (user tag), `date_iso` (ISO date / timestamp), `location_tag` (string). The DB enforces uniqueness on the triple. Workouts have canonical `workout_id`.
-
-3. **Records** — Each workout contains ordered `ExerciseEntry` rows, each with ordered `SetEntry` rows (weight and reps). Both set weight and reps are nullable (partial entry allowed). All items have an `archived` flag; nothing is permanently deleted.
-
-4. **Units** — Weights stored in the DB always in **pounds**. A global `UserSettings.display_in_kg` boolean toggles display conversion to kg (front-end only). If display-in-kg is enabled, the UI converts and rounds to nearest 0.5 kg, otherwise shows lbs. (User setting stored in DataStore / small DB table.)
-
-5. **Autofill / suggestions** — When adding an exercise in a workout, the app autofills the first set with the last used weight/reps for that exercise (from DB). Name autocomplete uses Jaccard similarity over tokenized exercise names, tie-broken by recency.
-
-6. **PR detection** — PR defined as **highest weight recorded for that exact reps count** per exercise. PRs recomputed on demand from DB after edits; transient UI badge when a new PR is created.
-
-7. **Supersets / dropsets** — Each `ExerciseEntry` has a `sequence_type` enum (`NONE`, `SUPERSET_START`, `SUPERSET_MIDDLE`, `SUPERSET_END`, `DROPSET`) and `group_id` (nullable). Supersets are expressed by multiple `ExerciseEntry` rows sharing a `group_id`.
-
-8. **Images** — Exercise images live as files copied into app-managed image storage and referenced by URI string in the `Exercise` entity. The repository copies the user-selected image into the app images folder at upload time. Note that images for an exercise are optional and ones that don't have an image shouldn't have any placeholder.
-
-9. **Editing behavior** — All fields editable at any time. Partial entries allowed (e.g., weight recorded first, reps added later). Edits propagate where specified: exercise name rename cascades to historical entries. Archiving hides items from autocomplete and normal lists but does not remove history references.
-
-10. **No extra features.** No templates, no charts, no sync, no export (explicitly none). Keep scope tight.
+The core promise of Chiron is this: logging a workout should be faster than writing it in a notes app, and reviewing past workouts should be clearer than scrolling through text.
 
 ---
 
-# Tech stack (final, minimal)
+## Core Concepts and Terminology
 
-* **Language:** Kotlin only.
-* **UI:** Jetpack Compose. Compose is Android’s recommended UI toolkit and simplifies a single-activity architecture. ([Android Developers][1])
-* **Persistence:** Room (SQLite). Use entity+DAO pattern and Kotlin coroutines / Flows. ([Android Developers][2])
-* **Build:** Gradle with Kotlin DSL (`build.gradle.kts`). Prefer Kotlin DSL for new projects. ([Gradle Documentation][3])
-* **Image loading:** Coil (Compose-compatible) for showing URIs.
-* **Image storage:** copy user-provided images into app-managed directory (see image rules below). Use MediaStore/SAF for selection.
-* **Preferences:** DataStore (or a simple single-row `UserSettings` table) to persist `display_in_kg`.
-* **Min SDK / target:** Min SDK **23** (reason: AndroidX libs moved to require minSdk 23 after 2025). Target and compile SDK use latest installed in Android Studio. ([Android Developers][4])
+Before specifying features and implementation, the core concepts must be clearly defined. These concepts are used consistently throughout the app and the database.
 
----
+### Workout Session
 
-# App architecture (minimal, single-activity)
+A workout session represents a single training session performed at a specific time and place. A workout session is uniquely identified by three components:
 
-* **MainActivity** (single activity) with Compose and **BottomNavigation** + `Pager` for swipe. Use `ViewModel`s scoped to each tab.
-* Layers:
+1. **Day tag** – a user-defined label such as "Upper", "Legs", "Pull", etc.
+2. **Date** – a calendar date, stored internally as a full UTC timestamp.
+3. **Location tag** – a user-defined label such as "Home", "Gym A", "Gym B".
 
-  * **UI** (Compose composables) — simple and thin.
-  * **ViewModel** (StateFlow + coroutine scope) — UI state, simple input validation, and small caching.
-  * **Repository** — Room access, small business logic (PR recompute, suggestions), image copy helper.
-  * **DB (Room)** — Entities & DAOs. Use transactions for multi-table operations.
-* No DI framework; use a small ServiceLocator or manual injection. Keep singletons minimal.
+These three together define a workout. Two workouts may share the same day tag or location tag, but the full combination of (day, date, location) must be unique.
 
----
+Each workout session contains a sequence of exercises performed during that session.
 
-# Data model and schema (Room entities)
+### Exercise
 
-All timestamp fields stored as epoch millis UTC (Long). Use ascending `slot_index` semantics (1 = first). `archived` is integer flag 0/1.
+An exercise is a global, reusable entity such as "Bench Press", "Lat Pulldown", or "Barbell Curl". Exercises are defined once and reused across all workouts.
 
-```sql
--- WorkoutSession (canonical workout_id)
-WorkoutSession:
-  id: Long PRIMARY KEY AUTOINCREMENT
-  day_tag: String NOT NULL        -- user tag (e.g., "Pull Day 1")
-  date_iso: String NOT NULL       -- ISO date string (YYYY-MM-DD)
-  date_utc: Long NOT NULL         -- epoch millis for full timestamp (for ordering)
-  location_tag: String NOT NULL
-  notes: String? NULL
-  archived: Int DEFAULT 0
-  UNIQUE(day_tag, date_iso, location_tag)
+An exercise has:
 
--- Exercise (global identity)
-Exercise:
-  id: Long PRIMARY KEY AUTOINCREMENT
-  name: String NOT NULL UNIQUE    -- non-archived duplicates forbidden
-  image_uri: String? NULL         -- internal app file URI
-  description: String? NULL       -- exercise-global note / description
-  archived: Int DEFAULT 0
+* A unique immutable ID
+* A user-editable name (must be unique among non-archived exercises)
+* An optional image
+* A global description explaining how to perform the exercise
 
--- ExerciseEntry (a single exercise row inside a workout)
-ExerciseEntry:
-  id: Long PRIMARY KEY AUTOINCREMENT
-  workout_id: Long NOT NULL REFERENCES WorkoutSession(id)
-  exercise_id: Long NOT NULL REFERENCES Exercise(id)
-  slot_index: Int NOT NULL        -- 1-based ordering of exercise in workout, ascending
-  group_id: Long? NULL            -- shared group id for supersets
-  sequence_type: String NOT NULL  -- ENUM: NONE, SUPERSET_START, SUPERSET_MIDDLE, SUPERSET_END, DROPSET
-  notes: String? NULL             -- instance note
-  archived: Int DEFAULT 0
-  UNIQUE(workout_id, slot_index)
+Renaming an exercise updates all historical references. Exercises are never deleted, only archived.
 
--- SetEntry (a performed set)
-SetEntry:
-  id: Long PRIMARY KEY AUTOINCREMENT
-  exercise_entry_id: Long NOT NULL REFERENCES ExerciseEntry(id)
-  set_index: Int NOT NULL         -- 1-based ordering within exercise, ascending
-  weight_lbs: Double? NULL        -- always stored in lbs, nullable if partial
-  reps: Int? NULL                 -- nullable if partial
-  is_failed: Int DEFAULT 0
-  tempo: String? NULL
-  notes: String? NULL
-  timestamp_utc: Long NOT NULL
-  UNIQUE(exercise_entry_id, set_index)
-```
+### Exercise Entry
 
-Indices: index on `Exercise.name`, `WorkoutSession.date_utc`, `SetEntry.exercise_entry_id`.
+An exercise entry represents the use of a specific exercise within a specific workout session. The same exercise may appear multiple times within the same workout session, in different positions.
+
+An exercise entry has:
+
+* A reference to a workout session
+* A reference to a global exercise
+* An order index (position within the workout)
+* A sequence type (normal, superset, dropset, etc.)
+* An optional instance note describing how the exercise felt that day
+
+### Set Entry
+
+A set entry represents a single performed set of an exercise entry. Sets are ordered and may be partially filled.
+
+A set entry has:
+
+* A reference to an exercise entry
+* A set index (order within the exercise)
+* Weight (stored in pounds, nullable)
+* Repetitions (integer, nullable)
+* Timestamp
+* Optional note
+
+Partial sets are allowed. Weight and reps may be entered independently.
 
 ---
 
-# DAO surface (representative method signatures)
+## Functional Requirements
 
-Use suspend functions and Flows where helpful.
+### Navigation Structure
 
-**ExerciseDao**
+Chiron has exactly three primary tabs, displayed in a bottom navigation bar. The user can switch tabs either by tapping icons or by swiping horizontally.
 
-* `suspend fun insertExercise(ex: Exercise): Long`
-* `suspend fun updateExercise(ex: Exercise)`
-* `fun getExercisesFlow(): Flow<List<Exercise>>`
-* `fun searchByJaccard(input: String, limit: Int): List<Exercise>` (compute in repo using simple in-memory Jaccard, not SQL)
+Tabs:
 
-**WorkoutSessionDao**
+1. Workout History
+2. Exercises
+3. Timer
 
-* `suspend fun insertWorkout(session: WorkoutSession): Long`
-* `suspend fun updateWorkout(session: WorkoutSession)`
-* `fun getWorkoutsFlow(showArchived: Boolean = false): Flow<List<WorkoutSession>>`
-* `suspend fun duplicateWorkout(workoutId: Long): Long` — NOT supported (user said NO duplication). Implement but keep disabled.
-
-**ExerciseEntryDao**
-
-* `suspend fun insertEntry(entry: ExerciseEntry): Long`
-* `suspend fun updateEntry(entry: ExerciseEntry)`
-* `fun getEntriesForWorkout(workoutId: Long): Flow<List<ExerciseEntry>>`
-
-**SetEntryDao**
-
-* `suspend fun insertSet(set: SetEntry): Long`
-* `suspend fun updateSet(set: SetEntry)`
-* `fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>>`
-* `suspend fun getLastSetForExercise(exerciseId: Long): SetEntry?` (query via JOIN/ORDER BY timestamp)
-
-All multi-row operations (reordering slot_index, deleting and reindexing set_index) performed inside `@Transaction` methods.
+There are no additional screens beyond these tabs and inline editors.
 
 ---
 
-# Business rules & behavior details
+## Workout History Tab
 
-* **Autosave & debounce:** Debounce lightweight writes to DB at **750 ms** per field change; always force-sync on navigation away or tapping “Finish”. Use coroutine `debounce` or manual coroutine delay with cancellation.
-* **Partial sets:** Allow `weight_lbs` or `reps` to be `null`. PR logic ignores sets missing either weight or reps.
-* **Ordering:** Always store ascending slot_index and set_index; when an entry or set is removed, reindex the remaining items in a single transaction.
-* **Rename cascade:** When user renames an Exercise, update the `Exercise.name` field only. Exercise entries reference `exercise_id` so history stays consistent automatically. Do not create new rows—rename updates the single global Exercise record.
-* **Archive semantics:** Archiving sets `archived=1`. Archived items are excluded from default DAO queries (unless `showArchived=true`) and from autocomplete search.
-* **Image handling:** On image upload, copy selected file into app-managed storage path `filesDir/images/exercises/` with filename `<exerciseId>_<systemMillis>.<ext>`. Store content URI string in DB (`image_uri`). Repo includes `imgs/` for static assets and placeholders only. When the user archives an exercise, image file remains until user explicitly deletes via "delete image" action.
-* **PR detection:** For each exercise and rep count `r`, compute `max_weight_r` = max(weight_lbs WHERE reps == r). New PR if current set weight > max_weight_r. PR badges created transiently; PR values are not stored separately (computed on demand).
-* **Rep/weight suggestion:** Maintain `exercise_max_1rm` as `max(weight * (1 + reps/30))` computed on-demand. For a provided weight `w`, estimate reps via inverted Epley and clamp to 1..30. If no history, default suggestions are empty (let user enter manually).
-* **Units:** All weights stored as lbs; front-end converts to kg if user preference set. Use conversion factor 1 kg = 2.2046226218 lbs. Round display kg to nearest 0.5 kg.
-* **Validation:** Reps must be 1..100 if non-null; weight 0.0..2000.0 if non-null. UI prevents invalid input.
+The Workout History tab is the main screen of the app.
+
+### Layout
+
+* Top area: filter row displaying available day tags
+* Main area: chronological list of workout cards
+* Floating action button: "New Workout"
+
+Workout cards are ordered by date, most recent first.
+
+### Workout Card
+
+Each workout card displays:
+
+* Date (formatted in local time)
+* Day tag
+* Location tag
+* Small preview of exercises performed
+
+Tapping a card opens the workout in editable mode inline.
+
+### Creating a New Workout
+
+When the user taps "New Workout":
+
+* A new workout session is created with the current timestamp
+* The user selects or creates:
+
+  * Day tag
+  * Location tag
+* The workout opens immediately in editable mode
+
+The user is not required to complete the workout immediately. Changes are autosaved.
+
+### Editing a Workout
+
+Inside a workout:
+
+* The header contains editable fields:
+
+  * Day tag
+  * Date (calendar picker)
+  * Location tag
+
+* Below the header is a vertical list of exercise entries.
+
+### Exercise Entry UI
+
+Each exercise entry appears as a rectangular block containing:
+
+* Exercise name (tap to rename or change exercise)
+* Optional exercise image thumbnail
+* Sequence indicator (normal, superset, dropset)
+* Instance note field (optional)
+
+Below the exercise header are the sets for that exercise.
+
+### Sets UI
+
+Sets are displayed as small pills or rows showing:
+
+* Weight
+* Reps
+
+Each value is individually editable. The user may:
+
+* Enter weight first, reps later
+* Enter reps first, weight later
+
+Adding a set:
+
+* Adds a new set entry
+* Autofills weight and reps based on the most recent historical set for that exercise
+
+### Ordering
+
+* Exercise entries are ordered by their slot index (ascending)
+* Sets are ordered by set index (ascending)
+
+Reordering exercises updates slot indices atomically.
+
+### Supersets and Dropsets
+
+Each exercise entry has a `sequence_type` field:
+
+* NONE
+* SUPERSET
+* DROPSET
+
+Superset exercises share a group ID and are displayed grouped together.
+
+### Filtering
+
+The filter row shows all active day tags. Tapping a tag filters workouts by that day.
+
+Archived tags are hidden from selection but visible in historical records.
 
 ---
 
-# UI & navigation details
+## Exercises Tab
 
-* **Bottom navigation** (centered at bottom): three icons with labels: History, Exercises, Timer. Tabs are swipeable (Pager). Navigation state held in `MainViewModel`.
-* **History screen**:
+The Exercises tab manages the global exercise list.
 
-  * Top: filter chip row with dynamic list of `day_tag` values (derived from DB distinct `day_tag`).
-  * Main: grid/stack of workout cards arranged left→right, top→bottom by recency. FAB labeled “New workout” opens inline `WorkoutEditor` for today (pre-filled `date_iso`).
-  * WorkoutEditor (inline):
+### Layout
 
-    * Header: editable `day_tag`, `date_iso` picker, `location_tag`.
-    * Vertical list of `ExerciseEntry` rectangles with drag handle (reorder), name (autocomplete), thumbnail image, and a horizontal row of set “pills”. Each pill shows `weight × reps` or “—” for missing values. Tap pill opens numeric edit for weight/reps; “+ Add Set” button at end. Save auto on change.
-* **Exercises screen**:
+* Search bar at top
+* Alphabetical list of exercises
 
-  * Search bar with live Jaccard suggestions.
-  * Rows: name, thumbnail, last-used quick stats (last weight × reps). Tap to full-detail screen with description and full history.
-  * Add new exercise: name + select image + description.
-* **Timer screen**:
+### Exercise List Item
 
-  * Two segmented sub-tabs: Timer (countdown presets) and Stopwatch (lap times).
-  * Minimal controls: start/pause/reset. No automation.
+Each item displays:
 
----
+* Exercise name
+* Optional image
 
-# Image & repo folder clarification
+Tapping opens exercise details.
 
-* **Repo `imgs/`**: static assets only (app logo, SVG icons, placeholder exercise images). These are committed in source control and used at build time.
-* **Runtime user images**: copy into app files directory at runtime (`context.filesDir/images/exercises/`). Store the internal content URI in `Exercise.image_uri`. The repo `imgs/` is *not* used to store user uploads at runtime. This preserves correct behavior on devices and prevents accidental loss when the project root is separate from runtime storage.
+### Exercise Details
 
----
+Shows:
 
-# Testing & QA
+* Exercise image
+* Exercise name (editable)
+* Global description (optional)
+* Full history summary (read-only)
 
-* Unit tests:
+### Adding an Exercise
 
-  * Jaccard similarity (tokenization, scoring).
-  * 1RM estimator and rep suggestion functions.
-  * Unit conversion (lbs↔kg rounding).
-  * DB reindexing after reorder/delete.
-* Instrumented tests:
+Exercises may be added:
 
-  * Add-workout flow: add exercise, add set weight then reps, verify persisted values.
-  * Edit-workout flow: rename exercise, verify cascade.
-  * Archive flow: archive exercise and ensure it hides from autocomplete.
+* From the Exercises tab
+* Inline while logging a workout
 
----
+Exercise names must be unique among non-archived exercises.
 
-# Build settings & versions (practical defaults)
+### Images
 
-* `compileSdk` and `targetSdk` set to latest installed in Android Studio.
-* `minSdk = 23` (Android 6.0) to avoid AndroidX compatibility issues after 2025. ([Android Developers][4])
-* Use `kotlin("jvm")` Gradle Kotlin DSL files (`build.gradle.kts`). Prefer Kotlin DSL for new projects. ([Gradle Documentation][3])
+When an image is added:
+
+* The file is copied into the app’s internal `imgs/exercises/` directory
+* The URI is stored in the database
 
 ---
 
-# Final file structure (ready for Android Studio)
+## Timer Tab
 
-This is a single-module Android project laid out so a new Android Studio project can be populated with these files. Place Kotlin source files under `src/main/java/com/chiron/app/` or the Kotlin equivalent and Compose resources under `src/main/res` where necessary. Take the current file structure and transform it as necessary to conform to the following structure:
+The Timer tab contains two sub-tabs:
+
+1. Stopwatch
+2. Countdown Timer
+
+### Stopwatch
+
+* Start / Stop
+* Lap recording
+
+### Countdown Timer
+
+* User-defined duration
+* Start / Pause / Reset
+
+No workout logic is tied to the timer. It is a standalone utility.
+
+---
+
+## Data Storage and Persistence
+
+Chiron uses a local SQLite database via Room.
+
+### Tables
+
+#### WorkoutSession
+
+* id (PK)
+* day_tag (TEXT)
+* date_utc (INTEGER)
+* location_tag (TEXT)
+* archived (BOOLEAN)
+
+Unique constraint on (day_tag, date_utc, location_tag)
+
+#### Exercise
+
+* id (PK)
+* name (TEXT, unique)
+* image_uri (TEXT)
+* description (TEXT)
+* archived (BOOLEAN)
+
+#### ExerciseEntry
+
+* id (PK)
+* workout_id (FK)
+* exercise_id (FK)
+* slot_index (INTEGER)
+* sequence_type (INTEGER)
+* group_id (INTEGER)
+* instance_note (TEXT)
+
+#### SetEntry
+
+* id (PK)
+* exercise_entry_id (FK)
+* set_index (INTEGER)
+* weight_lbs (REAL, nullable)
+* reps (INTEGER, nullable)
+* timestamp_utc (INTEGER)
+
+#### UserSettings
+
+* id (single row)
+* display_in_kg (BOOLEAN)
+
+---
+
+## Units and PR Logic
+
+* All weights are stored in pounds
+* Display in kilograms is optional and purely visual
+* Conversion: lbs / 2.2, rounded to nearest 0.5 kg
+
+PR logic:
+
+* For a given exercise and rep count
+* The highest recorded weight is the PR
+* Recomputed dynamically from historical data
+
+---
+
+## Architecture and Tech Stack
+
+* Language: Kotlin
+* UI: Jetpack Compose
+* State: ViewModel + StateFlow
+* Persistence: Room (SQLite)
+* Image loading: Coil
+* Preferences: DataStore
+* Date handling: java.time
+
+Single-Activity architecture.
+
+---
+
+## File Structure
 
 ```
 Chiron/
 ├── imgs/
-│   ├── Cover.png
-│   ├── logo.png
-│   ├── logo.svg
-│   └── placeholder.svg
-│
-├── db/                                    # docs & schema (not runtime DB)
+│   └── exercises/
+├── db/
 │   ├── schema_v1.sql
-│   └── Spec.md                             # this file
-│
-├── build.gradle.kts                        # root Gradle (Kotlin DSL)
-├── settings.gradle.kts
-│
-├── app/
-│   ├── build.gradle.kts                    # app module build file
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── AndroidManifest.xml
-│   │   │   ├── java/com/chiron/app/
-│   │   │   │   ├── MainActivity.kt
-│   │   │   │   ├── App.kt                   # Subclass & singletons/providers
-│   │   │   │   ├── di/                      # simple ServiceLocator (manual DI)
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── ChironDatabase.kt
-│   │   │   │   │   ├── dao/
-│   │   │   │   │   │   ├── ExerciseDao.kt
-│   │   │   │   │   │   ├── WorkoutSessionDao.kt
-│   │   │   │   │   │   ├── ExerciseEntryDao.kt
-│   │   │   │   │   │   └── SetEntryDao.kt
-│   │   │   │   │   ├── entities/
-│   │   │   │   │   │   ├── Exercise.kt
-│   │   │   │   │   │   ├── WorkoutSession.kt
-│   │   │   │   │   │   ├── ExerciseEntry.kt
-│   │   │   │   │   │   └── SetEntry.kt
-│   │   │   │   │   └── ChironRepository.kt
-│   │   │   │   ├── ui/
-│   │   │   │   │   ├── theme/                # Compose theme, colors, typography
-│   │   │   │   │   │   ├── Color.kt
-│   │   │   │   │   │   ├── Type.kt
-│   │   │   │   │   │   └── Theme.kt
-│   │   │   │   │   ├── components/           # small reusable composables
-│   │   │   │   │   │   ├── ExerciseRow.kt
-│   │   │   │   │   │   ├── SetPill.kt
-│   │   │   │   │   │   └── BottomNavBar.kt
-│   │   │   │   │   ├── history/
-│   │   │   │   │   │   ├── HistoryScreen.kt
-│   │   │   │   │   │   └── WorkoutEditor.kt
-│   │   │   │   │   ├── exercises/
-│   │   │   │   │   │   ├── ExercisesScreen.kt
-│   │   │   │   │   │   └── ExerciseDetailScreen.kt
-│   │   │   │   │   └── timer/
-│   │   │   │   │       ├── TimerScreen.kt
-│   │   │   │   │       └── StopwatchScreen.kt
-│   │   │   │   ├── viewmodel/
-│   │   │   │   │   ├── HistoryViewModel.kt
-│   │   │   │   │   ├── ExercisesViewModel.kt
-│   │   │   │   │   └── TimerViewModel.kt
-│   │   │   │   ├── util/
-│   │   │   │   │   ├── UnitConversion.kt
-│   │   │   │   │   ├── Jaccard.kt
-│   │   │   │   │   └── OneRmEstimator.kt
-│   │   │   │   └── prefs/
-│   │   │   │       └── UserSettings.kt       # DataStore/simple Room table for settings
-│   │   │   ├── res/
-│   │   │   │   ├── values/                   # strings.xml, themes, dimens etc
-│   │   │   │   └── drawable/                 # vector drawables and icons
-│   │   │   └── assets/                       # optional assets
-│   │   ├── test/
-│   │   └── androidTest/
-│   │       └── ...                          # instrumented tests
-│   ├── build.gradle.kts
-│   └── proguard-rules.pro
-├── build.gradle.kts
-├── gradle.properties
-├── gradlew
-├── gradlew.bat
-├── README.md
-└── settings.gradle.kts
+│   └── migrations/
+├── src/
+│   ├── MainActivity.kt
+│   ├── data/
+│   │   ├── ChironDatabase.kt
+│   │   ├── dao/
+│   │   ├── entities/
+│   │   └── ChironRepository.kt
+│   ├── ui/
+│   │   ├── history/
+│   │   ├── exercises/
+│   │   └── timer/
+│   ├── viewmodel/
+│   ├── util/
+│   └── prefs/
+└── build.gradle
 ```
-
----
-
-# Implementation notes / final cautions
-
-* Use `Flow` from Room DAOs for reactive UI updates. Avoid heavy queries on the UI thread.
-* Keep write operations single-threaded and use transactions for reorder / reindex logic.
-* Keep the UI minimal and test in actual gym conditions for button placement and font sizes.
-* Use Coil for image loading of URIs; do not store binary blobs inside the DB.
-* Enforce unique exercise names at insert time (non-archived) to avoid ambiguity.
+  

@@ -49,6 +49,8 @@ class ChironRepository(
             .sortedByDescending { it.id } // tie-break by recency
     }
 
+    suspend fun getAllExercises(): List<Exercise> = exerciseDao.getAllNonArchived()
+
     // ─────────────────────────────────────────────────────────────────────────
     // Workout session operations
     // ─────────────────────────────────────────────────────────────────────────

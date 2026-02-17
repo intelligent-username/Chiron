@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <!-- Larger black circle inside -->
+  <circle cx="100" cy="100" r="95" fill="black"/>
+  <!-- Outer circle with thinner white border (on top) -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="white" stroke-width="3"/>
+  <!-- X lines, continuous but ending earlier before center -->
+  <line x1="105" y1="95" x2="155" y2="45" stroke="white" stroke-width="5"/> <!-- top-right -->
+  <line x1="105" y1="105" x2="155" y2="155" stroke="white" stroke-width="5"/> <!-- bottom-right -->
+  <line x1="95" y1="105" x2="45" y2="155" stroke="white" stroke-width="5"/> <!-- bottom-left -->
+  <line x1="95" y1="95" x2="45" y2="45" stroke="white" stroke-width="5"/> <!-- top-left -->
+  <!-- Smaller center circle, just an outline -->
+  <circle cx="100" cy="100" r="4" fill="none" stroke="white" stroke-width="2"/>
+  <!-- Text "45" fully centered in the top half with Times New Roman font -->
+  <text x="100" y="50" fill="white" font-size="24" font-family="Times New Roman" text-anchor="middle" alignment-baseline="middle">45</text>
+  <!-- Upside-down text "45" in the bottom half -->
+  <text x="100" y="50" fill="white" font-size="24" font-family="Times New Roman" text-anchor="middle" alignment-baseline="middle" transform="rotate(180 100 100)">45</text>
+</svg>

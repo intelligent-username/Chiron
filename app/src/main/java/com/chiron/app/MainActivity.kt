@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -18,7 +19,6 @@ import com.chiron.app.ui.components.NavTab
 import com.chiron.app.ui.exercises.ExerciseDetailScreen
 import com.chiron.app.ui.exercises.ExercisesScreen
 import com.chiron.app.ui.history.HistoryScreen
-import com.chiron.app.ui.history.WorkoutEditor
 import com.chiron.app.ui.theme.ChironTheme
 import com.chiron.app.ui.timer.TimerScreenHost
 import com.chiron.app.viewmodel.ExercisesViewModel
@@ -30,19 +30,21 @@ import com.google.accompanist.pager.rememberPagerState
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalPagerApi::class)
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             ChironTheme {
                 var selectedTab by rememberSaveable { mutableStateOf(NavTab.HISTORY) }
-                var activeWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var activeExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var isExerciseDetailOpen by rememberSaveable { mutableStateOf(false) }
 
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)
                 val exercisesViewModel: ExercisesViewModel = viewModel(factory = ServiceLocator.exercisesViewModelFactory)
                 val timerViewModel: TimerViewModel = viewModel()
+
+                val exercisesState by exercisesViewModel.uiState.collectAsState()
 
                 val tabs = NavTab.values()
                 val pagerState = rememberPagerState(initialPage = selectedTab.ordinal)
@@ -61,7 +63,6 @@ class MainActivity : ComponentActivity() {
                             selectedTab = selectedTab,
                             onTabSelected = { tab ->
                                 selectedTab = tab
-                                activeWorkoutId = null
                                 isExerciseDetailOpen = false
                             }
                         )
@@ -73,15 +74,8 @@ class MainActivity : ComponentActivity() {
                                 NavTab.HISTORY -> {
                                     HistoryScreen(
                                         viewModel = historyViewModel,
-                                        onOpenWorkout = { workoutId -> activeWorkoutId = workoutId }
+                                        onOpenWorkout = { } // Not needed anymore, handled internally
                                     )
-                                    if (activeWorkoutId != null) {
-                                        val workout = historyViewModel.uiState.value.workouts.find { it.id == activeWorkoutId }
-                                        WorkoutEditor(
-                                            workout = workout,
-                                            onSave = { updated -> historyViewModel.updateWorkout(updated) }
-                                        )
-                                    }
                                 }
                                 NavTab.EXERCISES -> {
                                     ExercisesScreen(
@@ -92,10 +86,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                     if (isExerciseDetailOpen) {
-                                        val exercise = exercisesViewModel.uiState.value.exercises.find { it.id == activeExerciseId }
+                                        val exercise = exercisesState.exercises.find { it.id == activeExerciseId }
                                         ExerciseDetailScreen(
                                             exercise = exercise,
                                             onSave = { updated -> exercisesViewModel.updateExercise(updated) },
+                                            onDelete = { exerciseId -> 
+                                                exercisesViewModel.archiveExercise(exerciseId)
+                                            },
                                             onClose = {
                                                 isExerciseDetailOpen = false
                                                 activeExerciseId = null

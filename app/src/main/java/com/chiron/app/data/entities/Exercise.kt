@@ -22,6 +22,9 @@ data class Exercise(
     @ColumnInfo(name = "description")
     val description: String? = null,
 
+    @ColumnInfo(name = "icon_name")
+    val iconName: String? = "default",
+
     @ColumnInfo(name = "archived", defaultValue = "0")
     val archived: Int = 0
 )
