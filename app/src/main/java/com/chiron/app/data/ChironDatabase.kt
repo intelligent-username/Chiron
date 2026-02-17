@@ -22,7 +22,7 @@ import com.chiron.app.data.entities.WorkoutSession
         ExerciseEntry::class,
         SetEntry::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -42,6 +42,18 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Drop and recreate table with correct schema (no unique constraint at all)
+                // Note: unique constraint on (day_tag, date_iso, location_tag) is REMOVED.
+                db.execSQL("CREATE TABLE IF NOT EXISTS `workout_session_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `day_tag` TEXT NOT NULL, `date_iso` TEXT NOT NULL, `date_utc` INTEGER NOT NULL, `location_tag` TEXT NOT NULL, `notes` TEXT, `archived` INTEGER NOT NULL DEFAULT 0)")
+                db.execSQL("INSERT INTO `workout_session_new` (`id`, `day_tag`, `date_iso`, `date_utc`, `location_tag`, `notes`, `archived`) SELECT `id`, `day_tag`, `date_iso`, `date_utc`, `location_tag`, `notes`, `archived` FROM `workout_session`")
+                db.execSQL("DROP TABLE `workout_session`")
+                db.execSQL("ALTER TABLE `workout_session_new` RENAME TO `workout_session`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_session_date_utc` ON `workout_session` (`date_utc`)")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -49,53 +61,54 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)
                         // Populate default exercises on first launch using raw SQL to avoid recursion issues
                         val defaults = listOf(
-                            "Bench Press" to "benchpress",
-                            "Incline Bench Press" to "incline-bench",
-                            "Machine Chest Press" to "chest-press",
-                            "Overhead Press" to "overhead-press",
-                            "Chest Flies" to "machine",
-                            "Lateral Raises" to "lateral-raise",
-                            "Push-ups" to "push-up",
-                            "Dips" to "dip",
-                            
-                            "Pull-ups" to "pull-up",
-                            "Lat Pulldowns" to "pulldown",
-                            "Barbell Rows" to "barbell",
-                            "Cable Rows" to "cables",
-                            "Deadlift" to "deadlift",
-                            
-                            "Squat" to "squat",
-                            "Leg Press" to "leg-press",
-                            "Lunges" to "lunge",
-                            "Leg Extension" to "leg-extension",
-                            "Leg Curl" to "leg-curl",
-                            "Hip Thrusts" to "hip-thrust",
-                            "Calf Raises" to "default",
-                            
-                            "Smith Machine Squat" to "smith",
-                            "Box Jumps" to "jump",
+                            "Ab Twister" to "ab-twister",
                             "Band Pull Aparts" to "bands",
-                            "Cable Crossovers" to "cables",
-                            "Ring Dips" to "rings",
-
-                            "Bicep Curls" to "curl",
-                            "Hammer Curls" to "curl",
-                            "Tricep Pushdowns" to "pushdown",
-                            "Skullcrushers" to "barbell",
-                            
-                            "Sit-ups" to "sit-up",
-                            "Leg Raises" to "leg-raise",
-                            "Plank" to "plate",
-                            
+                            "Barbell Row" to "barbell",
+                            "Bench Press" to "benchpress",
+                            "Cable Crossover" to "cable-crossover",
+                            "Cable Row" to "cables",
+                            "Machine Chest Press" to "chest-press",
+                            "Bicep Curl" to "curl",
+                            "Deadlift" to "deadlift",
+                            "Dips" to "dip",
+                            "Farmers Carry" to "farmers-carry",
+                            "Fly Machine" to "fly-machine",
+                            "Cardio" to "heart-rate",
+                            "Hip Thrust" to "hip-thrust",
+                            "Incline Bench Press" to "incline-bench",
+                            "Incline Machine Press" to "incline-press-machine",
+                            "Box Jumps" to "jump",
                             "Kettlebell Swing" to "kettlebell",
-                            "Medicine Ball Slate" to "medicine-ball",
-                            "Stationary Bike" to "stationary-bike"
+                            "Landmine Rotation" to "landmine-rotation",
+                            "Lateral Raises" to "lateral-raise",
+                            "Leg Curl" to "leg-curl",
+                            "Leg Extension" to "leg-extension",
+                            "Leg Press" to "leg-press",
+                            "Leg Raises" to "leg-raise",
+                            "Lunges" to "lunge",
+                            "Machine Row" to "machine-row",
+                            "Pec Deck" to "machine",
+                            "Medicine Ball Slam" to "medicine-ball",
+                            "Overhead Press" to "overhead-press",
+                            "Plank" to "plate",
+                            "Preacher Curl" to "preacher-curl",
+                            "Pull-ups" to "pull-up",
+                            "Lat Pulldown" to "pulldown",
+                            "Push-ups" to "push-up",
+                            "Tricep Pushdown" to "pushdown",
+                            "Ring Dips" to "rings",
+                            "Sit-ups" to "sit-up",
+                            "Good Morning" to "smiley",
+                            "Smith Machine Squat" to "smith",
+                            "Squat" to "squat",
+                            "Stationary Bike" to "stationary-bike",
+                            "Treadmill" to "treadmill"
                         )
 
                         db.beginTransaction()

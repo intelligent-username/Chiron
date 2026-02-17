@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 enum class TimerTab { TIMER, STOPWATCH }
@@ -30,6 +33,9 @@ class TimerViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
+
+    private val _timerFinished = MutableSharedFlow<Unit>()
+    val timerFinished: SharedFlow<Unit> = _timerFinished.asSharedFlow()
 
     private var countdownJob: Job? = null
     private var stopwatchJob: Job? = null
@@ -63,6 +69,10 @@ class TimerViewModel : ViewModel() {
             while (_uiState.value.countdownRemaining > 0 && _uiState.value.isCountdownRunning) {
                 delay(1000L)
                 _uiState.update { it.copy(countdownRemaining = it.countdownRemaining - 1) }
+                
+                if (_uiState.value.countdownRemaining == 0) {
+                    _timerFinished.emit(Unit)
+                }
             }
             _uiState.update { it.copy(isCountdownRunning = false) }
         }

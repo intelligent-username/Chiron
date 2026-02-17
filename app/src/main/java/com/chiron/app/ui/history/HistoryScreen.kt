@@ -91,7 +91,13 @@ fun HistoryScreen(
 
             // Workout list
             val filteredWorkouts = if (state.selectedDayTag != null) {
-                state.workouts.filter { it.dayTag == state.selectedDayTag }
+                state.workouts.filter { 
+                    if (state.selectedDayTag == "Untitled Workout") {
+                        it.dayTag == "Untitled Workout" || it.dayTag.isBlank()
+                    } else {
+                        it.dayTag == state.selectedDayTag
+                    }
+                }
             } else {
                 state.workouts
             }

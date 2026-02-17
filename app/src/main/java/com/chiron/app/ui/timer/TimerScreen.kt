@@ -15,6 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.media.MediaPlayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
 import com.chiron.app.ui.components.WheelPicker
 import com.chiron.app.viewmodel.TimerTab
 import com.chiron.app.viewmodel.TimerViewModel
@@ -26,6 +29,18 @@ fun TimerScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(viewModel) {
+        viewModel.timerFinished.collect {
+            val resId = context.resources.getIdentifier("beep", "raw", context.packageName)
+            if (resId != 0) {
+                val mediaPlayer = MediaPlayer.create(context, resId)
+                mediaPlayer?.setOnCompletionListener { it.release() }
+                mediaPlayer?.start()
+            }
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp),

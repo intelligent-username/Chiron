@@ -60,7 +60,16 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("cables", "cables.svg"),
     ExerciseIcon("heart-rate", "heart-rate.svg"),
     ExerciseIcon("bands", "bands.svg"),
-    ExerciseIcon("rings", "rings.svg")
+    ExerciseIcon("rings", "rings.svg"),
+    ExerciseIcon("fly-machine", "fly-machine.svg"),
+    ExerciseIcon("preacher-curl", "preacher-curl.svg"),
+    ExerciseIcon("machine-row", "machine-row.svg"),
+    ExerciseIcon("incline-press-machine", "incline-press-machine.svg"),
+    ExerciseIcon("treadmill", "treadmill.svg"),
+    ExerciseIcon("farmers-carry", "farmers-carry.svg"),
+    ExerciseIcon("cable-crossover", "cable-crossover.svg"),
+    ExerciseIcon("ab-twister", "ab-twister.svg"),
+    ExerciseIcon("landmine-rotation", "landmine-rotation.svg")
 )
 
 fun getIconUrl(iconName: String?): String {

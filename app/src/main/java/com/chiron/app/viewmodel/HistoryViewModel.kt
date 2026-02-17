@@ -49,7 +49,8 @@ class HistoryViewModel(
         // Observe day tags
         viewModelScope.launch {
             repository.dayTagsFlow.collect { tags ->
-                _uiState.update { it.copy(dayTags = tags) }
+                val normalizedTags = tags.map { it.ifBlank { "Untitled Workout" } }.distinct().sorted()
+                _uiState.update { it.copy(dayTags = normalizedTags) }
             }
         }
 
@@ -101,7 +102,22 @@ class HistoryViewModel(
         debounceJob?.cancel()
         debounceJob = viewModelScope.launch {
             delay(debounceDelayMs)
-            repository.updateWorkout(workout)
+            try {
+                repository.updateWorkout(workout)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun saveWorkoutImmediate(workout: WorkoutSession) {
+        debounceJob?.cancel()
+        viewModelScope.launch {
+            try {
+                repository.updateWorkout(workout)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -143,7 +159,11 @@ class HistoryViewModel(
         debounceJob?.cancel()
         debounceJob = viewModelScope.launch {
             delay(debounceDelayMs)
-            repository.updateExerciseEntry(entry)
+            try {
+                repository.updateExerciseEntry(entry)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -187,7 +207,11 @@ class HistoryViewModel(
         debounceJob?.cancel()
         debounceJob = viewModelScope.launch {
             delay(debounceDelayMs)
-            repository.updateSet(set)
+            try {
+                repository.updateSet(set)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

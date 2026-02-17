@@ -7,7 +7,7 @@ import kotlin.math.roundToInt
  * DB stores weights in pounds; UI may display kg.
  */
 object UnitConversion {
-    const val LBS_PER_KG = 2.2046226218
+    const val LBS_PER_KG = 2.205
 
     /**
      * Convert pounds to kilograms.
@@ -20,14 +20,9 @@ object UnitConversion {
     fun kgToLbs(kg: Double): Double = kg * LBS_PER_KG
 
     /**
-     * Round kg to nearest 0.5 kg for display.
+     * Convert lbs to kg for display.
      */
-    fun roundKgToHalf(kg: Double): Double = (kg * 2).roundToInt() / 2.0
-
-    /**
-     * Convert lbs to kg and round for display.
-     */
-    fun lbsToDisplayKg(lbs: Double): Double = roundKgToHalf(lbsToKg(lbs))
+    fun lbsToDisplayKg(lbs: Double): Double = lbs / LBS_PER_KG
 
     /**
      * Format weight for display based on unit preference.
@@ -43,10 +38,9 @@ object UnitConversion {
     }
 
     private fun formatNumber(value: Double): String {
-        return if (value == value.toLong().toDouble()) {
-            value.toLong().toString()
-        } else {
-            String.format("%.1f", value)
-        }
+        // Round to 2 decimal places
+        val formatted = String.format("%.2f", value)
+        // Remove trailing zeros and decimal point if needed
+        return formatted.trimEnd('0').trimEnd('.')
     }
 }

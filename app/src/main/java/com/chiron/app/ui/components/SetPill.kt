@@ -63,9 +63,6 @@ fun SetPill(
 }
 
 private fun formatNumber(value: Double): String {
-    return if (value == value.toLong().toDouble()) {
-        value.toLong().toString()
-    } else {
-        String.format("%.1f", value)
-    }
+    val formatted = String.format("%.2f", value)
+    return formatted.trimEnd('0').trimEnd('.')
 }

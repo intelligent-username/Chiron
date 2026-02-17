@@ -31,6 +31,7 @@ fun ExerciseDetailScreen(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text("Edit Exercise") },
@@ -67,7 +68,7 @@ fun ExerciseDetailScreen(
         }
     ) { padding ->
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp),

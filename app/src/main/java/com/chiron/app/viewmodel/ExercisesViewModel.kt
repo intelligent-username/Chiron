@@ -64,11 +64,12 @@ class ExercisesViewModel(
         _uiState.update { it.copy(isDetailOpen = false, selectedExerciseId = null) }
     }
 
-    fun createExercise(name: String, description: String? = null) {
+    fun createExercise(name: String, description: String? = null, iconName: String? = null) {
         viewModelScope.launch {
             val exercise = Exercise(
                 name = name.trim(),
-                description = description?.trim()
+                description = description?.trim(),
+                iconName = iconName
             )
             repository.insertExercise(exercise)
         }

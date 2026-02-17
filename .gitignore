@@ -34,6 +34,7 @@ google-services.json
 *.hprof
 
 /build
+notes/
 
 news.md
 Plan_old.md

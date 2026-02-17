@@ -7,18 +7,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.Instant
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePicker
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.ui.components.ExerciseAsyncIcon
 import androidx.compose.ui.text.font.FontWeight
@@ -49,30 +58,82 @@ fun WorkoutEditor(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     var isEditingDetails by remember { mutableStateOf(false) }
+    
+    // DayTag (Name) State
     var editableDayTag by remember { mutableStateOf(workout.dayTag) }
+    var queryDayTag by remember { mutableStateOf(workout.dayTag) } // Debounced search term
+    LaunchedEffect(editableDayTag) {
+        kotlinx.coroutines.delay(300)
+        queryDayTag = editableDayTag
+    }
+
+    // Date State
     var editableDate by remember { mutableStateOf(workout.dateIso) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    // Location State
     var editableLocation by remember { mutableStateOf(workout.locationTag) }
+    var queryLocation by remember { mutableStateOf(workout.locationTag) } // Debounced search term
+    LaunchedEffect(editableLocation) {
+        kotlinx.coroutines.delay(300)
+        queryLocation = editableLocation
+    }
+    
+    // Notes State
     var editableNotes by remember { mutableStateOf(workout.notes ?: "") }
 
     val allLocations = remember(uiState.workouts) { uiState.workouts.map { it.locationTag }.distinct().sorted() }
 
     Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
         ) {
-            // Custom Header Section
-            item {
+            // Custom Header Section (Spans Full Width)
+            item(span = { GridItemSpan(2) }) {
                 var expandedName by remember { mutableStateOf(false) }
                 var expandedLocation by remember { mutableStateOf(false) }
 
+                // Date Picker Dialog Logic
+                if (showDatePicker) {
+                    val initialMillis = remember(editableDate) {
+                        try {
+                            LocalDate.parse(editableDate).atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis()
+                        }
+                    }
+                    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+
+                    DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    val millis = datePickerState.selectedDateMillis
+                                    if (millis != null) {
+                                        val newDate = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate().toString()
+                                        editableDate = newDate
+                                    }
+                                    showDatePicker = false
+                                }
+                            ) { Text("OK") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                        }
+                    ) {
+                        DatePicker(state = datePickerState)
+                    }
+                }
+
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Row 1: Workout Name (Left) + Done Button (Right)
@@ -81,25 +142,15 @@ fun WorkoutEditor(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Editable Workout Name with Dropdown
-                        val filteredDayTags = remember(editableDayTag, uiState.dayTags) {
+                        // Editable Workout Name (Name Field + Dropdown, Simplified)
+                        val filteredDayTags = remember(queryDayTag, uiState.dayTags) {
                             uiState.dayTags
-                                .filter { it.contains(editableDayTag, ignoreCase = true) && it != editableDayTag }
+                                .filter { it.contains(queryDayTag, ignoreCase = true) && it != queryDayTag }
                                 .take(5)
                         }
 
-                        LaunchedEffect(editableDayTag) {
-                            kotlinx.coroutines.delay(500)
-                            if (editableDayTag != workout.dayTag) {
-                                viewModel.updateWorkout(workout.copy(dayTag = editableDayTag))
-                            }
-                        }
-
-                        ExposedDropdownMenuBox(
-                            expanded = expandedName,
-                            onExpandedChange = { expandedName = !expandedName },
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        // Simple Box + TextField + DropdownMenu (No Laggy ExposedDropdownMenuBox)
+                        Box(modifier = Modifier.weight(1f)) {
                             TextField(
                                 value = editableDayTag,
                                 onValueChange = { 
@@ -118,30 +169,27 @@ fun WorkoutEditor(
                                 ),
                                 placeholder = { 
                                     Text(
-                                        "Workout Name", 
+                                        "Untitled Workout", 
                                         style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
                                     ) 
                                 },
-                                modifier = Modifier.menuAnchor(),
-                                singleLine = true
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
                             )
 
-                            if (filteredDayTags.isNotEmpty()) {
-                                ExposedDropdownMenu(
-                                    expanded = expandedName,
-                                    onDismissRequest = { expandedName = false }
-                                ) {
-                                    filteredDayTags.forEach { selection ->
-                                        DropdownMenuItem(
-                                            text = { Text(selection) },
-                                            onClick = {
-                                                editableDayTag = selection
-                                                expandedName = false
-                                                // Immediate save on selection
-                                                scope.launch { viewModel.updateWorkout(workout.copy(dayTag = selection)) }
-                                            }
-                                        )
-                                    }
+                            DropdownMenu(
+                                expanded = expandedName && filteredDayTags.isNotEmpty(),
+                                onDismissRequest = { expandedName = false },
+                                properties = PopupProperties(focusable = false)
+                            ) {
+                                filteredDayTags.forEach { selection ->
+                                    DropdownMenuItem(
+                                        text = { Text(selection) },
+                                        onClick = {
+                                            editableDayTag = selection
+                                            expandedName = false
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -156,7 +204,15 @@ fun WorkoutEditor(
                                 )
                             }
                             
-                            TextButton(onClick = onClose) {
+                            TextButton(onClick = {
+                                viewModel.saveWorkoutImmediate(workout.copy(
+                                    dayTag = editableDayTag,
+                                    dateIso = editableDate,
+                                    locationTag = editableLocation,
+                                    notes = editableNotes.ifBlank { null }
+                                ))
+                                onClose()
+                            }) {
                                 Text("Done", style = MaterialTheme.typography.titleMedium)
                             }
                         }
@@ -169,12 +225,6 @@ fun WorkoutEditor(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Date Field
-                        LaunchedEffect(editableDate) {
-                            kotlinx.coroutines.delay(500)
-                            if (editableDate != workout.dateIso) {
-                                viewModel.updateWorkout(workout.copy(dateIso = editableDate))
-                            }
-                        }
                         TextField(
                             value = editableDate,
                             onValueChange = { editableDate = it },
@@ -190,25 +240,24 @@ fun WorkoutEditor(
                             ),
                             modifier = Modifier.width(160.dp),
                             singleLine = true,
-                            placeholder = { Text("YYYY-MM-DD") }
+                            placeholder = { Text("YYYY-MM-DD") },
+                            trailingIcon = {
+                                IconButton(onClick = { showDatePicker = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.DateRange,
+                                        contentDescription = "Select Date",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                         )
 
-                        // Location Field with Dropdown
-                        val filteredLocations = remember(editableLocation, allLocations) {
-                             allLocations.filter { it.contains(editableLocation, ignoreCase = true) }
-                        }
-                        LaunchedEffect(editableLocation) {
-                            kotlinx.coroutines.delay(500)
-                            if (editableLocation != workout.locationTag) {
-                                viewModel.updateWorkout(workout.copy(locationTag = editableLocation))
-                            }
+                        // Location Field with Simplified Dropdown
+                        val filteredLocations = remember(queryLocation, allLocations) {
+                             allLocations.filter { it.contains(queryLocation, ignoreCase = true) }.take(5)
                         }
 
-                        ExposedDropdownMenuBox(
-                            expanded = expandedLocation,
-                            onExpandedChange = { expandedLocation = !expandedLocation },
-                            modifier = Modifier.width(160.dp)
-                        ) {
+                        Box(modifier = Modifier.width(160.dp)) {
                             TextField(
                                 value = editableLocation,
                                 onValueChange = { 
@@ -226,7 +275,6 @@ fun WorkoutEditor(
                                     unfocusedIndicatorColor = Color.Transparent,
                                     disabledIndicatorColor = Color.Transparent,
                                 ),
-                                modifier = Modifier.menuAnchor(),
                                 singleLine = true,
                                 placeholder = { 
                                     Text(
@@ -234,36 +282,29 @@ fun WorkoutEditor(
                                         textAlign = TextAlign.End, 
                                         modifier = Modifier.fillMaxWidth()
                                     ) 
-                                }
+                                },
+                                modifier = Modifier.fillMaxWidth()
                             )
 
-                            if (filteredLocations.isNotEmpty()) {
-                                ExposedDropdownMenu(
-                                    expanded = expandedLocation,
-                                    onDismissRequest = { expandedLocation = false }
-                                ) {
-                                    filteredLocations.forEach { loc ->
-                                        DropdownMenuItem(
-                                            text = { Text(loc) },
-                                            onClick = {
-                                                editableLocation = loc
-                                                expandedLocation = false
-                                                scope.launch { viewModel.updateWorkout(workout.copy(locationTag = loc)) }
-                                            }
-                                        )
-                                    }
+                            DropdownMenu(
+                                expanded = expandedLocation && filteredLocations.isNotEmpty(),
+                                onDismissRequest = { expandedLocation = false },
+                                properties = PopupProperties(focusable = false)
+                            ) {
+                                filteredLocations.forEach { loc ->
+                                    DropdownMenuItem(
+                                        text = { Text(loc) },
+                                        onClick = {
+                                            editableLocation = loc
+                                            expandedLocation = false
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
                     
                     // Notes (Clean styling)
-                    LaunchedEffect(editableNotes) {
-                        kotlinx.coroutines.delay(500)
-                        if (editableNotes != (workout.notes ?: "")) {
-                            viewModel.updateWorkout(workout.copy(notes = editableNotes.ifBlank { null }))
-                        }
-                    }
                     TextField(
                         value = editableNotes,
                         onValueChange = { editableNotes = it },
@@ -282,8 +323,8 @@ fun WorkoutEditor(
                 }
             }
 
-            // Exercise section header
-            item {
+            // Exercise section header (Span = 2)
+            item(span = { GridItemSpan(2) }) {
                 Text(
                     text = "Exercises",
                     style = MaterialTheme.typography.titleMedium,
@@ -292,8 +333,12 @@ fun WorkoutEditor(
                 )
             }
 
-            // Exercise entries
-            itemsIndexed(entries) { index, entry ->
+            // Exercise entries (Grid Items)
+            itemsIndexed(
+                items = entries,
+                key = { _, entry -> entry.id },
+                span = { _, _ -> GridItemSpan(2) }
+            ) { index, entry ->
                 ExerciseEntryCard(
                     entry = entry,
                     viewModel = viewModel,
@@ -313,9 +358,6 @@ fun WorkoutEditor(
                     }
                 )
             }
-
-            // DELETE WORKOUT BUTTON
-
         }
         
         // FAB
@@ -414,95 +456,82 @@ private fun ExerciseEntryCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            // Header: Exercise name with icon and delete button
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Exercise icon with white background
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = Color.Transparent,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize().padding(8.dp)
-                        ) {
-                            com.chiron.app.ui.components.ExerciseAsyncIcon(
-                                iconName = exercise?.iconName,
-                                contentDescription = exercise?.name,
-                                modifier = Modifier.size(32.dp),
-                                tint = Color.Unspecified
-                            )
-                        }
-                    }
-                    
-                    // Exercise name
-                    Text(
-                        text = exercise?.name ?: "Loading...",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                
-                IconButton(onClick = onDeleteEntry) {
-                    Icon(
-                        Icons.Default.Close,
-                        "Remove Exercise",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
+                 // Icon (Left)
+                 com.chiron.app.ui.components.ExerciseAsyncIcon(
+                     iconName = exercise?.iconName,
+                     contentDescription = exercise?.name,
+                     modifier = Modifier.size(48.dp),
+                     tint = Color.Unspecified
+                 )
+                 
+                 Spacer(modifier = Modifier.width(16.dp))
+                 
+                 // Name and Sets (Right)
+                 Column(modifier = Modifier.weight(1f)) {
+                     Text(
+                         text = exercise?.name ?: "Loading...",
+                         style = MaterialTheme.typography.titleMedium,
+                         fontWeight = FontWeight.Bold,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                     )
+                     
+                     Spacer(modifier = Modifier.height(8.dp))
+                     
+                     FlowRow(
+                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                         verticalArrangement = Arrangement.spacedBy(8.dp),
+                         modifier = Modifier.fillMaxWidth()
+                     ) {
+                         sets.forEachIndexed { index, set ->
+                             SetPill(
+                                 weightLbs = set.weightLbs,
+                                 reps = set.reps,
+                                 displayInKg = displayInKg,
+                                 onClick = { onSetClick(index + 1) }
+                             )
+                         }
+                         
+                         // Add Set Button
+                         OutlinedButton(
+                             onClick = onAddSet,
+                             contentPadding = PaddingValues(horizontal = 12.dp),
+                             modifier = Modifier.height(32.dp),
+                             colors = ButtonDefaults.outlinedButtonColors(
+                                  contentColor = MaterialTheme.colorScheme.primary
+                             )
+                         ) {
+                             Icon(Icons.Default.Add, "Add", modifier = Modifier.size(16.dp))
+                         }
+                     }
+                 }
+                 
+                 // Delete Button (Top Right)
+                 IconButton(
+                     onClick = onDeleteEntry,
+                     modifier = Modifier.offset(x = 8.dp, y = (-8).dp) // Adjust position to corner
+                 ) {
+                     Icon(
+                         Icons.Default.Close,
+                         "Remove",
+                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                         modifier = Modifier.size(20.dp)
+                     )
+                 }
             }
-
-            // Sets label
-            Text(
-                text = "Sets",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // Set pills in a wrapping flow
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                sets.forEachIndexed { index, set ->
-                    SetPill(
-                        weightLbs = set.weightLbs,
-                        reps = set.reps,
-                        displayInKg = displayInKg,
-                        onClick = { onSetClick(index + 1) }
-                    )
-                }
-                
-                // Add Set button
-                OutlinedButton(
-                    onClick = onAddSet,
-                    modifier = Modifier.height(48.dp)
-                ) {
-                    Icon(Icons.Default.Add, "Add Set", modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add Set")
-                }
-            }
-
-            // Notes field for this exercise (below sets)
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Notes (Full width)
             OutlinedTextField(
                 value = exerciseNotes,
                 onValueChange = { 
@@ -511,14 +540,16 @@ private fun ExerciseEntryCard(
                         viewModel.updateExerciseEntry(entry.copy(notes = it.ifBlank { null }))
                     }
                 },
-                label = { Text("Exercise Notes") },
-                placeholder = { Text("e.g., form cues, RPE, etc.") },
+                placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
+                textStyle = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 1,
                 maxLines = 3,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 )
             )
         }

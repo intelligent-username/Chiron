@@ -46,7 +46,7 @@ class ChironRepository(
         if (query.isBlank()) return emptyList()
         val allExercises = exerciseDao.getAllNonArchived()
         return Jaccard.rankBySimilarity(query, allExercises, { it.name }, limit)
-            .sortedByDescending { it.id } // tie-break by recency
+
     }
 
     suspend fun getAllExercises(): List<Exercise> = exerciseDao.getAllNonArchived()

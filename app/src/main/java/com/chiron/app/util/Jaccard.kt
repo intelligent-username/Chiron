@@ -47,14 +47,22 @@ object Jaccard {
         textSelector: (T) -> String,
         limit: Int = 10
     ): List<T> {
-        val queryTokens = tokenize(query)
-        if (queryTokens.isEmpty()) return emptyList()
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return emptyList()
 
         return items
-            .map { item -> item to similarity(queryTokens, tokenize(textSelector(item))) }
-            .filter { it.second > 0.0 }
-            .sortedByDescending { it.second }
+            .filter { 
+                val text = textSelector(it).lowercase()
+                text.contains(q) 
+            }
+            .sortedBy { 
+                val text = textSelector(it).lowercase()
+                when {
+                    text == q -> 0
+                    text.startsWith(q) -> 1
+                    else -> 2
+                }
+            }
             .take(limit)
-            .map { it.first }
     }
 }

@@ -8,8 +8,7 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "workout_session",
     indices = [
-        Index(value = ["date_utc"]),
-        Index(value = ["day_tag", "date_iso", "location_tag"], unique = true)
+        Index(value = ["date_utc"])
     ]
 )
 data class WorkoutSession(

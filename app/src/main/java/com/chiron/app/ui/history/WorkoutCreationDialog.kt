@@ -24,7 +24,7 @@ fun WorkoutCreationDialog(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     
     // Day Tag State (Default: Full Body Day)
-    var selectedDayTag by remember { mutableStateOf("Full Body Day") }
+    var selectedDayTag by remember { mutableStateOf("Untitled Workout") }
     var customDayTagInput by remember { mutableStateOf("") }
     
     // Location State

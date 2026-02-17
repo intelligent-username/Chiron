@@ -41,7 +41,7 @@ fun WorkoutCard(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = workout.dayTag,
+                text = workout.dayTag.ifBlank { "Untitled Workout" },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
