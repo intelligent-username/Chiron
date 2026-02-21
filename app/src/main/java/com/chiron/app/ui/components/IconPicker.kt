@@ -31,6 +31,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("benchpress", "benchpress.svg"),
     ExerciseIcon("chest-press", "chest-press.svg"),
     ExerciseIcon("curl", "curl.svg"),
+    ExerciseIcon("hammer-curl", "hammer-curl.svg"),
     ExerciseIcon("deadlift", "deadlift.svg"),
     ExerciseIcon("incline-bench", "incline-bench.svg"),
     ExerciseIcon("jump", "jump.svg"),
@@ -42,7 +43,10 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("pulldown", "pulldown.svg"),
     ExerciseIcon("pushdown", "pushdown.svg"),
     ExerciseIcon("squat", "squat.svg"),
-    ExerciseIcon("plate", "plate.svg"),
+    ExerciseIcon("45-plate", "45-plate.svg"),
+    ExerciseIcon("25-plate", "25-plate.svg"),    
+    ExerciseIcon("20-plate", "20-plate.svg"),    
+    ExerciseIcon("10-plate", "10-plate.svg"),    
     ExerciseIcon("pull-up", "pull-up.svg"),
     ExerciseIcon("smiley", "smiley.svg"),
     ExerciseIcon("push-up", "push-up.svg"),
@@ -69,7 +73,9 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("farmers-carry", "farmers-carry.svg"),
     ExerciseIcon("cable-crossover", "cable-crossover.svg"),
     ExerciseIcon("ab-twister", "ab-twister.svg"),
-    ExerciseIcon("landmine-rotation", "landmine-rotation.svg")
+    ExerciseIcon("landmine-rotation", "landmine-rotation.svg"),
+    ExerciseIcon("link", "link.svg"),
+    ExerciseIcon("hack-squat-machine", "hack-squat-machine.svg")
 )
 
 fun getIconUrl(iconName: String?): String {

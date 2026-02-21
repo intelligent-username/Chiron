@@ -6,6 +6,7 @@ import com.chiron.app.data.ChironRepository
 import com.chiron.app.prefs.UserSettingsRepository
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
+import com.chiron.app.viewmodel.TimerViewModel
 
 /**
  * Simple service locator for manual dependency injection.
@@ -25,7 +26,8 @@ object ServiceLocator {
             exerciseDao = database.exerciseDao(),
             workoutSessionDao = database.workoutSessionDao(),
             exerciseEntryDao = database.exerciseEntryDao(),
-            setEntryDao = database.setEntryDao()
+            setEntryDao = database.setEntryDao(),
+            timerPresetDao = database.timerPresetDao()
         )
     }
 
@@ -47,5 +49,9 @@ object ServiceLocator {
 
     val exercisesViewModelFactory: ExercisesViewModel.Factory by lazy {
         ExercisesViewModel.Factory(repository)
+    }
+
+    val timerViewModelFactory: TimerViewModel.Factory by lazy {
+        TimerViewModel.Factory(repository)
     }
 }

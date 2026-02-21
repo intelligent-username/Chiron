@@ -4,6 +4,16 @@
 
 My Personal Workout Tracker. This app is made for Android.
 
+## Features
+
+- Pre-made exercises
+- Create custom exercises
+- Create workouts by adding exercises to them. Add sets, reps, and weight to each exercise in the workout.
+- Functional Supersets
+- Workout history with filterable tags.
+  - Ordered by recency.
+- Timer and stopwatch with presets.
+
 ## File Structure
 
 ```md

@@ -2,8 +2,10 @@ package com.chiron.app.ui.exercises
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import com.chiron.app.ui.components.IconPicker
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun ExercisesScreen(
@@ -40,13 +43,30 @@ fun ExercisesScreen(
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = viewModel::updateSearchQuery,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(bottom = 8.dp),
                 label = { Text("Search exercises") }
             )
 
+            if (state.showArchived) {
+                Text(
+                    text = "Tap an archived card to unarchive",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+
             Spacer(Modifier.height(12.dp))
 
-            val list = if (state.searchQuery.isNotBlank()) state.searchResults else state.exercises
+            val displayedList = if (state.searchQuery.isNotBlank()) {
+                state.searchResults
+            } else {
+                if (state.showArchived) state.archivedExercises else state.exercises
+            }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
@@ -57,22 +77,26 @@ fun ExercisesScreen(
                     .fillMaxSize()
                     .weight(1f)
             ) {
-                items(list) { exercise ->
+                items(displayedList) { exercise ->
                     ExerciseGridItem(
                         exercise = exercise,
-                        onClick = { onOpenDetail(exercise.id) }
+                        onClick = { onOpenDetail(exercise.id) },
+                        showArchived = state.showArchived,
+                        onUnarchive = { viewModel.unarchiveExercise(exercise.id) }
                     )
                 }
             }
         }
 
-        FloatingActionButton(
-            onClick = { showCreateDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "New exercise")
+        if (!state.showArchived) {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "New exercise")
+            }
         }
 
         if (showCreateDialog) {
@@ -137,15 +161,51 @@ fun ExercisesScreen(
 @Composable
 private fun ExerciseGridItem(
     exercise: Exercise,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showArchived: Boolean = false,
+    onUnarchive: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
+    var showUnarchiveConfirm by remember { mutableStateOf(false) }
+
+    if (showUnarchiveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showUnarchiveConfirm = false },
+            title = { Text("Unarchive Exercise") },
+            text = { Text("Restore \"${exercise.name}\" to active exercises?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUnarchive?.invoke()
+                        showUnarchiveConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Unarchive")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUnarchiveConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Card(
-        onClick = onClick,
-        modifier = Modifier
+        onClick = if (showArchived) {
+            { showUnarchiveConfirm = true }
+        } else onClick,
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(0.8f),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = if (showArchived)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -173,6 +233,17 @@ private fun ExerciseGridItem(
                  overflow = TextOverflow.Ellipsis,
                  lineHeight = 11.sp
              )
+
+             if (showArchived) {
+                 Spacer(Modifier.height(4.dp))
+                 Text(
+                     text = "Tap to unarchive",
+                     style = MaterialTheme.typography.labelSmall,
+                     color = MaterialTheme.colorScheme.primary,
+                     fontSize = 9.sp,
+                     textAlign = TextAlign.Center
+                 )
+             }
         }
     }
 }

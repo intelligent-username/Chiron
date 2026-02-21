@@ -6,12 +6,15 @@ import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
+import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
+import com.chiron.app.data.entities.TimerPreset
 import com.chiron.app.util.Jaccard
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.io.File
 import java.io.FileOutputStream
 
@@ -20,13 +23,17 @@ class ChironRepository(
     private val exerciseDao: ExerciseDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val exerciseEntryDao: ExerciseEntryDao,
-    private val setEntryDao: SetEntryDao
+    private val setEntryDao: SetEntryDao,
+    private val timerPresetDao: TimerPresetDao
 ) {
     // ─────────────────────────────────────────────────────────────────────────
-    // Exercise operations
+    // Exercise ops
     // ─────────────────────────────────────────────────────────────────────────
 
     val exercisesFlow: Flow<List<Exercise>> = exerciseDao.getExercisesFlow()
+
+    val archivedExercisesFlow: Flow<List<Exercise>> = exerciseDao.getAllExercisesFlow()
+        .map { exercises -> exercises.filter { it.archived != 0 } }
 
     suspend fun insertExercise(exercise: Exercise): Long = exerciseDao.insertExercise(exercise)
 
@@ -37,6 +44,8 @@ class ChironRepository(
     suspend fun getExerciseByName(name: String): Exercise? = exerciseDao.getByName(name)
 
     suspend fun archiveExercise(id: Long) = exerciseDao.archive(id)
+
+    suspend fun unarchiveExercise(id: Long) = exerciseDao.unarchive(id)
 
     /**
      * Search exercises using Jaccard similarity on tokenized names.
@@ -167,4 +176,18 @@ class ChironRepository(
             false
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Timer Presets operations
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val timerPresetsFlow: Flow<List<TimerPreset>> = timerPresetDao.getPresetsFlow()
+
+    suspend fun insertTimerPreset(preset: TimerPreset): Long = timerPresetDao.insertPreset(preset)
+
+    suspend fun updateTimerPreset(preset: TimerPreset) = timerPresetDao.updatePreset(preset)
+
+    suspend fun deleteTimerPreset(preset: TimerPreset) = timerPresetDao.deletePreset(preset)
+
+    suspend fun getTimerPresetById(id: Long): TimerPreset? = timerPresetDao.getPresetById(id)
 }

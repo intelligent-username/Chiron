@@ -3,7 +3,7 @@ package com.chiron.app.ui.exercises
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -44,9 +44,9 @@ fun ExerciseDetailScreen(
                     if (onDelete != null) {
                         IconButton(onClick = { showDeleteConfirmation = true }) {
                             Icon(
-                                Icons.Default.Delete,
-                                "Delete",
-                                tint = MaterialTheme.colorScheme.error
+                                Icons.Default.Archive,
+                                "Archive",
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -99,12 +99,12 @@ fun ExerciseDetailScreen(
             )
         }
 
-        // Delete confirmation dialog
+        // Archive confirmation dialog
         if (showDeleteConfirmation) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirmation = false },
-                title = { Text("Delete Exercise") },
-                text = { Text("Are you sure you want to delete \"${exercise.name}\"? This action cannot be undone.") },
+                title = { Text("Archive Exercise?") },
+                text = { Text("Archive \"${exercise.name}\"? It will be hidden from the list but can be recovered anytime from the archive.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -113,10 +113,10 @@ fun ExerciseDetailScreen(
                             onClose()
                         },
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("Delete")
+                        Text("Archive")
                     }
                 },
                 dismissButton = {

@@ -1,6 +1,7 @@
 package com.chiron.app.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -11,7 +12,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.chiron.app.data.ChironRepository
+import com.chiron.app.data.entities.TimerPreset
 
 enum class TimerTab { TIMER, STOPWATCH }
 
@@ -26,10 +31,15 @@ data class TimerUiState(
     // Stopwatch state
     val stopwatchMillis: Long = 0L,
     val isStopwatchRunning: Boolean = false,
-    val laps: List<Long> = emptyList()
+    val laps: List<Long> = emptyList(),
+
+    // Presets
+    val presets: List<TimerPreset> = emptyList()
 )
 
-class TimerViewModel : ViewModel() {
+class TimerViewModel(
+    private val repository: ChironRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
@@ -39,6 +49,15 @@ class TimerViewModel : ViewModel() {
 
     private var countdownJob: Job? = null
     private var stopwatchJob: Job? = null
+
+    init {
+        // Load presets from database
+        viewModelScope.launch {
+            repository.timerPresetsFlow.collect { presets ->
+                _uiState.update { it.copy(presets = presets) }
+            }
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Tab switching
@@ -65,14 +84,22 @@ class TimerViewModel : ViewModel() {
 
         _uiState.update { it.copy(isCountdownRunning = true) }
 
+        val startTime = System.currentTimeMillis()
+        val totalDurationMs = _uiState.value.countdownRemaining * 1000L
+
         countdownJob = viewModelScope.launch {
-            while (_uiState.value.countdownRemaining > 0 && _uiState.value.isCountdownRunning) {
-                delay(1000L)
-                _uiState.update { it.copy(countdownRemaining = it.countdownRemaining - 1) }
-                
-                if (_uiState.value.countdownRemaining == 0) {
+            while (_uiState.value.isCountdownRunning) {
+                val elapsedMs = System.currentTimeMillis() - startTime
+                val remainingSeconds = (totalDurationMs - elapsedMs) / 1000
+
+                if (remainingSeconds <= 0) {
+                    _uiState.update { it.copy(countdownRemaining = 0, isCountdownRunning = false) }
                     _timerFinished.emit(Unit)
+                    break
                 }
+
+                _uiState.update { it.copy(countdownRemaining = remainingSeconds.toInt()) }
+                delay(100L) // Check 10x per second for smoother updates
             }
             _uiState.update { it.copy(isCountdownRunning = false) }
         }
@@ -135,6 +162,26 @@ class TimerViewModel : ViewModel() {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Timer Presets
+    // ─────────────────────────────────────────────────────────────────────────
+
+    suspend fun addPreset(label: String, durationSeconds: Int) {
+        val preset = TimerPreset(
+            durationSeconds = durationSeconds,
+            label = label
+        )
+        repository.insertTimerPreset(preset)
+    }
+
+    suspend fun updatePreset(preset: TimerPreset) {
+        repository.updateTimerPreset(preset)
+    }
+
+    suspend fun deletePreset(preset: TimerPreset) {
+        repository.deleteTimerPreset(preset)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Formatting helpers
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -151,6 +198,12 @@ class TimerViewModel : ViewModel() {
             val secs = totalSeconds % 60
             val hundredths = (millis % 1000) / 10
             return "%02d:%02d.%02d".format(mins, secs, hundredths)
+        }
+    }
+
+    class Factory(private val repository: ChironRepository) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return TimerViewModel(repository) as T
         }
     }
 }

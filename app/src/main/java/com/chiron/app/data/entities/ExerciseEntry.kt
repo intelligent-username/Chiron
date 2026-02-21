@@ -61,5 +61,8 @@ data class ExerciseEntry(
     val notes: String? = null,
 
     @ColumnInfo(name = "archived", defaultValue = "0")
-    val archived: Int = 0
+    val archived: Int = 0,
+
+    @ColumnInfo(name = "num_exercises_in_superset", defaultValue = "2")
+    val numExercisesInSuperset: Int = 2
 )

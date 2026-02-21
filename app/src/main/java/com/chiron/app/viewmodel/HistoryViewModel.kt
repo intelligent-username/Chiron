@@ -155,10 +155,19 @@ class HistoryViewModel(
         }
     }
 
+    suspend fun addExerciseEntrySuspend(workoutId: Long, exerciseId: Long): Long {
+        val slotIndex = repository.getNextSlotIndex(workoutId)
+        val entry = ExerciseEntry(
+            workoutId = workoutId,
+            exerciseId = exerciseId,
+            slotIndex = slotIndex,
+            sequenceType = SequenceType.NONE.name
+        )
+        return repository.insertExerciseEntry(entry)
+    }
+
     fun updateExerciseEntry(entry: ExerciseEntry) {
-        debounceJob?.cancel()
-        debounceJob = viewModelScope.launch {
-            delay(debounceDelayMs)
+        viewModelScope.launch {
             try {
                 repository.updateExerciseEntry(entry)
             } catch (e: Exception) {

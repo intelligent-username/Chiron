@@ -13,10 +13,12 @@ import kotlinx.coroutines.launch
 
 data class ExercisesUiState(
     val exercises: List<Exercise> = emptyList(),
+    val archivedExercises: List<Exercise> = emptyList(),
     val searchQuery: String = "",
     val searchResults: List<Exercise> = emptyList(),
     val selectedExerciseId: Long? = null,
-    val isDetailOpen: Boolean = false
+    val isDetailOpen: Boolean = false,
+    val showArchived: Boolean = false
 )
 
 class ExercisesViewModel(
@@ -33,6 +35,11 @@ class ExercisesViewModel(
         viewModelScope.launch {
             repository.exercisesFlow.collect { exercises ->
                 _uiState.update { it.copy(exercises = exercises) }
+            }
+        }
+        viewModelScope.launch {
+            repository.archivedExercisesFlow.collect { archived ->
+                _uiState.update { it.copy(archivedExercises = archived) }
             }
         }
     }
@@ -123,6 +130,16 @@ class ExercisesViewModel(
             repository.archiveExercise(exerciseId)
             closeDetail()
         }
+    }
+
+    fun unarchiveExercise(exerciseId: Long) {
+        viewModelScope.launch {
+            repository.unarchiveExercise(exerciseId)
+        }
+    }
+
+    fun toggleShowArchived() {
+        _uiState.update { it.copy(showArchived = !it.showArchived) }
     }
 
     suspend fun getExerciseById(id: Long): Exercise? = repository.getExerciseById(id)

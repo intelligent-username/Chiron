@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 200 200">
+
+  <!-- Larger black circle inside -->
+  <circle cx="100" cy="100" r="95" fill="black"/>
+
+  <!-- Outer circle with thinner white border (on top) -->
+  <circle cx="100" cy="100" r="80" fill="none" stroke="white" stroke-width="7"/>
+
+  <!-- Centre circle: smaller than 45 -->
+  <circle cx="100" cy="100" r="15" fill="none" stroke="white" stroke-width="6"/>
+
+  <!-- Text "25" fully centred in the top half -->
+  <text x="100" y="55" fill="white" font-size="40" font-family="Times New Roman" text-anchor="middle" alignment-baseline="middle">10</text>
+
+</svg>

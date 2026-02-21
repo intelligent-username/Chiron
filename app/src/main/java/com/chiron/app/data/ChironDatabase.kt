@@ -10,19 +10,22 @@ import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
+import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
+import com.chiron.app.data.entities.TimerPreset
 
 @Database(
     entities = [
         Exercise::class,
         WorkoutSession::class,
         ExerciseEntry::class,
-        SetEntry::class
+        SetEntry::class,
+        TimerPreset::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -31,11 +34,13 @@ abstract class ChironDatabase : RoomDatabase() {
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun exerciseEntryDao(): ExerciseEntryDao
     abstract fun setEntryDao(): SetEntryDao
+    abstract fun timerPresetDao(): TimerPresetDao
 
     companion object {
         @Volatile
         private var INSTANCE: ChironDatabase? = null
 
+        // These migrations are legacy, probably shouldn't be run every again
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE exercise ADD COLUMN icon_name TEXT DEFAULT 'default'")
@@ -54,6 +59,24 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `timer_presets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `duration_seconds` INTEGER NOT NULL, `label` TEXT NOT NULL, `archived` INTEGER NOT NULL DEFAULT 0)")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Recreate exercise_entry table with the new num_exercises_in_superset column as NOT NULL
+                db.execSQL("CREATE TABLE IF NOT EXISTS `exercise_entry_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `workout_id` INTEGER NOT NULL, `exercise_id` INTEGER NOT NULL, `slot_index` INTEGER NOT NULL, `group_id` INTEGER, `sequence_type` TEXT NOT NULL, `notes` TEXT, `archived` INTEGER NOT NULL DEFAULT 0, `num_exercises_in_superset` INTEGER NOT NULL DEFAULT 2, FOREIGN KEY(`workout_id`) REFERENCES `workout_session`(`id`) ON DELETE CASCADE, FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE)")
+                db.execSQL("INSERT INTO `exercise_entry_new` (`id`, `workout_id`, `exercise_id`, `slot_index`, `group_id`, `sequence_type`, `notes`, `archived`, `num_exercises_in_superset`) SELECT `id`, `workout_id`, `exercise_id`, `slot_index`, `group_id`, `sequence_type`, `notes`, `archived`, 2 FROM `exercise_entry`")
+                db.execSQL("DROP TABLE `exercise_entry`")
+                db.execSQL("ALTER TABLE `exercise_entry_new` RENAME TO `exercise_entry`")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_exercise_entry_workout_id_slot_index` ON `exercise_entry` (`workout_id`, `slot_index`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_entry_exercise_id` ON `exercise_entry` (`exercise_id`)")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -61,7 +84,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)
@@ -75,6 +98,7 @@ abstract class ChironDatabase : RoomDatabase() {
                             "Cable Row" to "cables",
                             "Machine Chest Press" to "chest-press",
                             "Bicep Curl" to "curl",
+                            "Hammer Curl" to "hammer-curl",
                             "Deadlift" to "deadlift",
                             "Dips" to "dip",
                             "Farmers Carry" to "farmers-carry",
@@ -98,9 +122,9 @@ abstract class ChironDatabase : RoomDatabase() {
                             "Overhead Press" to "overhead-press",
                             "Plank" to "plate",
                             "Preacher Curl" to "preacher-curl",
-                            "Pull-ups" to "pull-up",
+                            "Pull Ups" to "pull-up",
                             "Lat Pulldown" to "pulldown",
-                            "Push-ups" to "push-up",
+                            "Push ups" to "push-up",
                             "Tricep Pushdown" to "pushdown",
                             "Ring Dips" to "rings",
                             "Sit-ups" to "sit-up",

@@ -30,7 +30,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.MaterialTheme
 import com.chiron.app.ui.settings.SettingsScreen
+import com.chiron.app.ui.timer.PresetsSheet
+import com.chiron.app.ui.timer.AddPresetDialog
 
 import androidx.activity.enableEdgeToEdge
 
@@ -46,12 +51,15 @@ class MainActivity : ComponentActivity() {
                 var activeExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var isExerciseDetailOpen by rememberSaveable { mutableStateOf(false) }
                 var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
+                var isPresetsOpen by rememberSaveable { mutableStateOf(false) }
+                var showAddPresetDialog by rememberSaveable { mutableStateOf(false) }
 
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)
                 val exercisesViewModel: ExercisesViewModel = viewModel(factory = ServiceLocator.exercisesViewModelFactory)
-                val timerViewModel: TimerViewModel = viewModel()
+                val timerViewModel: TimerViewModel = viewModel(factory = ServiceLocator.timerViewModelFactory)
 
                 val exercisesState by exercisesViewModel.uiState.collectAsState()
+                val historyState by historyViewModel.uiState.collectAsState()
 
                 val tabs = NavTab.values()
                 val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { tabs.size }
@@ -74,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         isSettingsOpen -> {
                             isSettingsOpen = false
                         }
-                        historyViewModel.uiState.value.isEditorOpen -> {
+                        historyState.isEditorOpen -> {
                             historyViewModel.closeEditor()
                         }
                         pagerState.currentPage > 0 -> {
@@ -87,7 +95,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-
                 if (isSettingsOpen) {
                     SettingsScreen(
                         repository = historyViewModel.getSettingsRepository(),
@@ -107,11 +114,32 @@ class MainActivity : ComponentActivity() {
                                     ) 
                                 },
                                 actions = {
-                                    androidx.compose.material3.IconButton(onClick = { isSettingsOpen = true }) {
-                                        androidx.compose.material3.Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Settings"
-                                        )
+                                    when (selectedTab) {
+                                        NavTab.EXERCISES -> {
+                                            androidx.compose.material3.IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Default.Archive,
+                                                    contentDescription = if (exercisesState.showArchived) "Show active exercises" else "Show archived exercises",
+                                                    tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        NavTab.TIMER -> {
+                                            androidx.compose.material3.IconButton(onClick = { isPresetsOpen = true }) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Default.Tune,
+                                                    contentDescription = "Presets"
+                                                )
+                                            }
+                                        }
+                                        else -> {
+                                            androidx.compose.material3.IconButton(onClick = { isSettingsOpen = true }) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Default.Settings,
+                                                    contentDescription = "Settings"
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             )
@@ -127,7 +155,10 @@ class MainActivity : ComponentActivity() {
                         }
                     ) { innerPadding ->
                         Box(modifier = Modifier.padding(innerPadding)) {
-                            HorizontalPager(state = pagerState) { page ->
+                            HorizontalPager(
+                                state = pagerState,
+                                userScrollEnabled = !historyState.isEditorOpen
+                            ) { page ->
                                 when (tabs[page]) {
                                     NavTab.HISTORY -> {
                                         HistoryScreen(
@@ -168,10 +199,45 @@ class MainActivity : ComponentActivity() {
                             }
 
 
-
-                            // Settings Icon removed from here
                         }
                     }
+
+                    if (isPresetsOpen) {
+                        val timerState by timerViewModel.uiState.collectAsState()
+                        PresetsSheet(
+                            presets = timerState.presets,
+                            currentDuration = timerState.countdownSeconds,
+                            onSelectPreset = { seconds ->
+                                timerViewModel.setCountdownPreset(seconds)
+                                timerViewModel.startCountdown()
+                                isPresetsOpen = false
+                            },
+                            onAddPreset = { showAddPresetDialog = true },
+                            onDeletePreset = { preset ->
+                                scope.launch {
+                                    timerViewModel.deletePreset(preset)
+                                }
+                            },
+                            onEditPreset = { preset ->
+                                scope.launch {
+                                    timerViewModel.deletePreset(preset)
+                                }
+                            },
+                            onDismiss = { isPresetsOpen = false }
+                        )
+                    }
+                }
+
+                if (showAddPresetDialog) {
+                    AddPresetDialog(
+                        onDismiss = { showAddPresetDialog = false },
+                        onSave = { label, durationSeconds ->
+                            scope.launch {
+                                timerViewModel.addPreset(label, durationSeconds)
+                            }
+                            showAddPresetDialog = false
+                        }
+                    )
                 }
             }
         }
