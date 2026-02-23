@@ -54,7 +54,7 @@ This app is completely done with every feature I intend to add. The only thing t
 
 Steps:
 
-  1. Modularize all files and functions to a decent extent, so they're easier to track
+  1. Modularize all files and functions to a decent extent, so they're easier to track. Possibly also convert icons to XML (tried this before) to increase loading effiency.
 
   2. Add the following modules:
 
