@@ -263,9 +263,12 @@ class ChironRepository(
         (setEntryDao.getMaxSetIndex(entryId) ?: 0) + 1
 
     suspend fun deleteSet(entryId: Long, setId: Long) {
+        val set = setEntryDao.getById(setId)
         val entry = exerciseEntryDao.getById(entryId)
         setEntryDao.deleteAndReindex(entryId, setId)
-        if (entry != null) rebuildPrsForExercise(entry.exerciseId)
+        if (entry != null && set != null && set.reps != null) {
+            syncGlobalPrBucket(entry.exerciseId, set.reps)
+        }
     }
 
     /**
