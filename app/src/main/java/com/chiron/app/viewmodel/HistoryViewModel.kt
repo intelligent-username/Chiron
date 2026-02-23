@@ -135,6 +135,18 @@ class HistoryViewModel(
         }
     }
 
+    /**
+     * Duplicate a workout with today's date, then open the new copy in the editor.
+     */
+    fun duplicateWorkout(workoutId: Long, onDuplicated: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val newId = repository.duplicateWorkout(workoutId)
+            if (newId > 0) {
+                onDuplicated(newId)
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Exercise Entry operations
     // ─────────────────────────────────────────────────────────────────────────
@@ -190,6 +202,9 @@ class HistoryViewModel(
 
     suspend fun getAllExercises(): List<com.chiron.app.data.entities.Exercise> =
         repository.getAllExercises()
+
+    suspend fun getLastSessionPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionPreview? =
+        repository.getLastSessionPreview(exerciseId, currentWorkoutId)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Set operations

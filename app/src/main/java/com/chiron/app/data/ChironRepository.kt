@@ -61,6 +61,35 @@ class ChironRepository(
     suspend fun getAllExercises(): List<Exercise> = exerciseDao.getAllNonArchived()
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Last session preview (for press-and-hold reference)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    data class LastSessionPreview(
+        val dateLabel: String,
+        val sets: List<SetEntry>,
+        val notes: String? = null
+    )
+
+    suspend fun getLastSessionPreview(exerciseId: Long, currentWorkoutId: Long): LastSessionPreview? {
+        val entry = exerciseEntryDao.getMostRecentEntryForExercise(exerciseId, currentWorkoutId)
+            ?: return null
+        val sets = setEntryDao.getSetsForEntrySync(entry.id)
+        if (sets.isEmpty()) return null
+
+        val workout = workoutSessionDao.getById(entry.workoutId) ?: return null
+        val dateLabel = try {
+            val date = java.time.LocalDate.parse(workout.dateIso)
+            val dayOfWeek = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+            val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+            "$dayOfWeek, $month ${date.dayOfMonth}"
+        } catch (e: Exception) {
+            workout.dateIso
+        }
+
+        return LastSessionPreview(dateLabel = dateLabel, sets = sets, notes = entry.notes)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Workout session operations
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -78,6 +107,60 @@ class ChironRepository(
         workoutSessionDao.getByDayTagFlow(dayTag)
 
     suspend fun archiveWorkout(id: Long) = workoutSessionDao.archive(id)
+
+    /**
+     * Deep-copy a workout with today's date. All entries and sets are duplicated by value.
+     * Returns the new workout's ID.
+     */
+    suspend fun duplicateWorkout(sourceWorkoutId: Long): Long {
+        val source = workoutSessionDao.getById(sourceWorkoutId) ?: return -1L
+
+        val now = java.time.Instant.now()
+        val todayIso = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val newSession = source.copy(
+            id = 0L,
+            dateIso = todayIso,
+            dateUtc = now.toEpochMilli()
+        )
+        val newWorkoutId = workoutSessionDao.insertWorkout(newSession)
+
+        // Copy all exercise entries
+        val sourceEntries = exerciseEntryDao.getEntriesForWorkoutSync(sourceWorkoutId)
+        // Map old entry IDs to new entry IDs (for groupId references)
+        val entryIdMap = mutableMapOf<Long, Long>()
+
+        for (entry in sourceEntries) {
+            val newEntry = entry.copy(
+                id = 0L,
+                workoutId = newWorkoutId,
+                groupId = null // will fix after all entries are created
+            )
+            val newEntryId = exerciseEntryDao.insertEntry(newEntry)
+            entryIdMap[entry.id] = newEntryId
+
+            // Copy all sets for this entry
+            val sourceSets = setEntryDao.getSetsForEntrySync(entry.id)
+            for (set in sourceSets) {
+                setEntryDao.insertSet(set.copy(
+                    id = 0L,
+                    exerciseEntryId = newEntryId,
+                    timestampUtc = now.toEpochMilli()
+                ))
+            }
+        }
+
+        // Fix groupId references for superset entries
+        for (entry in sourceEntries) {
+            val oldGroupId = entry.groupId ?: continue
+            val newEntryId = entryIdMap[entry.id] ?: continue
+            val newGroupId = entryIdMap[oldGroupId] ?: continue
+            val currentEntry = exerciseEntryDao.getById(newEntryId) ?: continue
+            exerciseEntryDao.updateEntry(currentEntry.copy(groupId = newGroupId))
+        }
+
+        return newWorkoutId
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Exercise entry operations

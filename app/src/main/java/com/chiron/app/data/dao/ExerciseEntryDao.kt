@@ -43,6 +43,22 @@ interface ExerciseEntryDao {
     @Query("UPDATE exercise_entry SET slot_index = :newIndex WHERE id = :entryId")
     suspend fun updateSlotIndex(entryId: Long, newIndex: Int)
 
+    /**
+     * Find the most recent ExerciseEntry for a given exercise,
+     * excluding the current workout. Used for "last session preview".
+     */
+    @Query("""
+        SELECT ee.* FROM exercise_entry ee
+        INNER JOIN workout_session ws ON ee.workout_id = ws.id
+        WHERE ee.exercise_id = :exerciseId
+          AND ee.workout_id != :currentWorkoutId
+          AND ee.archived = 0
+          AND ws.archived = 0
+        ORDER BY ws.date_utc DESC
+        LIMIT 1
+    """)
+    suspend fun getMostRecentEntryForExercise(exerciseId: Long, currentWorkoutId: Long): ExerciseEntry?
+
     @Transaction
     suspend fun deleteAndReindex(workoutId: Long, entryId: Long) {
         delete(entryId)

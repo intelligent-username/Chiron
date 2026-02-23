@@ -1,6 +1,8 @@
 package com.chiron.app.ui.history
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,11 +26,13 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,12 +68,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import com.chiron.app.data.ChironRepository
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.ui.components.SetPill
@@ -95,11 +103,14 @@ fun WorkoutEditor(
     
     var showAddExerciseDialog by remember { mutableStateOf(false) }
     var supersetParentEntryId by remember { mutableStateOf<Long?>(null) }
+    var pendingIncrementSupersetParentEntryId by remember { mutableStateOf<Long?>(null) }
+    var didAddExerciseInDialog by remember { mutableStateOf(false) }
     var editingSetEntry by remember { mutableStateOf<Pair<Long, Int>?>(null) } // entryId, setIndex
     
     val scope = rememberCoroutineScope()
     
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showDuplicateConfirmation by remember { mutableStateOf(false) }
 
     var isEditingDetails by remember { mutableStateOf(false) }
     
@@ -253,8 +264,15 @@ fun WorkoutEditor(
                             }
                         }
 
-                        // Actions Row (Delete + Done)
+                        // Actions Row (Duplicate + Delete + Done)
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { showDuplicateConfirmation = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ContentCopy,
+                                    contentDescription = "Duplicate Workout",
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                )
+                            }
                             IconButton(onClick = { showDeleteConfirmation = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
@@ -421,8 +439,10 @@ fun WorkoutEditor(
                                 }
                             }
                         },
-                        onRequestAddExercise = {
+                        onRequestAddExercise = { fromIncrement ->
+                            didAddExerciseInDialog = false
                             supersetParentEntryId = group.firstOrNull()?.id
+                            pendingIncrementSupersetParentEntryId = if (fromIncrement) group.firstOrNull()?.id else null
                             showAddExerciseDialog = true
                         }
                     )
@@ -494,6 +514,33 @@ fun WorkoutEditor(
         )
     }
 
+    // Duplicate confirmation dialog
+    if (showDuplicateConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDuplicateConfirmation = false },
+            title = { Text("Duplicate Workout?") },
+            text = { Text("This will create an identical copy of this workout with today's date. All exercises and sets will be copied.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDuplicateConfirmation = false
+                        viewModel.duplicateWorkout(workout.id) { newId ->
+                            viewModel.openEditor(newId)
+                        }
+                        onClose()
+                    }
+                ) {
+                    Text("Duplicate", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicateConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // Add exercise dialog
     if (showAddExerciseDialog) {
         AddExerciseDialog(
@@ -501,9 +548,28 @@ fun WorkoutEditor(
             workoutId = workout.id,
             parentEntryId = supersetParentEntryId,
             entries = entries,
+            onExerciseAdded = {
+                didAddExerciseInDialog = true
+            },
             onDismiss = { 
+                val pendingId = pendingIncrementSupersetParentEntryId
+                if (pendingId != null && !didAddExerciseInDialog) {
+                    val parent = entries.find { it.id == pendingId }
+                    if (parent != null) {
+                        val decremented = (parent.numExercisesInSuperset - 1).coerceAtLeast(2)
+                        viewModel.updateExerciseEntry(
+                            parent.copy(
+                                numExercisesInSuperset = decremented,
+                                sequenceType = "SUPERSET_START",
+                                groupId = parent.groupId ?: parent.id
+                            )
+                        )
+                    }
+                }
                 showAddExerciseDialog = false
                 supersetParentEntryId = null
+                pendingIncrementSupersetParentEntryId = null
+                didAddExerciseInDialog = false
             }
         )
     }
@@ -548,7 +614,7 @@ private fun SupersetCard(
     onSetClick: (Long, Int) -> Unit,
     onAddSet: (Long) -> Unit,
     onDeleteSuperset: () -> Unit,
-    onRequestAddExercise: () -> Unit
+    onRequestAddExercise: (Boolean) -> Unit
 ) {
     val startEntry = entries.firstOrNull() ?: return
     val scope = rememberCoroutineScope()
@@ -556,7 +622,7 @@ private fun SupersetCard(
     var isSupersetEnabled by remember(startEntry.id) { mutableStateOf(true) }
     var isEditingTitle by rememberSaveable(startEntry.id) { mutableStateOf(false) }
     var supersetTitle by rememberSaveable(startEntry.id) { mutableStateOf("Superset $supersetNumber") }
-    var numExercisesInSuperset by remember(startEntry.id) {
+    var numExercisesInSuperset by remember(startEntry.id, startEntry.numExercisesInSuperset) {
         mutableIntStateOf(startEntry.numExercisesInSuperset.coerceAtLeast(2))
     }
 
@@ -807,7 +873,7 @@ private fun SupersetCard(
                                     val newCount = numExercisesInSuperset + 1
                                     numExercisesInSuperset = newCount
                                     if (entries.size < newCount) {
-                                        onRequestAddExercise()
+                                        onRequestAddExercise(true)
                                     }
                                     scope.launch {
                                         val groupIdentifier = startEntry.groupId ?: startEntry.id
@@ -942,6 +1008,16 @@ private fun ExerciseEntryCard(
     var isSupersetEnabled by remember { mutableStateOf(entry.sequenceType == "SUPERSET_START") }
     var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
     val scope = rememberCoroutineScope()
+
+    // Last session preview state
+    var isPreviewingLastSession by remember { mutableStateOf(false) }
+    var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
+
+    LaunchedEffect(entry.exerciseId, workoutId) {
+        lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+    }
+
+    val hasHistory = lastSessionPreview != null
     
     // Count how many exercises are already in this superset
     val currentExercisesInSuperset = remember(allEntries, entry.id) {
@@ -969,11 +1045,15 @@ private fun ExerciseEntryCard(
         exercise = viewModel.getExerciseById(entry.exerciseId)
     }
 
+    // Card background and content alpha — instant, no animation to avoid lag
+    val cardColor = MaterialTheme.colorScheme.surface
+    val contentAlpha = if (isPreviewingLastSession) 0.55f else 1f
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = cardColor
         )
     ) {
         Column(
@@ -995,39 +1075,62 @@ private fun ExerciseEntryCard(
                  
                  // Name and Sets (Right)
                  Column(modifier = Modifier.weight(1f)) {
-                     Text(
-                         text = exercise?.name ?: "Loading...",
-                         style = MaterialTheme.typography.titleMedium,
-                         fontWeight = FontWeight.Bold,
-                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                     )
+                     if (isPreviewingLastSession && lastSessionPreview != null) {
+                         // Preview title: "Mon, Feb 10: Bench Press" — same size as normal
+                         Text(
+                             text = "${lastSessionPreview!!.dateLabel}: ${exercise?.name ?: ""}",
+                             style = MaterialTheme.typography.titleMedium,
+                             fontWeight = FontWeight.Bold,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                         )
+                     } else {
+                         Text(
+                             text = exercise?.name ?: "Loading...",
+                             style = MaterialTheme.typography.titleMedium,
+                             fontWeight = FontWeight.Bold,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                         )
+                     }
                      
                      Spacer(modifier = Modifier.height(8.dp))
                      
                      FlowRow(
                          horizontalArrangement = Arrangement.spacedBy(8.dp),
                          verticalArrangement = Arrangement.spacedBy(8.dp),
-                         modifier = Modifier.fillMaxWidth()
+                         modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
                      ) {
-                         sets.forEachIndexed { index, set ->
-                             SetPill(
-                                 weightLbs = set.weightLbs,
-                                 reps = set.reps,
-                                 displayInKg = displayInKg,
-                                 onClick = { onSetClick(index + 1) }
-                             )
-                         }
-                         
-                         // Add Set Button
-                         OutlinedButton(
-                             onClick = onAddSet,
-                             contentPadding = PaddingValues(horizontal = 12.dp),
-                             modifier = Modifier.height(32.dp),
-                             colors = ButtonDefaults.outlinedButtonColors(
-                                  contentColor = MaterialTheme.colorScheme.primary
-                             )
-                         ) {
-                             Icon(Icons.Default.Add, "Add", modifier = Modifier.size(16.dp))
+                         if (isPreviewingLastSession && lastSessionPreview != null) {
+                             // Show prior session's sets
+                             lastSessionPreview!!.sets.forEach { set ->
+                                 SetPill(
+                                     weightLbs = set.weightLbs,
+                                     reps = set.reps,
+                                     displayInKg = displayInKg,
+                                     onClick = { } // Non-interactive in preview
+                                 )
+                             }
+                         } else {
+                             // Normal: show current sets
+                             sets.forEachIndexed { index, set ->
+                                 SetPill(
+                                     weightLbs = set.weightLbs,
+                                     reps = set.reps,
+                                     displayInKg = displayInKg,
+                                     onClick = { onSetClick(index + 1) }
+                                 )
+                             }
+                             
+                             // Add Set Button (hidden during preview)
+                             OutlinedButton(
+                                 onClick = onAddSet,
+                                 contentPadding = PaddingValues(horizontal = 12.dp),
+                                 modifier = Modifier.height(32.dp),
+                                 colors = ButtonDefaults.outlinedButtonColors(
+                                      contentColor = MaterialTheme.colorScheme.primary
+                                 )
+                             ) {
+                                 Icon(Icons.Default.Add, "Add", modifier = Modifier.size(16.dp))
+                             }
                          }
                      }
                  }
@@ -1047,33 +1150,93 @@ private fun ExerciseEntryCard(
             }
             
             Spacer(modifier = Modifier.height(12.dp))
-            
-            // Notes (Full width)
-            OutlinedTextField(
-                value = exerciseNotes,
-                onValueChange = { 
-                    exerciseNotes = it
-                    scope.launch {
-                        viewModel.updateExerciseEntry(entry.copy(notes = it.ifBlank { null }))
-                    }
-                },
-                placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
-                textStyle = MaterialTheme.typography.bodySmall,
+
+            // Notes row with always-visible preview button
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 1,
-                maxLines = 3,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                )
-            )
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isPreviewingLastSession && lastSessionPreview != null) {
+                    // Show prior session notes (read-only, same size as normal)
+                    val previewNotes = lastSessionPreview!!.notes ?: ""
+                    OutlinedTextField(
+                        value = previewNotes,
+                        onValueChange = { },
+                        enabled = false,
+                        placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall) },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.weight(1f),
+                        minLines = 1,
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledContainerColor = Color.Transparent,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+                } else {
+                    // Normal: editable notes
+                    OutlinedTextField(
+                        value = exerciseNotes,
+                        onValueChange = { 
+                            exerciseNotes = it
+                            scope.launch {
+                                viewModel.updateExerciseEntry(entry.copy(notes = it.ifBlank { null }))
+                            }
+                        },
+                        placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                        minLines = 1,
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+                    )
+                }
+
+                // Last Session Preview button — ALWAYS rendered, never removed
+                if (hasHistory) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                            )
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = {
+                                        isPreviewingLastSession = true
+                                        tryAwaitRelease()
+                                        isPreviewingLastSession = false
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                )
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Superset Controls
-            Row(
+            // Superset Controls (hidden during preview)
+            if (!isPreviewingLastSession) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
@@ -1133,8 +1296,8 @@ private fun ExerciseEntryCard(
                 )
             }
 
-            // Number of exercises input (only show when superset is enabled)
-            if (isSupersetEnabled) {
+            // Number of exercises input (only show when superset is enabled, and not previewing)
+            if (isSupersetEnabled && !isPreviewingLastSession) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1276,6 +1439,7 @@ private fun AddExerciseDialog(
     workoutId: Long,
     parentEntryId: Long? = null,
     entries: List<ExerciseEntry> = emptyList(),
+    onExerciseAdded: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -1327,6 +1491,7 @@ private fun AddExerciseDialog(
                                     scope.launch {
                                         if (parentEntryId == null) {
                                             viewModel.addExerciseEntry(workoutId, exercise.id)
+                                            onExerciseAdded()
                                             onDismiss()
                                             return@launch
                                         }
@@ -1384,6 +1549,7 @@ private fun AddExerciseDialog(
                                         )
                                         viewModel.updateExerciseEntry(newEntry)
 
+                                        onExerciseAdded()
                                         onDismiss()
                                     }
                                 }
