@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -32,6 +33,8 @@ fun ExercisesScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newExerciseName by remember { mutableStateOf("") }
     var selectedIcon by remember { mutableStateOf<String?>("default") }
+    val context = LocalContext.current
+
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -45,9 +48,9 @@ fun ExercisesScreen(
                 onValueChange = viewModel::updateSearchQuery,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
                     .padding(bottom = 8.dp),
-                label = { Text("Search exercises") }
+                label = { Text("Search exercises") },
+                singleLine = true
             )
 
             if (state.showArchived) {
@@ -77,7 +80,10 @@ fun ExercisesScreen(
                     .fillMaxSize()
                     .weight(1f)
             ) {
-                items(displayedList) { exercise ->
+                items(
+                    items = displayedList,
+                    key = { it.id } // Stable ID for performance
+                ) { exercise ->
                     ExerciseGridItem(
                         exercise = exercise,
                         onClick = { onOpenDetail(exercise.id) },

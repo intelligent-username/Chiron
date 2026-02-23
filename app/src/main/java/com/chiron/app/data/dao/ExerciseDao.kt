@@ -26,6 +26,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise WHERE archived = 0 ORDER BY name ASC")
     suspend fun getAllNonArchived(): List<Exercise>
 
+    @Query("SELECT * FROM exercise WHERE archived = 1 ORDER BY name ASC")
+    suspend fun getAllArchived(): List<Exercise>
+
     @Query("SELECT * FROM exercise WHERE id = :id")
     suspend fun getById(id: Long): Exercise?
 

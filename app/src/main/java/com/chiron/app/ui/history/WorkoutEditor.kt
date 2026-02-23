@@ -586,7 +586,7 @@ fun WorkoutEditor(
                 displayInKg = displayInKg,
                 onSave = { updatedSet ->
                     scope.launch {
-                        viewModel.updateSet(updatedSet)
+                        viewModel.updateSetAndCheckPr(updatedSet)
                         editingSetEntry = null
                     }
                 },
@@ -1106,6 +1106,7 @@ private fun ExerciseEntryCard(
                                      weightLbs = set.weightLbs,
                                      reps = set.reps,
                                      displayInKg = displayInKg,
+                                     isPr = set.isPr == 1,
                                      onClick = { } // Non-interactive in preview
                                  )
                              }
@@ -1116,6 +1117,7 @@ private fun ExerciseEntryCard(
                                      weightLbs = set.weightLbs,
                                      reps = set.reps,
                                      displayInKg = displayInKg,
+                                     isPr = set.isPr == 1,
                                      onClick = { onSetClick(index + 1) }
                                  )
                              }

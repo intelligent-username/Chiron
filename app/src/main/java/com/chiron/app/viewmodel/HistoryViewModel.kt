@@ -252,10 +252,26 @@ class HistoryViewModel(
         repository.getLastSetForExercise(exerciseId)
 
     /**
-     * Check if this set is a new PR.
+     * Save one finalized set and evaluate its historical PR flag at write-time only.
+     * Uses "highest weight so far up to workout day" for the same rep count.
      */
-    suspend fun checkPr(exerciseId: Long, weightLbs: Double, reps: Int): Boolean =
-        repository.isNewPr(exerciseId, weightLbs, reps)
+    fun updateSetAndCheckPr(set: SetEntry) {
+        viewModelScope.launch {
+            try {
+                repository.updateSetAndEvaluateHistoricalPr(set)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /** Get current global PRs for an exercise (one-shot, for the PR screen). */
+    suspend fun getAllPrsForExercise(exerciseId: Long) =
+        repository.getAllPrsForExercise(exerciseId)
+
+    /** Observe current PRs for an exercise reactively. */
+    fun getPrsForExerciseFlow(exerciseId: Long) =
+        repository.getPrsForExerciseFlow(exerciseId)
 
     fun getSettingsRepository(): UserSettingsRepository = settingsRepository
 

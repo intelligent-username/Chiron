@@ -47,5 +47,9 @@ data class SetEntry(
     val notes: String? = null,
 
     @ColumnInfo(name = "timestamp_utc")
-    val timestampUtc: Long
+    val timestampUtc: Long,
+
+    /** 1 if this set was a PR (highest weight for this rep count) when it was logged. Never reverted. */
+    @ColumnInfo(name = "is_pr", defaultValue = "0")
+    val isPr: Int = 0
 )

@@ -18,7 +18,8 @@ data class ExercisesUiState(
     val searchResults: List<Exercise> = emptyList(),
     val selectedExerciseId: Long? = null,
     val isDetailOpen: Boolean = false,
-    val showArchived: Boolean = false
+    val showArchived: Boolean = false,
+    val isLoading: Boolean = true
 )
 
 class ExercisesViewModel(
@@ -34,12 +35,12 @@ class ExercisesViewModel(
     init {
         viewModelScope.launch {
             repository.exercisesFlow.collect { exercises ->
-                _uiState.update { it.copy(exercises = exercises) }
+                _uiState.update { it.copy(exercises = exercises, isLoading = false) }
             }
         }
         viewModelScope.launch {
             repository.archivedExercisesFlow.collect { archived ->
-                _uiState.update { it.copy(archivedExercises = archived) }
+                _uiState.update { it.copy(archivedExercises = archived, isLoading = false) }
             }
         }
     }
@@ -53,7 +54,8 @@ class ExercisesViewModel(
             if (query.isBlank()) {
                 _uiState.update { it.copy(searchResults = emptyList()) }
             } else {
-                val results = repository.searchExercises(query)
+                val archived = _uiState.value.showArchived
+                val results = repository.searchExercises(query, archived = archived)
                 _uiState.update { it.copy(searchResults = results) }
             }
         }
@@ -143,6 +145,12 @@ class ExercisesViewModel(
     }
 
     suspend fun getExerciseById(id: Long): Exercise? = repository.getExerciseById(id)
+
+    /** Get all current PRs for an exercise (rep count → best weight). */
+    fun getPrsForExerciseFlow(exerciseId: Long) = repository.getPrsForExerciseFlow(exerciseId)
+
+    /** One-shot fetch of all exercise IDs that have at least one PR on record. */
+    suspend fun getExerciseIdsWithPrs(): List<Long> = repository.getExerciseIdsWithPrs()
 
     // ─────────────────────────────────────────────────────────────────────────
     // Factory

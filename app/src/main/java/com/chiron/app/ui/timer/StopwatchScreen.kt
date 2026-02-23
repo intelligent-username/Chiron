@@ -1,13 +1,25 @@
 package com.chiron.app.ui.timer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FlagCircle
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -17,15 +29,22 @@ import com.chiron.app.viewmodel.TimerViewModel
 fun StopwatchContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
+    val startColor = Color(0xFF43A047)
+    val pauseColor = Color(0xEF4A1CFF)
+    val isRunning = state.isStopwatchRunning
+    val hasTime = state.stopwatchMillis > 0
+
     Column(
-        verticalArrangement = Arrangement.spacedBy(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.spacedBy(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
     ) {
+        // ── Time display ─────────────────────────────────────────────────
         val formatted = TimerViewModel.formatStopwatch(state.stopwatchMillis)
         val parts = formatted.split(".")
         val timePart = parts.getOrElse(0) { "00:00" }
         val millisPart = if (parts.size > 1) ".${parts[1]}" else ""
-        
+
         Row(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.Center
@@ -33,8 +52,10 @@ fun StopwatchContent(viewModel: TimerViewModel) {
             Text(
                 text = timePart,
                 style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 100.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 84.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = (-2).sp
                 ),
                 modifier = Modifier.alignByBaseline(),
                 maxLines = 1,
@@ -44,86 +65,154 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                 Text(
                     text = millisPart,
                     style = MaterialTheme.typography.displayLarge.copy(
-                        fontSize = 50.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
                     ),
-                    modifier = Modifier.alignByBaseline().padding(start = 4.dp),
+                    modifier = Modifier.alignByBaseline().padding(start = 2.dp),
                     maxLines = 1,
                     softWrap = false
                 )
             }
         }
 
+        // ── Buttons ──────────────────────────────────────────────────────
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
         ) {
-            // Left Button: Lap / Reset
-            val isRunning = state.isStopwatchRunning
-            val hasTime = state.stopwatchMillis > 0
-            
-            Button(
-                onClick = { 
-                    if (isRunning) viewModel.recordLap() else viewModel.resetStopwatch() 
+            // Left: Lap / Reset
+            FilledTonalButton(
+                onClick = {
+                    if (isRunning) viewModel.recordLap() else viewModel.resetStopwatch()
                 },
                 enabled = isRunning || hasTime,
                 modifier = Modifier
                     .weight(1f)
-                    .height(80.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.filledTonalButtonColors()
+                    .height(72.dp),
+                shape = RoundedCornerShape(20.dp)
             ) {
+                Icon(
+                    imageVector = if (isRunning) Icons.Default.FlagCircle else Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = if (isRunning) "Lap" else "Reset",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
-            // Right Button: Start / Pause
+            // Right: Start / Pause
             Button(
-                onClick = { 
-                    if (isRunning) viewModel.pauseStopwatch() else viewModel.startStopwatch() 
+                onClick = {
+                    if (isRunning) viewModel.pauseStopwatch() else viewModel.startStopwatch()
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .height(80.dp),
-                shape = RoundedCornerShape(16.dp)
+                    .height(72.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isRunning) pauseColor else startColor
+                )
             ) {
+                Icon(
+                    imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = if (isRunning) "Pause" else "Start",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
 
-        // Laps list (showing most recent first)
+        // ── Laps ─────────────────────────────────────────────────────────
         if (state.laps.isNotEmpty()) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Laps", 
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "Laps",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-                
-                // Show last 5 laps for UI cleanliness, reversed
-                val layoutLaps = state.laps.asReversed().take(5)
-                layoutLaps.forEachIndexed { index, lapTime ->
-                    // Calculate original index (state.laps.size - 1 - index) 
-                    // or just "Lap X" based on loop order?
-                    // Usually "Lap #": standard order is better to track.
-                    // But displaying reversed.
-                    val originalIndex = state.laps.size - index
-                    Text(
-                        text = "Lap $originalIndex: ${TimerViewModel.formatStopwatch(lapTime)}",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+
+                val reversedLaps = state.laps.asReversed()
+                val maxLaps = 6
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = (maxLaps * 44).dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(reversedLaps) { index, lapTime ->
+                        val lapNumber = state.laps.size - index
+                        LapRow(
+                            lapNumber = lapNumber,
+                            lapTime = TimerViewModel.formatStopwatch(lapTime)
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LapRow(
+    lapNumber: Int,
+    lapTime: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Numbered disc
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$lapNumber",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "Lap $lapNumber",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+        }
+
+        Text(
+            text = lapTime,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
     }
 }

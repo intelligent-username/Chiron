@@ -4,9 +4,11 @@ import android.content.Context
 import com.chiron.app.data.ChironDatabase
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.prefs.UserSettingsRepository
+import com.chiron.app.ui.components.prefetchAllIcons
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
+import kotlin.concurrent.thread
 
 /**
  * Simple service locator for manual dependency injection.
@@ -27,7 +29,8 @@ object ServiceLocator {
             workoutSessionDao = database.workoutSessionDao(),
             exerciseEntryDao = database.exerciseEntryDao(),
             setEntryDao = database.setEntryDao(),
-            timerPresetDao = database.timerPresetDao()
+            timerPresetDao = database.timerPresetDao(),
+            exercisePrDao = database.exercisePrDao()
         )
     }
 
@@ -37,6 +40,10 @@ object ServiceLocator {
 
     fun init(context: Context) {
         applicationContext = context.applicationContext
+        // Prefetch icons in background thread (non-blocking)
+        thread(isDaemon = true) {
+            prefetchAllIcons(applicationContext)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

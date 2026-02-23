@@ -8,11 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
+import com.chiron.app.data.dao.ExercisePrDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
+import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.data.entities.TimerPreset
@@ -23,9 +25,10 @@ import com.chiron.app.data.entities.TimerPreset
         WorkoutSession::class,
         ExerciseEntry::class,
         SetEntry::class,
-        TimerPreset::class
+        TimerPreset::class,
+        ExercisePr::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -35,6 +38,7 @@ abstract class ChironDatabase : RoomDatabase() {
     abstract fun exerciseEntryDao(): ExerciseEntryDao
     abstract fun setEntryDao(): SetEntryDao
     abstract fun timerPresetDao(): TimerPresetDao
+    abstract fun exercisePrDao(): ExercisePrDao
 
     companion object {
         @Volatile
@@ -77,6 +81,26 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add is_pr column to set_entry
+                db.execSQL("ALTER TABLE set_entry ADD COLUMN is_pr INTEGER NOT NULL DEFAULT 0")
+                // Create exercise_pr table for global current PRs per (exercise, reps)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_pr` (
+                        `exercise_id` INTEGER NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `weight_lbs` REAL NOT NULL,
+                        `set_id` INTEGER NOT NULL,
+                        `timestamp_utc` INTEGER NOT NULL,
+                        PRIMARY KEY(`exercise_id`, `reps`),
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_pr_exercise_id` ON `exercise_pr` (`exercise_id`)")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +108,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

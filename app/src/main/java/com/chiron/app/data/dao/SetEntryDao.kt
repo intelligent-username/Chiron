@@ -27,8 +27,46 @@ interface SetEntryDao {
     @Query("SELECT * FROM set_entry WHERE id = :id")
     suspend fun getById(id: Long): SetEntry?
 
+    @Query("SELECT exercise_id FROM exercise_entry WHERE id = :entryId LIMIT 1")
+    suspend fun getExerciseIdForEntry(entryId: Long): Long?
+
+    @Query("SELECT workout_id FROM exercise_entry WHERE id = :entryId LIMIT 1")
+    suspend fun getWorkoutIdForEntry(entryId: Long): Long?
+
     @Query("SELECT MAX(set_index) FROM set_entry WHERE exercise_entry_id = :entryId")
     suspend fun getMaxSetIndex(entryId: Long): Int?
+
+    @Query("""
+        SELECT MAX(s.weight_lbs)
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE e.exercise_id = :exerciseId
+          AND s.reps = :reps
+          AND s.weight_lbs IS NOT NULL
+          AND s.is_failed = 0
+          AND w.date_utc <= :upToWorkoutDateUtc
+          AND s.id != :excludeSetId
+    """)
+    suspend fun getMaxWeightForExerciseRepsUpToWorkoutDate(
+        exerciseId: Long,
+        reps: Int,
+        upToWorkoutDateUtc: Long,
+        excludeSetId: Long
+    ): Double?
+
+    @Query("""
+        SELECT s.*
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE e.exercise_id = :exerciseId
+          AND s.reps = :reps
+          AND s.weight_lbs IS NOT NULL
+          AND s.is_failed = 0
+        ORDER BY s.weight_lbs DESC, s.timestamp_utc ASC, s.id ASC
+        LIMIT 1
+    """)
+    suspend fun getBestSetForExerciseAndReps(exerciseId: Long, reps: Int): SetEntry?
 
     @Query("DELETE FROM set_entry WHERE id = :id")
     suspend fun delete(id: Long)
@@ -70,4 +108,16 @@ interface SetEntryDao {
             updateSetIndex(set.id, index + 1)
         }
     }
+
+    /**
+     * Reset is_pr on all sets for a given exercise.
+     * Call this before a full PR rebuild so stale flags are cleared.
+     */
+    @Query("""
+        UPDATE set_entry SET is_pr = 0
+        WHERE exercise_entry_id IN (
+            SELECT id FROM exercise_entry WHERE exercise_id = :exerciseId
+        )
+    """)
+    suspend fun clearPrFlagsForExercise(exerciseId: Long)
 }

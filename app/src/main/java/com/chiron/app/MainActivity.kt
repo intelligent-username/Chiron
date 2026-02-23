@@ -3,41 +3,44 @@ package com.chiron.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import com.chiron.app.di.ServiceLocator
 import com.chiron.app.ui.components.BottomNavBar
 import com.chiron.app.ui.components.NavTab
 import com.chiron.app.ui.exercises.ExerciseDetailScreen
 import com.chiron.app.ui.exercises.ExercisesScreen
+import com.chiron.app.ui.exercises.PrScreen
 import com.chiron.app.ui.history.HistoryScreen
+import com.chiron.app.ui.settings.SettingsScreen
 import com.chiron.app.ui.theme.ChironTheme
+import com.chiron.app.ui.theme.PrGold
+import com.chiron.app.ui.timer.AddPresetDialog
+import com.chiron.app.ui.timer.PresetsSheet
 import com.chiron.app.ui.timer.TimerScreenHost
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.MaterialTheme
-import com.chiron.app.ui.settings.SettingsScreen
-import com.chiron.app.ui.timer.PresetsSheet
-import com.chiron.app.ui.timer.AddPresetDialog
-
-import androidx.activity.enableEdgeToEdge
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
                 var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
                 var isPresetsOpen by rememberSaveable { mutableStateOf(false) }
                 var showAddPresetDialog by rememberSaveable { mutableStateOf(false) }
+                var isPrScreenOpen by rememberSaveable { mutableStateOf(false) }
 
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)
                 val exercisesViewModel: ExercisesViewModel = viewModel(factory = ServiceLocator.exercisesViewModelFactory)
@@ -75,6 +79,9 @@ class MainActivity : ComponentActivity() {
 
                 androidx.activity.compose.BackHandler(enabled = true) {
                     when {
+                        isPrScreenOpen -> {
+                            isPrScreenOpen = false
+                        }
                         isExerciseDetailOpen -> {
                             isExerciseDetailOpen = false
                             activeExerciseId = null
@@ -116,11 +123,20 @@ class MainActivity : ComponentActivity() {
                                 actions = {
                                     when (selectedTab) {
                                         NavTab.EXERCISES -> {
+                                            // Archive toggle
                                             androidx.compose.material3.IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
                                                 androidx.compose.material3.Icon(
                                                     imageVector = Icons.Default.Archive,
                                                     contentDescription = if (exercisesState.showArchived) "Show active exercises" else "Show archived exercises",
                                                     tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            // PR trophy button
+                                            androidx.compose.material3.IconButton(onClick = { isPrScreenOpen = true }) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Default.EmojiEvents,
+                                                    contentDescription = "Personal Records",
+                                                    tint = PrGold
                                                 )
                                             }
                                         }
@@ -187,6 +203,14 @@ class MainActivity : ComponentActivity() {
                                                         isExerciseDetailOpen = false
                                                         activeExerciseId = null
                                                     },
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                            if (isPrScreenOpen) {
+                                                PrScreen(
+                                                    viewModel = exercisesViewModel,
+                                                    displayInKg = historyState.displayInKg,
+                                                    onClose = { isPrScreenOpen = false },
                                                     modifier = Modifier.fillMaxSize()
                                                 )
                                             }

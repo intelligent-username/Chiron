@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.Uri
 import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
+import com.chiron.app.data.dao.ExercisePrDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
+import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.data.entities.TimerPreset
@@ -24,7 +26,8 @@ class ChironRepository(
     private val workoutSessionDao: WorkoutSessionDao,
     private val exerciseEntryDao: ExerciseEntryDao,
     private val setEntryDao: SetEntryDao,
-    private val timerPresetDao: TimerPresetDao
+    private val timerPresetDao: TimerPresetDao,
+    private val exercisePrDao: ExercisePrDao
 ) {
     // ─────────────────────────────────────────────────────────────────────────
     // Exercise ops
@@ -51,9 +54,9 @@ class ChironRepository(
      * Search exercises using Jaccard similarity on tokenized names.
      * Tie-break by recency (lower ID = older, so prefer higher ID).
      */
-    suspend fun searchExercises(query: String, limit: Int = 10): List<Exercise> {
+    suspend fun searchExercises(query: String, archived: Boolean = false, limit: Int = 10): List<Exercise> {
         if (query.isBlank()) return emptyList()
-        val allExercises = exerciseDao.getAllNonArchived()
+        val allExercises = if (archived) exerciseDao.getAllArchived() else exerciseDao.getAllNonArchived()
         return Jaccard.rankBySimilarity(query, allExercises, { it.name }, limit)
 
     }
@@ -176,12 +179,15 @@ class ChironRepository(
     suspend fun getNextSlotIndex(workoutId: Long): Int =
         (exerciseEntryDao.getMaxSlotIndex(workoutId) ?: 0) + 1
 
-    suspend fun deleteExerciseEntry(workoutId: Long, entryId: Long) =
+    suspend fun deleteExerciseEntry(workoutId: Long, entryId: Long) {
+        val entry = exerciseEntryDao.getById(entryId)
         exerciseEntryDao.deleteAndReindex(workoutId, entryId)
+        if (entry != null) rebuildPrsForExercise(entry.exerciseId)
+    }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ──────────────────────
     // Set entry operations
-    // ─────────────────────────────────────────────────────────────────────────
+    // ──────────────────────
 
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> = setEntryDao.getSetsForEntry(entryId)
 
@@ -189,10 +195,78 @@ class ChironRepository(
 
     suspend fun updateSet(set: SetEntry) = setEntryDao.updateSet(set)
 
+    /**
+     * Update one set and evaluate its historical PR flag once, relative to what existed
+     * up to the workout day for the same exercise + reps.
+     *
+     * This does not rebuild or rewrite other sets' `is_pr` flags.
+     */
+    suspend fun updateSetAndEvaluateHistoricalPr(set: SetEntry) {
+        val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
+        setEntryDao.updateSet(set)
+
+        val reps = set.reps
+        val weight = set.weightLbs
+        val shouldCheck = reps != null && weight != null && set.isFailed == 0
+
+        if (!shouldCheck) {
+            if (set.isPr != 0) {
+                setEntryDao.updateSet(set.copy(isPr = 0))
+            }
+            return
+        }
+
+        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
+        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) ?: return
+        val workout = workoutSessionDao.getById(workoutId) ?: return
+
+        val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
+            exerciseId = exerciseId,
+            reps = reps,
+            upToWorkoutDateUtc = workout.dateUtc,
+            excludeSetId = set.id
+        )
+
+        val isHistoricalPr = maxWeightSoFar == null || weight > maxWeightSoFar
+        val newIsPr = if (isHistoricalPr) 1 else 0
+
+        if (set.isPr != newIsPr) {
+            setEntryDao.updateSet(set.copy(isPr = newIsPr))
+        }
+
+        syncGlobalPrBucket(exerciseId, reps)
+        val oldReps = oldSet?.reps
+        if (oldReps != null && oldReps != reps) {
+            syncGlobalPrBucket(exerciseId, oldReps)
+        }
+    }
+
+    private suspend fun syncGlobalPrBucket(exerciseId: Long, reps: Int) {
+        val bestSet = setEntryDao.getBestSetForExerciseAndReps(exerciseId, reps)
+        if (bestSet == null || bestSet.weightLbs == null) {
+            exercisePrDao.deleteForExerciseAndReps(exerciseId, reps)
+            return
+        }
+
+        exercisePrDao.upsert(
+            ExercisePr(
+                exerciseId = exerciseId,
+                reps = reps,
+                weightLbs = bestSet.weightLbs,
+                setId = bestSet.id,
+                timestampUtc = bestSet.timestampUtc
+            )
+        )
+    }
+
     suspend fun getNextSetIndex(entryId: Long): Int =
         (setEntryDao.getMaxSetIndex(entryId) ?: 0) + 1
 
-    suspend fun deleteSet(entryId: Long, setId: Long) = setEntryDao.deleteAndReindex(entryId, setId)
+    suspend fun deleteSet(entryId: Long, setId: Long) {
+        val entry = exerciseEntryDao.getById(entryId)
+        setEntryDao.deleteAndReindex(entryId, setId)
+        if (entry != null) rebuildPrsForExercise(entry.exerciseId)
+    }
 
     /**
      * Get the last set recorded for an exercise (for autofill).
@@ -205,16 +279,63 @@ class ChironRepository(
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Check if this set is a new PR for the exercise at the given rep count.
-     * PR = highest weight ever recorded for that exact rep count.
+     * Full PR rebuild for one exercise. Safe to call after deletions or bulk fixes.
+     *
+     * 1. Clears all `is_pr` flags on every set belonging to this exercise.
+     * 2. Deletes all rows in `exercise_pr` for this exercise.
+     * 3. Re-scans all non-failed sets with both weight and reps filled in.
+     * 4. For each rep count, finds the single heaviest set and marks it
+     *    `is_pr = 1`, then upserts it into `exercise_pr`.
+     *
+     * This approach is correct regardless of edits, re-orders, or deletions:
+     * the truth is always derived from what's currently in the database.
      */
-    suspend fun isNewPr(exerciseId: Long, weightLbs: Double, reps: Int): Boolean {
+    suspend fun rebuildPrsForExercise(exerciseId: Long) {
+        // Step 1 & 2: wipe stale state
+        setEntryDao.clearPrFlagsForExercise(exerciseId)
+        exercisePrDao.clearAllForExercise(exerciseId)
+
+        // Step 3: load all qualifying sets (existing DAO query, already joins exercise_entry)
         val allSets = setEntryDao.getAllSetsForExercise(exerciseId)
-        val maxWeightAtReps = allSets
-            .filter { it.reps == reps && it.weightLbs != null }
-            .maxOfOrNull { it.weightLbs!! }
-        return maxWeightAtReps == null || weightLbs > maxWeightAtReps
+
+        // Step 4: find max weight per rep count
+        val bestPerReps = mutableMapOf<Int, SetEntry>()
+        for (set in allSets) {
+            val reps = set.reps ?: continue
+            val weight = set.weightLbs ?: continue
+            if (set.isFailed != 0) continue
+            val current = bestPerReps[reps]
+            if (current == null || weight > current.weightLbs!!) {
+                bestPerReps[reps] = set
+            }
+        }
+
+        // Step 5: persist
+        for ((_, set) in bestPerReps) {
+            setEntryDao.updateSet(set.copy(isPr = 1))
+            exercisePrDao.upsert(
+                ExercisePr(
+                    exerciseId = exerciseId,
+                    reps = set.reps!!,
+                    weightLbs = set.weightLbs!!,
+                    setId = set.id,
+                    timestampUtc = set.timestampUtc
+                )
+            )
+        }
     }
+
+    /** Get all current global PRs for an exercise, ordered by rep count. */
+    suspend fun getAllPrsForExercise(exerciseId: Long): List<ExercisePr> =
+        exercisePrDao.getAllForExercise(exerciseId)
+
+    /** Observe current PRs for an exercise as a reactive Flow. */
+    fun getPrsForExerciseFlow(exerciseId: Long) =
+        exercisePrDao.getAllForExerciseFlow(exerciseId)
+
+    /** Get all exercise IDs that have at least one PR. */
+    suspend fun getExerciseIdsWithPrs(): List<Long> =
+        exercisePrDao.getExerciseIdsWithPrs()
 
     // ─────────────────────────────────────────────────────────────────────────
     // Image handling

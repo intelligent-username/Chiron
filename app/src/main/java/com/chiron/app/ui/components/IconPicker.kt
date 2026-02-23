@@ -1,5 +1,6 @@
 package com.chiron.app.ui.components
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,9 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.ImageLoader
 import coil.compose.AsyncImage
-import coil.decode.SvgDecoder
+import coil.imageLoader
 import coil.request.ImageRequest
 
 // Available exercise icons
@@ -68,6 +68,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("fly-machine", "fly-machine.svg"),
     ExerciseIcon("preacher-curl", "preacher-curl.svg"),
     ExerciseIcon("machine-row", "machine-row.svg"),
+    ExerciseIcon("single-arm-row", "single-arm-row.svg"),
     ExerciseIcon("incline-press-machine", "incline-press-machine.svg"),
     ExerciseIcon("treadmill", "treadmill.svg"),
     ExerciseIcon("farmers-carry", "farmers-carry.svg"),
@@ -88,6 +89,17 @@ fun getIconUrl(iconName: String?): String {
     return "file:///android_asset/fitness_icons/$fileName"
 }
 
+fun prefetchAllIcons(context: Context) {
+    val imageLoader = context.imageLoader
+    AVAILABLE_ICONS.forEach { icon ->
+        imageLoader.enqueue(
+            ImageRequest.Builder(context)
+                .data(getIconUrl(icon.name))
+                .build()
+        )
+    }
+}
+
 @Composable
 fun ExerciseAsyncIcon(
     iconName: String?,
@@ -96,24 +108,17 @@ fun ExerciseAsyncIcon(
     tint: Color = Color.Unspecified
 ) {
     val context = LocalContext.current
-    val imageLoader = remember {
-        ImageLoader.Builder(context)
-            .components {
-                add(SvgDecoder.Factory())
-            }
-            .build()
-    }
 
     AsyncImage(
         model = ImageRequest.Builder(context)
             .data(getIconUrl(iconName))
             .build(),
-        imageLoader = imageLoader,
         contentDescription = contentDescription,
         modifier = modifier,
         colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
     )
 }
+
 
 @Composable
 fun IconPicker(
@@ -135,7 +140,10 @@ fun IconPicker(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
-            items(AVAILABLE_ICONS) { icon ->
+            items(
+                items = AVAILABLE_ICONS,
+                key = { it.name } // Unique icon name as key
+            ) { icon ->
                 val isSelected = icon.name == selectedIcon
                 Box(
                     modifier = Modifier

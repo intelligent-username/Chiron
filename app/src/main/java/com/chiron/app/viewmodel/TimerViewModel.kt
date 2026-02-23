@@ -72,10 +72,13 @@ class TimerViewModel(
     // ─────────────────────────────────────────────────────────────────────────
 
     fun setCountdownPreset(seconds: Int) {
-        if (!_uiState.value.isCountdownRunning) {
-            _uiState.update {
-                it.copy(countdownSeconds = seconds, countdownRemaining = seconds)
-            }
+        countdownJob?.cancel()
+        _uiState.update {
+            it.copy(
+                countdownSeconds = seconds,
+                countdownRemaining = seconds,
+                isCountdownRunning = false
+            )
         }
     }
 
