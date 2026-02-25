@@ -41,6 +41,8 @@ class TimerViewModel(
     private val repository: ChironRepository
 ) : ViewModel() {
 
+    private val highRefreshIntervalMs = 8L
+
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
@@ -138,7 +140,7 @@ class TimerViewModel(
             while (_uiState.value.isStopwatchRunning) {
                 val elapsed = System.currentTimeMillis() - startTime
                 _uiState.update { it.copy(stopwatchMillis = elapsed) }
-                delay(10L)
+                delay(highRefreshIntervalMs)
             }
         }
     }

@@ -20,8 +20,10 @@ import java.time.format.DateTimeFormatter
 
 data class HistoryUiState(
     val workouts: List<WorkoutSession> = emptyList(),
+    val archivedWorkouts: List<WorkoutSession> = emptyList(),
     val dayTags: List<String> = emptyList(),
     val selectedDayTag: String? = null,
+    val showArchivedWorkouts: Boolean = false,
     val isEditorOpen: Boolean = false,
     val editingWorkoutId: Long? = null,
     val displayInKg: Boolean = false
@@ -54,6 +56,12 @@ class HistoryViewModel(
             }
         }
 
+        viewModelScope.launch {
+            repository.archivedWorkoutsFlow.collect { archived ->
+                _uiState.update { it.copy(archivedWorkouts = archived) }
+            }
+        }
+
         // Observe display unit preference
         viewModelScope.launch {
             settingsRepository.displayInKgFlow.collect { inKg ->
@@ -64,6 +72,15 @@ class HistoryViewModel(
 
     fun filterByDayTag(dayTag: String?) {
         _uiState.update { it.copy(selectedDayTag = dayTag) }
+    }
+
+    fun setShowArchivedWorkouts(showArchived: Boolean) {
+        _uiState.update {
+            it.copy(
+                showArchivedWorkouts = showArchived,
+                selectedDayTag = null
+            )
+        }
     }
 
     fun openEditor(workoutId: Long?) {
@@ -132,6 +149,18 @@ class HistoryViewModel(
     fun archiveWorkout(workoutId: Long) {
         viewModelScope.launch {
             repository.archiveWorkout(workoutId)
+        }
+    }
+
+    fun unarchiveWorkout(workoutId: Long) {
+        viewModelScope.launch {
+            repository.unarchiveWorkout(workoutId)
+        }
+    }
+
+    fun permanentlyDeleteWorkout(workoutId: Long) {
+        viewModelScope.launch {
+            repository.permanentlyDeleteWorkout(workoutId)
         }
     }
 
@@ -223,7 +252,7 @@ class HistoryViewModel(
                 reps = reps,
                 timestampUtc = System.currentTimeMillis()
             )
-            repository.insertSet(set)
+            repository.insertSetAndEvaluateHistoricalPr(set)
         }
     }
 

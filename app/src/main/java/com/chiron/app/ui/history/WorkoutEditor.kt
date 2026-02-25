@@ -3,6 +3,8 @@ package com.chiron.app.ui.history
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -70,11 +72,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.chiron.app.data.ChironRepository
@@ -276,7 +281,7 @@ fun WorkoutEditor(
                             IconButton(onClick = { showDeleteConfirmation = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete Workout",
+                                    contentDescription = if (workout.archived != 0) "Delete Workout Permanently" else "Archive Workout",
                                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
                                 )
                             }
@@ -491,19 +496,33 @@ fun WorkoutEditor(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete Workout?") },
-            text = { Text("This will permanently remove this workout session and all its exercises. This action cannot be undone.") },
+            title = {
+                Text(if (workout.archived != 0) "Delete Workout Permanently?" else "Archive Workout?")
+            },
+            text = {
+                Text(
+                    if (workout.archived != 0) {
+                        "This will permanently remove this workout and all exercises/sets inside it. This cannot be undone."
+                    } else {
+                        "This will move this workout to archived workouts. You can unarchive it later or permanently delete it from Archived."
+                    }
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         scope.launch {
-                            viewModel.archiveWorkout(workout.id)
+                            if (workout.archived != 0) {
+                                viewModel.permanentlyDeleteWorkout(workout.id)
+                            } else {
+                                viewModel.archiveWorkout(workout.id)
+                            }
                             onClose()
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
+                    Text(if (workout.archived != 0) "Delete" else "Archive", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -618,10 +637,14 @@ private fun SupersetCard(
 ) {
     val startEntry = entries.firstOrNull() ?: return
     val scope = rememberCoroutineScope()
-    var exerciseNotes by remember(startEntry.id) { mutableStateOf(startEntry.notes ?: "") }
+    val focusManager = LocalFocusManager.current
+    val supersetKey = startEntry.groupId ?: startEntry.id
+    var exerciseNotes by remember(supersetKey) { mutableStateOf(startEntry.notes ?: "") }
+    var committedExerciseNotes by remember(supersetKey) { mutableStateOf(startEntry.notes ?: "") }
     var isSupersetEnabled by remember(startEntry.id) { mutableStateOf(true) }
-    var isEditingTitle by rememberSaveable(startEntry.id) { mutableStateOf(false) }
-    var supersetTitle by rememberSaveable(startEntry.id) { mutableStateOf("Superset $supersetNumber") }
+    var isEditingTitle by rememberSaveable(supersetKey) { mutableStateOf(false) }
+    var supersetTitle by rememberSaveable(supersetKey) { mutableStateOf("Superset $supersetNumber") }
+    var draftSupersetTitle by rememberSaveable(supersetKey) { mutableStateOf("Superset $supersetNumber") }
     var numExercisesInSuperset by remember(startEntry.id, startEntry.numExercisesInSuperset) {
         mutableIntStateOf(startEntry.numExercisesInSuperset.coerceAtLeast(2))
     }
@@ -656,27 +679,53 @@ private fun SupersetCard(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     if (isEditingTitle) {
-                        OutlinedTextField(
-                            value = supersetTitle,
-                            onValueChange = { supersetTitle = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = draftSupersetTitle,
+                                onValueChange = { draftSupersetTitle = it },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent
+                                )
                             )
-                        )
+                            TextButton(
+                                onClick = {
+                                    supersetTitle = draftSupersetTitle.ifBlank { "Superset $supersetNumber" }
+                                    draftSupersetTitle = supersetTitle
+                                    isEditingTitle = false
+                                }
+                            ) {
+                                Text("Save")
+                            }
+                            TextButton(
+                                onClick = {
+                                    draftSupersetTitle = supersetTitle
+                                    isEditingTitle = false
+                                }
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
                     } else {
                         Text(
                             text = supersetTitle,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.clickable { isEditingTitle = true }
+                            modifier = Modifier.clickable {
+                                draftSupersetTitle = supersetTitle
+                                isEditingTitle = true
+                            }
                         )
                     }
                 }
@@ -710,6 +759,7 @@ private fun SupersetCard(
                             entry = entry,
                             viewModel = viewModel,
                             displayInKg = displayInKg,
+                            workoutId = workoutId,
                             modifier = Modifier.width(columnWidth),
                             onSetClick = { setIndex ->
                                 onSetClick(entry.id, setIndex)
@@ -728,14 +778,35 @@ private fun SupersetCard(
                 value = exerciseNotes,
                 onValueChange = {
                     exerciseNotes = it
-                    scope.launch {
-                        viewModel.updateExerciseEntry(startEntry.copy(notes = it.ifBlank { null }))
-                    }
                 },
-                enabled = !isEditingTitle,
                 placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
                 textStyle = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        val normalized = exerciseNotes.trim()
+                        if (normalized != committedExerciseNotes.trim()) {
+                            committedExerciseNotes = normalized
+                            scope.launch {
+                                viewModel.updateExerciseEntry(startEntry.copy(notes = normalized.ifBlank { null }))
+                            }
+                        }
+                        focusManager.clearFocus()
+                    }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (!focusState.isFocused) {
+                            val normalized = exerciseNotes.trim()
+                            if (normalized != committedExerciseNotes.trim()) {
+                                committedExerciseNotes = normalized
+                                scope.launch {
+                                    viewModel.updateExerciseEntry(startEntry.copy(notes = normalized.ifBlank { null }))
+                                }
+                            }
+                        }
+                    },
                 minLines = 1,
                 maxLines = 3,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -920,19 +991,35 @@ private fun SupersetExerciseColumn(
     entry: ExerciseEntry,
     viewModel: HistoryViewModel,
     displayInKg: Boolean,
+    workoutId: Long,
     modifier: Modifier = Modifier,
     onSetClick: (Int) -> Unit,
     onAddSet: () -> Unit
 ) {
     val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
+    var isPreviewingLastSession by remember { mutableStateOf(false) }
+    var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
+    val hasHistory = lastSessionPreview != null
 
     LaunchedEffect(entry.exerciseId) {
         exercise = viewModel.getExerciseById(entry.exerciseId)
     }
 
+    LaunchedEffect(entry.exerciseId, workoutId) {
+        lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+    }
+
     Column(
-        modifier = modifier,
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(
+                if (isPreviewingLastSession)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                else
+                    Color.Transparent
+            )
+            .padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -963,27 +1050,65 @@ private fun SupersetExerciseColumn(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            sets.forEachIndexed { index, set ->
-                SetPill(
-                    weightLbs = set.weightLbs,
-                    reps = set.reps,
-                    displayInKg = displayInKg,
-                    onClick = { onSetClick(index + 1) }
-                )
+            if (isPreviewingLastSession && lastSessionPreview != null) {
+                lastSessionPreview!!.sets.forEach { set ->
+                    SetPill(
+                        weightLbs = set.weightLbs,
+                        reps = set.reps,
+                        displayInKg = displayInKg,
+                        isPr = set.isPr == 1,
+                        onClick = { }
+                    )
+                }
+            } else {
+                sets.forEachIndexed { index, set ->
+                    SetPill(
+                        weightLbs = set.weightLbs,
+                        reps = set.reps,
+                        displayInKg = displayInKg,
+                        isPr = set.isPr == 1,
+                        onClick = { onSetClick(index + 1) }
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onAddSet,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .width(50.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
+                }
             }
 
-            // Add Set Button
-            OutlinedButton(
-                onClick = onAddSet,
-                contentPadding = PaddingValues(horizontal = 8.dp),
-                modifier = Modifier
-                    .height(28.dp)
-                    .width(50.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
+            if (hasHistory) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isPreviewingLastSession = true
+                                    tryAwaitRelease()
+                                    isPreviewingLastSession = false
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
+                    )
+                }
             }
         }
     }
@@ -1005,9 +1130,11 @@ private fun ExerciseEntryCard(
     val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
     var exerciseNotes by remember { mutableStateOf(entry.notes ?: "") }
+    var committedExerciseNotes by remember(entry.id) { mutableStateOf(entry.notes ?: "") }
     var isSupersetEnabled by remember { mutableStateOf(entry.sequenceType == "SUPERSET_START") }
     var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     // Last session preview state
     var isPreviewingLastSession by remember { mutableStateOf(false) }
@@ -1184,13 +1311,35 @@ private fun ExerciseEntryCard(
                         value = exerciseNotes,
                         onValueChange = { 
                             exerciseNotes = it
-                            scope.launch {
-                                viewModel.updateExerciseEntry(entry.copy(notes = it.ifBlank { null }))
-                            }
                         },
                         placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
                         textStyle = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                val normalized = exerciseNotes.trim()
+                                if (normalized != committedExerciseNotes.trim()) {
+                                    committedExerciseNotes = normalized
+                                    scope.launch {
+                                        viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
+                                    }
+                                }
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused) {
+                                    val normalized = exerciseNotes.trim()
+                                    if (normalized != committedExerciseNotes.trim()) {
+                                        committedExerciseNotes = normalized
+                                        scope.launch {
+                                            viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
+                                        }
+                                    }
+                                }
+                            },
                         minLines = 1,
                         maxLines = 3,
                         colors = OutlinedTextFieldDefaults.colors(

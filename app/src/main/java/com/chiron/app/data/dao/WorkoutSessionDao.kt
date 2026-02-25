@@ -23,6 +23,9 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_session ORDER BY date_iso DESC, date_utc DESC")
     fun getAllWorkoutsFlow(): Flow<List<WorkoutSession>>
 
+    @Query("SELECT * FROM workout_session WHERE archived = 1 ORDER BY date_iso DESC, date_utc DESC")
+    fun getArchivedWorkoutsFlow(): Flow<List<WorkoutSession>>
+
     @Query("SELECT * FROM workout_session WHERE id = :id")
     suspend fun getById(id: Long): WorkoutSession?
 
@@ -37,4 +40,7 @@ interface WorkoutSessionDao {
 
     @Query("UPDATE workout_session SET archived = 0 WHERE id = :id")
     suspend fun unarchive(id: Long)
+
+    @Query("DELETE FROM workout_session WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

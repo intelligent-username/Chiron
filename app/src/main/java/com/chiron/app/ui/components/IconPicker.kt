@@ -86,7 +86,7 @@ fun getIconUrl(iconName: String?): String {
     } else null
     
     val fileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.svg"
-    return "file:///android_asset/fitness_icons/$fileName"
+    return "file:///android_asset/icons/$fileName"
 }
 
 fun prefetchAllIcons(context: Context) {

@@ -98,6 +98,8 @@ class ChironRepository(
 
     val workoutsFlow: Flow<List<WorkoutSession>> = workoutSessionDao.getWorkoutsFlow()
 
+    val archivedWorkoutsFlow: Flow<List<WorkoutSession>> = workoutSessionDao.getArchivedWorkoutsFlow()
+
     val dayTagsFlow: Flow<List<String>> = workoutSessionDao.getDistinctDayTagsFlow()
 
     suspend fun insertWorkout(session: WorkoutSession): Long = workoutSessionDao.insertWorkout(session)
@@ -110,6 +112,20 @@ class ChironRepository(
         workoutSessionDao.getByDayTagFlow(dayTag)
 
     suspend fun archiveWorkout(id: Long) = workoutSessionDao.archive(id)
+
+    suspend fun unarchiveWorkout(id: Long) = workoutSessionDao.unarchive(id)
+
+    suspend fun permanentlyDeleteWorkout(id: Long) {
+        val affectedExerciseIds = exerciseEntryDao.getEntriesForWorkoutSync(id)
+            .map { it.exerciseId }
+            .distinct()
+
+        workoutSessionDao.deleteById(id)
+
+        affectedExerciseIds.forEach { exerciseId ->
+            rebuildPrsForExercise(exerciseId)
+        }
+    }
 
     /**
      * Deep-copy a workout with today's date. All entries and sets are duplicated by value.
@@ -192,6 +208,12 @@ class ChironRepository(
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> = setEntryDao.getSetsForEntry(entryId)
 
     suspend fun insertSet(set: SetEntry): Long = setEntryDao.insertSet(set)
+
+    suspend fun insertSetAndEvaluateHistoricalPr(set: SetEntry): Long {
+        val newSetId = setEntryDao.insertSet(set)
+        updateSetAndEvaluateHistoricalPr(set.copy(id = newSetId))
+        return newSetId
+    }
 
     suspend fun updateSet(set: SetEntry) = setEntryDao.updateSet(set)
 

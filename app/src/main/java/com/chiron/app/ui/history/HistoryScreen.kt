@@ -36,12 +36,13 @@ fun HistoryScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var workoutToDelete by remember { mutableStateOf<com.chiron.app.data.entities.WorkoutSession?>(null) }
     var expandedWorkoutId by remember { mutableStateOf<Long?>(null) }
+    var deleteMode by remember { mutableStateOf("archive") }
     
     val scope = rememberCoroutineScope()
 
     // If editor is open, show WorkoutEditor instead
     if (state.isEditorOpen && state.editingWorkoutId != null) {
-        val workout = state.workouts.find { it.id == state.editingWorkoutId }
+        val workout = (state.workouts + state.archivedWorkouts).find { it.id == state.editingWorkoutId }
         WorkoutEditor(
             workout = workout,
             viewModel = viewModel,
@@ -66,8 +67,24 @@ fun HistoryScreen(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
 
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                FilterChip(
+                    selected = !state.showArchivedWorkouts,
+                    onClick = { viewModel.setShowArchivedWorkouts(false) },
+                    label = { Text("Active") }
+                )
+                FilterChip(
+                    selected = state.showArchivedWorkouts,
+                    onClick = { viewModel.setShowArchivedWorkouts(true) },
+                    label = { Text("Archived") }
+                )
+            }
+
             // Filter chips for day tags
-            if (state.dayTags.isNotEmpty()) {
+            if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -90,7 +107,8 @@ fun HistoryScreen(
             }
 
             // Workout list
-            val filteredWorkouts = if (state.selectedDayTag != null) {
+            val baseWorkouts = if (state.showArchivedWorkouts) state.archivedWorkouts else state.workouts
+            val filteredWorkouts = if (!state.showArchivedWorkouts && state.selectedDayTag != null) {
                 state.workouts.filter { 
                     if (state.selectedDayTag == "Untitled Workout") {
                         it.dayTag == "Untitled Workout" || it.dayTag.isBlank()
@@ -99,7 +117,7 @@ fun HistoryScreen(
                     }
                 }
             } else {
-                state.workouts
+                baseWorkouts
             }
 
             LazyColumn(
@@ -118,37 +136,66 @@ fun HistoryScreen(
                             expanded = expandedWorkoutId == workout.id,
                             onDismissRequest = { expandedWorkoutId = null }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    expandedWorkoutId = null
-                                    workoutToDelete = workout
-                                    showDeleteDialog = true
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Delete, // Needs import if not present, but verified above
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            )
+                            if (state.showArchivedWorkouts) {
+                                DropdownMenuItem(
+                                    text = { Text("Unarchive") },
+                                    onClick = {
+                                        expandedWorkoutId = null
+                                        viewModel.unarchiveWorkout(workout.id)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        expandedWorkoutId = null
+                                        deleteMode = "permanent"
+                                        workoutToDelete = workout
+                                        showDeleteDialog = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text("Archive", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        expandedWorkoutId = null
+                                        deleteMode = "archive"
+                                        workoutToDelete = workout
+                                        showDeleteDialog = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        FloatingActionButton(
-            onClick = { showCreateDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "New workout")
+        if (!state.showArchivedWorkouts) {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "New workout")
+            }
         }
 
-        if (showCreateDialog) {
+        if (showCreateDialog && !state.showArchivedWorkouts) {
             // Extract all unique locations from workout history
             val existingLocations = state.workouts.map { it.locationTag }.distinct()
             
@@ -172,20 +219,32 @@ fun HistoryScreen(
                 showDeleteDialog = false
                 workoutToDelete = null
             },
-            title = { Text("Delete Workout?") },
-            text = { Text("Are you sure you want to delete '${workoutToDelete?.dayTag}'? This cannot be undone.") },
+            title = { Text(if (deleteMode == "permanent") "Delete Workout Permanently?" else "Archive Workout?") },
+            text = {
+                Text(
+                    if (deleteMode == "permanent") {
+                        "This will permanently remove '${workoutToDelete?.dayTag}' and all its sets. This cannot be undone."
+                    } else {
+                        "Move '${workoutToDelete?.dayTag}' to archived workouts?"
+                    }
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         workoutToDelete?.let {
-                            viewModel.archiveWorkout(it.id)
+                            if (deleteMode == "permanent") {
+                                viewModel.permanentlyDeleteWorkout(it.id)
+                            } else {
+                                viewModel.archiveWorkout(it.id)
+                            }
                         }
                         showDeleteDialog = false
                         workoutToDelete = null
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
+                    Text(if (deleteMode == "permanent") "Delete" else "Archive", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
