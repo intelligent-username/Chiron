@@ -1131,7 +1131,6 @@ private fun ExerciseEntryCard(
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
     var exerciseNotes by remember { mutableStateOf(entry.notes ?: "") }
     var committedExerciseNotes by remember(entry.id) { mutableStateOf(entry.notes ?: "") }
-    var isSupersetEnabled by remember { mutableStateOf(entry.sequenceType == "SUPERSET_START") }
     var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -1146,7 +1145,7 @@ private fun ExerciseEntryCard(
 
     val hasHistory = lastSessionPreview != null
     
-    // Count how many exercises are already in this superset
+    // Count how many exercises are actually in this superset
     val currentExercisesInSuperset = remember(allEntries, entry.id) {
         var count = 1 // Include the current exercise
         val currentIndex = allEntries.indexOfFirst { it.id == entry.id }
@@ -1164,6 +1163,11 @@ private fun ExerciseEntryCard(
             }
         }
         count
+    }
+    
+    // Only treat as superset if there are actually multiple exercises in the group
+    var isSupersetEnabled by remember(entry.sequenceType, currentExercisesInSuperset) {
+        mutableStateOf(entry.sequenceType == "SUPERSET_START" && currentExercisesInSuperset > 1)
     }
     
     val exercisesNeededInSuperset = numExercisesInSuperset - currentExercisesInSuperset
@@ -1568,16 +1572,28 @@ private fun groupExercisesBySuperset(
             }
             else -> {
                 if (currentGroup.isNotEmpty()) {
-                    groups.add(currentGroup.toList())
-                    currentGroup = mutableListOf()
+                    // If we were building a superset but hit a non-superset exercise,
+                    // and the current group only has the SUPERSET_START, treat it as a regular exercise
+                    if (isBuildingSuperset && currentGroup.size == 1) {
+                        // Single SUPERSET_START with no followers - treat as regular
+                        groups.add(currentGroup.toList())
+                        currentGroup = mutableListOf()
+                        isBuildingSuperset = false
+                    } else {
+                        // Valid superset group
+                        groups.add(currentGroup.toList())
+                        currentGroup = mutableListOf()
+                        isBuildingSuperset = false
+                    }
                 }
                 groups.add(listOf(entry))
-                isBuildingSuperset = false
             }
         }
     }
 
     if (currentGroup.isNotEmpty()) {
+        // If we end with an incomplete superset (SUPERSET_START with no SUPERSET_END),
+        // still add it as a group, but it will be rendered as a single exercise since size==1
         groups.add(currentGroup.toList())
     }
 

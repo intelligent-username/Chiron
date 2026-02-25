@@ -3,4 +3,8 @@
     android:height="150dp"
     android:viewportWidth="200"
     android:viewportHeight="200">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="5"
+        android:pathData="M105 95l35-35m-35 45l35 35m-45-35l-35 35m35-45L60 60"/>
 </vector>

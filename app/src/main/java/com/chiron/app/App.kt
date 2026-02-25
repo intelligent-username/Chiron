@@ -1,8 +1,8 @@
 package com.chiron.app
 
 import android.app.Application
-import coil.ImageLoaderFactory
 import coil.ImageLoader
+import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
 import com.chiron.app.di.ServiceLocator
 

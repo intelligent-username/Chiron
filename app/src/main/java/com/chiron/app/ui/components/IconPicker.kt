@@ -1,7 +1,9 @@
 package com.chiron.app.ui.components
 
 import android.content.Context
-import android.graphics.drawable.Drawable
+import android.graphics.PorterDuff
+import android.util.Xml
+import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +22,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,9 +34,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
+import org.xmlpull.v1.XmlPullParser
 
 // Available exercise icons
 data class ExerciseIcon(val name: String, val fileName: String)
@@ -93,26 +103,23 @@ fun getIconUrl(iconName: String?): String {
         AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
     } else null
     
-    val fileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
-    return "file:///android_asset/vector_drawables/$fileName"
+    // Try VectorDrawable XML first, fallback to SVG
+    val xmlFileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
+    return "file:///android_asset/vector_drawables/$xmlFileName"
 }
 
-/**
- * Load a vector drawable from assets using XmlPullParser
- */
-fun loadVectorDrawableFromAssets(context: Context, fileName: String): Drawable? {
-    return try {
-        val inputStream = context.assets.open("vector_drawables/$fileName")
-        val parser = android.util.Xml.newPullParser()
-        parser.setInput(inputStream, null)
-        
-        val attrs = android.util.Xml.asAttributeSet(parser)
-        val drawable = android.graphics.drawable.VectorDrawable()
-        drawable.inflate(context.resources, parser, attrs)
-        drawable as Drawable
-    } catch (e: Exception) {
-        null
-    }
+fun getIconUrlFallback(iconName: String?): String {
+    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
+    val underscoreMatch = if (exactMatch == null && iconName != null) {
+        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
+    } else null
+    
+    // SVG filenames match the icon names (with hyphens), not the XML filenames (with underscores)
+    val iconDisplayName = (exactMatch ?: underscoreMatch)?.name
+        ?: iconName?.replace('_', '-')
+        ?: "default"
+    val svgFileName = "$iconDisplayName.svg"
+    return "file:///android_asset/icons/$svgFileName"
 }
 
 fun prefetchAllIcons(context: Context) {
@@ -126,6 +133,28 @@ fun prefetchAllIcons(context: Context) {
     }
 }
 
+private fun resolveIconFileName(iconName: String?): String {
+    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
+    val underscoreMatch = if (exactMatch == null && iconName != null) {
+        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
+    } else null
+    return (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
+}
+
+private fun loadVectorDrawableFromAssets(context: Context, fileName: String) = runCatching {
+    context.assets.open("vector_drawables/$fileName").use { input ->
+        val parser = Xml.newPullParser()
+        parser.setInput(input, null)
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.START_TAG && eventType != XmlPullParser.END_DOCUMENT) {
+            eventType = parser.next()
+        }
+        if (eventType != XmlPullParser.START_TAG || parser.name != "vector") return@runCatching null
+        val attrs = Xml.asAttributeSet(parser)
+        VectorDrawableCompat.createFromXmlInner(context.resources, parser, attrs, context.theme)
+    }
+}.getOrNull()
+
 @Composable
 fun ExerciseAsyncIcon(
     iconName: String?,
@@ -134,15 +163,38 @@ fun ExerciseAsyncIcon(
     tint: Color = Color.Unspecified
 ) {
     val context = LocalContext.current
+    val fileName = remember(iconName) { resolveIconFileName(iconName) }
+    val vectorDrawable = remember(fileName) { loadVectorDrawableFromAssets(context, fileName) }
 
-    AsyncImage(
-        model = ImageRequest.Builder(context)
-            .data(getIconUrl(iconName))
-            .build(),
-        contentDescription = contentDescription,
-        modifier = modifier,
-        colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
-    )
+    if (vectorDrawable != null) {
+        AndroidView(
+            modifier = modifier,
+            factory = { viewContext ->
+                ImageView(viewContext).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+            },
+            update = { imageView ->
+                val drawable = vectorDrawable.constantState?.newDrawable()?.mutate() ?: vectorDrawable.mutate()
+                imageView.setImageDrawable(drawable)
+                if (tint != Color.Unspecified) {
+                    imageView.setColorFilter(tint.toArgb(), PorterDuff.Mode.SRC_IN)
+                } else {
+                    imageView.clearColorFilter()
+                }
+                imageView.contentDescription = contentDescription
+            }
+        )
+    } else {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(getIconUrlFallback(iconName))
+                .build(),
+            contentDescription = contentDescription,
+            modifier = modifier,
+            colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
+        )
+    }
 }
 
 
