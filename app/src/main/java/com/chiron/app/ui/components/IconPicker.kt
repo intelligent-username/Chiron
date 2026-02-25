@@ -1,17 +1,25 @@
 package com.chiron.app.ui.components
 
 import android.content.Context
+import android.graphics.drawable.Drawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,56 +35,56 @@ import coil.request.ImageRequest
 data class ExerciseIcon(val name: String, val fileName: String)
 
 val AVAILABLE_ICONS = listOf(
-    ExerciseIcon("default", "default.svg"),
-    ExerciseIcon("benchpress", "benchpress.svg"),
-    ExerciseIcon("chest-press", "chest-press.svg"),
-    ExerciseIcon("curl", "curl.svg"),
-    ExerciseIcon("hammer-curl", "hammer-curl.svg"),
-    ExerciseIcon("deadlift", "deadlift.svg"),
-    ExerciseIcon("incline-bench", "incline-bench.svg"),
-    ExerciseIcon("jump", "jump.svg"),
-    ExerciseIcon("leg-curl", "leg-curl.svg"),
-    ExerciseIcon("leg-extension", "leg-extension.svg"),
-    ExerciseIcon("leg-raise", "leg-raise.svg"),
-    ExerciseIcon("machine", "machine.svg"),
-    ExerciseIcon("overhead-press", "overhead-press.svg"),
-    ExerciseIcon("pulldown", "pulldown.svg"),
-    ExerciseIcon("pushdown", "pushdown.svg"),
-    ExerciseIcon("squat", "squat.svg"),
-    ExerciseIcon("45-plate", "45-plate.svg"),
-    ExerciseIcon("25-plate", "25-plate.svg"),    
-    ExerciseIcon("20-plate", "20-plate.svg"),    
-    ExerciseIcon("10-plate", "10-plate.svg"),    
-    ExerciseIcon("pull-up", "pull-up.svg"),
-    ExerciseIcon("smiley", "smiley.svg"),
-    ExerciseIcon("push-up", "push-up.svg"),
-    ExerciseIcon("sit-up", "sit-up.svg"),
-    ExerciseIcon("lunge", "lunge.svg"),
-    ExerciseIcon("hip-thrust", "hip-thrust.svg"),
-    ExerciseIcon("dip", "dip.svg"),
-    ExerciseIcon("kettlebell", "kettlebell.svg"),
-    ExerciseIcon("lateral-raise", "lateral-raise.svg"),
-    ExerciseIcon("barbell", "barbell.svg"),
-    ExerciseIcon("medicine-ball", "medicine-ball.svg"),
-    ExerciseIcon("stationary-bike", "staionary-bike.svg"), // Typped filename
-    ExerciseIcon("leg-press", "leg-press.svg"),
-    ExerciseIcon("smith", "smith.svg"),
-    ExerciseIcon("cables", "cables.svg"),
-    ExerciseIcon("heart-rate", "heart-rate.svg"),
-    ExerciseIcon("bands", "bands.svg"),
-    ExerciseIcon("rings", "rings.svg"),
-    ExerciseIcon("fly-machine", "fly-machine.svg"),
-    ExerciseIcon("preacher-curl", "preacher-curl.svg"),
-    ExerciseIcon("machine-row", "machine-row.svg"),
-    ExerciseIcon("single-arm-row", "single-arm-row.svg"),
-    ExerciseIcon("incline-press-machine", "incline-press-machine.svg"),
-    ExerciseIcon("treadmill", "treadmill.svg"),
-    ExerciseIcon("farmers-carry", "farmers-carry.svg"),
-    ExerciseIcon("cable-crossover", "cable-crossover.svg"),
-    ExerciseIcon("ab-twister", "ab-twister.svg"),
-    ExerciseIcon("landmine-rotation", "landmine-rotation.svg"),
-    ExerciseIcon("link", "link.svg"),
-    ExerciseIcon("hack-squat-machine", "hack-squat-machine.svg")
+    ExerciseIcon("default", "default.xml"),
+    ExerciseIcon("benchpress", "benchpress.xml"),
+    ExerciseIcon("chest-press", "chest_press.xml"),
+    ExerciseIcon("curl", "curl.xml"),
+    ExerciseIcon("hammer-curl", "hammer_curl.xml"),
+    ExerciseIcon("deadlift", "deadlift.xml"),
+    ExerciseIcon("incline-bench", "incline_bench.xml"),
+    ExerciseIcon("jump", "jump.xml"),
+    ExerciseIcon("leg-curl", "leg_curl.xml"),
+    ExerciseIcon("leg-extension", "leg_extension.xml"),
+    ExerciseIcon("leg-raise", "leg_raise.xml"),
+    ExerciseIcon("machine", "machine.xml"),
+    ExerciseIcon("overhead-press", "overhead_press.xml"),
+    ExerciseIcon("pulldown", "pulldown.xml"),
+    ExerciseIcon("pushdown", "pushdown.xml"),
+    ExerciseIcon("squat", "squat.xml"),
+    ExerciseIcon("45-plate", "plate_45.xml"),
+    ExerciseIcon("25-plate", "plate_25.xml"),    
+    ExerciseIcon("20-plate", "plate_20.xml"),    
+    ExerciseIcon("10-plate", "plate_10.xml"),    
+    ExerciseIcon("pull-up", "pull_up.xml"),
+    ExerciseIcon("smiley", "smiley.xml"),
+    ExerciseIcon("push-up", "push_up.xml"),
+    ExerciseIcon("sit-up", "sit_up.xml"),
+    ExerciseIcon("lunge", "lunge.xml"),
+    ExerciseIcon("hip-thrust", "hip_thrust.xml"),
+    ExerciseIcon("dip", "dip.xml"),
+    ExerciseIcon("kettlebell", "kettlebell.xml"),
+    ExerciseIcon("lateral-raise", "lateral_raise.xml"),
+    ExerciseIcon("barbell", "barbell.xml"),
+    ExerciseIcon("medicine-ball", "medicine_ball.xml"),
+    ExerciseIcon("stationary-bike", "stationary_bike.xml"),
+    ExerciseIcon("leg-press", "leg_press.xml"),
+    ExerciseIcon("smith", "smith.xml"),
+    ExerciseIcon("cables", "cables.xml"),
+    ExerciseIcon("heart-rate", "heart_rate.xml"),
+    ExerciseIcon("bands", "bands.xml"),
+    ExerciseIcon("rings", "rings.xml"),
+    ExerciseIcon("fly-machine", "fly_machine.xml"),
+    ExerciseIcon("preacher-curl", "preacher_curl.xml"),
+    ExerciseIcon("machine-row", "machine_row.xml"),
+    ExerciseIcon("single-arm-row", "single_arm_row.xml"),
+    ExerciseIcon("incline-press-machine", "incline_press_machine.xml"),
+    ExerciseIcon("treadmill", "treadmill.xml"),
+    ExerciseIcon("farmers-carry", "farmers_carry.xml"),
+    ExerciseIcon("cable-crossover", "cable_crossover.xml"),
+    ExerciseIcon("ab-twister", "ab_twister.xml"),
+    ExerciseIcon("landmine-rotation", "landmine_rotation.xml"),
+    ExerciseIcon("link", "link.xml"),
+    ExerciseIcon("hack-squat-machine", "hack_squat_machine.xml")
 )
 
 fun getIconUrl(iconName: String?): String {
@@ -85,8 +93,26 @@ fun getIconUrl(iconName: String?): String {
         AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
     } else null
     
-    val fileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.svg"
-    return "file:///android_asset/icons/$fileName"
+    val fileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
+    return "file:///android_asset/vector_drawables/$fileName"
+}
+
+/**
+ * Load a vector drawable from assets using XmlPullParser
+ */
+fun loadVectorDrawableFromAssets(context: Context, fileName: String): Drawable? {
+    return try {
+        val inputStream = context.assets.open("vector_drawables/$fileName")
+        val parser = android.util.Xml.newPullParser()
+        parser.setInput(inputStream, null)
+        
+        val attrs = android.util.Xml.asAttributeSet(parser)
+        val drawable = android.graphics.drawable.VectorDrawable()
+        drawable.inflate(context.resources, parser, attrs)
+        drawable as Drawable
+    } catch (e: Exception) {
+        null
+    }
 }
 
 fun prefetchAllIcons(context: Context) {
@@ -118,6 +144,8 @@ fun ExerciseAsyncIcon(
         colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
     )
 }
+
+
 
 
 @Composable
