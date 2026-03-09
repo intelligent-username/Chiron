@@ -63,7 +63,7 @@ fun PresetsSheet(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            Divider(modifier = Modifier.padding(bottom = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
 
             // Presets list
             if (presets.isEmpty()) {
@@ -108,7 +108,7 @@ fun PresetsSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Divider(modifier = Modifier.padding(bottom = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
 
             // Add button
             Button(

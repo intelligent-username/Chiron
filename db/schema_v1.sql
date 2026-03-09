@@ -1,13 +1,14 @@
--- Schema v1 for Chiron (Room)
+-- Schema 
 
 CREATE TABLE IF NOT EXISTS `exercise` (
   `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   `name` TEXT NOT NULL,
   `image_uri` TEXT,
   `description` TEXT,
+  `icon_name` TEXT DEFAULT 'default',
   `archived` INTEGER NOT NULL DEFAULT 0
 );
-CREATE UNIQUE INDEX IF NOT EXISTS `index_exercise_name` ON `exercise`(`name`);
+CREATE INDEX IF NOT EXISTS `index_exercise_name` ON `exercise`(`name`);
 
 CREATE TABLE IF NOT EXISTS `workout_session` (
   `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -18,7 +19,6 @@ CREATE TABLE IF NOT EXISTS `workout_session` (
   `notes` TEXT,
   `archived` INTEGER NOT NULL DEFAULT 0
 );
-CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_session_day_tag_date_iso_location_tag` ON `workout_session`(`day_tag`,`date_iso`,`location_tag`);
 CREATE INDEX IF NOT EXISTS `index_workout_session_date_utc` ON `workout_session`(`date_utc`);
 
 CREATE TABLE IF NOT EXISTS `exercise_entry` (
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `exercise_entry` (
   `sequence_type` TEXT NOT NULL,
   `notes` TEXT,
   `archived` INTEGER NOT NULL DEFAULT 0,
+  `num_exercises_in_superset` INTEGER NOT NULL DEFAULT 2,
   FOREIGN KEY(`workout_id`) REFERENCES `workout_session`(`id`) ON DELETE CASCADE,
   FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE
 );
@@ -46,7 +47,28 @@ CREATE TABLE IF NOT EXISTS `set_entry` (
   `tempo` TEXT,
   `notes` TEXT,
   `timestamp_utc` INTEGER NOT NULL,
+  `is_pr` INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(`exercise_entry_id`) REFERENCES `exercise_entry`(`id`) ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `index_set_entry_exercise_entry_id_set_index` ON `set_entry`(`exercise_entry_id`,`set_index`);
 CREATE INDEX IF NOT EXISTS `index_set_entry_exercise_entry_id` ON `set_entry`(`exercise_entry_id`);
+
+CREATE TABLE IF NOT EXISTS `timer_presets` (
+  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  `duration_seconds` INTEGER NOT NULL,
+  `label` TEXT NOT NULL,
+  `archived` INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS `exercise_pr` (
+  `exercise_id` INTEGER NOT NULL,
+  `reps` INTEGER NOT NULL,
+  `weight_lbs` REAL NOT NULL,
+  `set_id` INTEGER NOT NULL,
+  `timestamp_utc` INTEGER NOT NULL,
+  PRIMARY KEY(`exercise_id`, `reps`),
+  FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY(`set_id`) REFERENCES `set_entry`(`id`) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS `index_exercise_pr_exercise_id` ON `exercise_pr`(`exercise_id`);
+CREATE INDEX IF NOT EXISTS `index_exercise_pr_set_id` ON `exercise_pr`(`set_id`);

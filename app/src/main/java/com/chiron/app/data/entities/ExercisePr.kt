@@ -19,9 +19,18 @@ import androidx.room.Index
             parentColumns = ["id"],
             childColumns = ["exercise_id"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = SetEntry::class,
+            parentColumns = ["id"],
+            childColumns = ["set_id"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["exercise_id"])]
+    indices = [
+        Index(value = ["exercise_id"]),
+        Index(value = ["set_id"])
+    ]
 )
 data class ExercisePr(
     @ColumnInfo(name = "exercise_id")

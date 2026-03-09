@@ -73,24 +73,23 @@ Steps:
 
 These are the files that need to be refactored:
 
-1780 ./java/com/chiron/app/ui/history/WorkoutEditor.kt
-1491 ./assets/vector_drawables/smith.xml
-  432 ./assets/vector_drawables/ab_twister.xml
-  422 ./java/com/chiron/app/data/ChironRepository.kt
-  352 ./java/com/chiron/app/ui/timer/PresetsSheet.kt
-  320 ./java/com/chiron/app/viewmodel/HistoryViewModel.kt
-  307 ./java/com/chiron/app/ui/exercises/PrScreen.kt
-  269 ./java/com/chiron/app/MainActivity.kt
-  262 ./java/com/chiron/app/ui/history/HistoryScreen.kt
-  
+  1798 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditor.kt
+  422 ./app/src/main/java/com/chiron/app/data/ChironRepository.kt
+  352 ./app/src/main/java/com/chiron/app/ui/timer/PresetsSheet.kt
+  320 ./app/src/main/java/com/chiron/app/viewmodel/HistoryViewModel.kt
+  307 ./app/src/main/java/com/chiron/app/ui/exercises/PrScreen.kt
+  269 ./app/src/main/java/com/chiron/app/MainActivity.kt
+  262 ./app/src/main/java/com/chiron/app/ui/history/HistoryScreen.kt
+  255 ./app/src/main/java/com/chiron/app/ui/exercises/ExercisesScreen.kt
+  248 ./app/src/main/java/com/chiron/app/ui/components/IconPicker.kt  
+
 -->
 
 <!-- 
 Command
 
 ```bash
-find . -type f ! -name "*.png" ! -name "*.svg" -exec wc -l {} + | sort -nr | head -n 10
-```
+find . -type f -name "*.kt" -exec wc -l {} + | sort -nr | head -n 10```
  -->
 
 ## License

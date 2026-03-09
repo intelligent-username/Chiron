@@ -42,3 +42,18 @@ plan.md
 Spec.md
 byhand.md
 **cache**
+
+# Ignore all local testing stuff
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+exports/
+backups/
+export*.json
+export*.csv
+chiron_export*.json
+chiron_export*.csv
+workout_history/

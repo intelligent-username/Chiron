@@ -208,7 +208,11 @@ class TimerViewModel(
 
     class Factory(private val repository: ChironRepository) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return TimerViewModel(repository) as T
+            if (modelClass.isAssignableFrom(TimerViewModel::class.java)) {
+                @Suppress("UNCHECKED_CAST")
+                return TimerViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

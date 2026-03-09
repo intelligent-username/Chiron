@@ -2,7 +2,8 @@ package com.chiron.app.ui.history
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -74,7 +75,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1086,20 +1086,21 @@ private fun SupersetExerciseColumn(
             }
 
             if (hasHistory) {
+                val previewPressSource = remember { MutableInteractionSource() }
+                val previewPressed by previewPressSource.collectIsPressedAsState()
+                LaunchedEffect(previewPressed) {
+                    isPreviewingLastSession = previewPressed
+                }
                 Box(
                     modifier = Modifier
                         .size(22.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isPreviewingLastSession = true
-                                    tryAwaitRelease()
-                                    isPreviewingLastSession = false
-                                }
-                            )
-                        },
+                        .clickable(
+                            interactionSource = previewPressSource,
+                            indication = null,
+                            onClick = {}
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -1357,6 +1358,11 @@ private fun ExerciseEntryCard(
 
                 // Last Session Preview button — ALWAYS rendered, never removed
                 if (hasHistory) {
+                    val previewPressSource = remember { MutableInteractionSource() }
+                    val previewPressed by previewPressSource.collectIsPressedAsState()
+                    LaunchedEffect(previewPressed) {
+                        isPreviewingLastSession = previewPressed
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
@@ -1365,15 +1371,11 @@ private fun ExerciseEntryCard(
                             .background(
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
                             )
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        isPreviewingLastSession = true
-                                        tryAwaitRelease()
-                                        isPreviewingLastSession = false
-                                    }
-                                )
-                            },
+                            .clickable(
+                                interactionSource = previewPressSource,
+                                indication = null,
+                                onClick = {}
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
