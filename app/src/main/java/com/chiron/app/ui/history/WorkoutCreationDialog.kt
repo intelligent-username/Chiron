@@ -1,9 +1,14 @@
 package com.chiron.app.ui.history
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.chiron.app.prefs.UserSettingsRepository
 import kotlinx.coroutines.launch
@@ -32,6 +37,7 @@ fun WorkoutCreationDialog(
     var customLocationInput by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     // Load custom locations from settings
     val customLocations by settingsRepository?.customLocationsFlow?.collectAsState(initial = emptyList())
@@ -73,7 +79,11 @@ fun WorkoutCreationDialog(
         title = { Text("New Workout") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { focusManager.clearFocus() })
+                    },
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Date display
@@ -197,7 +207,8 @@ private fun SelectionInput(
                 onValueChange = onCustomInputChange,
                 label = { Text("Enter custom $label") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
             )
         }
     }

@@ -235,6 +235,13 @@ class HistoryViewModel(
     suspend fun getLastSessionPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionPreview? =
         repository.getLastSessionPreview(exerciseId, currentWorkoutId)
 
+    suspend fun getLastSessionSupersetPreview(
+        currentEntryId: Long,
+        allCurrentEntries: List<com.chiron.app.data.entities.ExerciseEntry>,
+        currentWorkoutId: Long
+    ): ChironRepository.LastSessionSupersetPreview? =
+        repository.getLastSessionSupersetPreview(currentEntryId, allCurrentEntries, currentWorkoutId)
+
     // ─────────────────────────────────────────────────────────────────────────
     // Set operations
     // ─────────────────────────────────────────────────────────────────────────

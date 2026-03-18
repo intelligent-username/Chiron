@@ -38,6 +38,16 @@ Run
 .\gradlew.bat assembleDebug
 ```
 
+To assemble a debug version of the app. This is not secure for distribution, but it's decent and fast.
+
+Run
+
+```bash
+.\gradlew.bat assembleRelease
+```
+
+For an actual release build. Note that you'll need a proper `keystore.properties` file with the right credentials to sign the app, otherwise pre-existing versions of it won't update.
+
 And look the file at `app\build\outputs\apk\debug\app-debug.apk`
 
 For official builds, check the [releases](https://github.com/intelligent-username/Chiron/releases).
@@ -50,13 +60,15 @@ To modify the app, you'll need to use Android Studio or XCode depending on if yo
 
 ## Upcoming Changes
 
-This app is completely done with every feature I intend to add. The only thing that's left to do is some restructuring so I can take advantage of Kotlin's Compose Multiplatform and make this available for iOS and more.
+These are the changes I want to make. Basically all features are done. The only thing that's left is the miniplayer feature, some refactoring, and creating 'release-ready' builds via kts properties. Note that, for the iOS release, this will be very inconvenient since it looks like codes expire after 7 days, so I might just abonden the iOS version completely.
 
 Steps:
 
-  1. Modularize all files and functions to a decent extent, so they're easier to track. Possibly also convert icons to XML (tried this before) to increase loading effiency.
+  1. Create the miniplayer. Get certified with Spotify's SDK.
 
-  2. Add the following modules:
+  2. Modularize all files and functions to a decent extent, so they're easier to track. Possibly also convert icons to XML (tried this before) to increase loading effiency.
+
+  3. Add the following modules:
 
       ```md
         - `shared/`
@@ -64,10 +76,12 @@ Steps:
           - `src/androidMain/`  <- Android-specific code
           - `src/iosMain/`      <- iOS-specific code
         - `androidApp/`
-        - `iosApp/`           <- iOS-specific code
+        - `iosApp/`
       ```
 
-  3. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
+      If this step is done, need to ensure compatibility with the miniplayer.
+
+  4. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
 
 <!--   
 
@@ -83,13 +97,21 @@ These are the files that need to be refactored:
   255 ./app/src/main/java/com/chiron/app/ui/exercises/ExercisesScreen.kt
   248 ./app/src/main/java/com/chiron/app/ui/components/IconPicker.kt  
 
--->
-
-<!-- 
-Command
+Command:
 
 ```bash
-find . -type f -name "*.kt" -exec wc -l {} + | sort -nr | head -n 10```
+find . -type f -name "*.kt" -exec wc -l {} + | sort -nr | head -n 10
+```
+ -->
+
+<!-- 
+Some notes for future multi-platform support
+Using Kotlin Multiplateform
+
+- The 'back button' stuff (especially when searching in the 'Exercises' tab) should be checked
+- Spotify SDK calling logic will diverge basically just in name
+- Playback checker for miniplayer logic
+
  -->
 
 ## License

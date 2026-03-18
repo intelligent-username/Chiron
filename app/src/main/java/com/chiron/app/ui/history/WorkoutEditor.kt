@@ -6,6 +6,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -73,6 +75,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -113,6 +119,7 @@ fun WorkoutEditor(
     var editingSetEntry by remember { mutableStateOf<Pair<Long, Int>?>(null) } // entryId, setIndex
     
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showDuplicateConfirmation by remember { mutableStateOf(false) }
@@ -164,7 +171,10 @@ fun WorkoutEditor(
             columns = GridCells.Fixed(2),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                },
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
@@ -235,6 +245,7 @@ fun WorkoutEditor(
                                 textStyle = MaterialTheme.typography.displayMedium.copy(
                                     fontWeight = FontWeight.Bold
                                 ),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -313,6 +324,7 @@ fun WorkoutEditor(
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             ),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
@@ -350,6 +362,7 @@ fun WorkoutEditor(
                                     textAlign = TextAlign.End,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 ),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -391,6 +404,7 @@ fun WorkoutEditor(
                         value = editableNotes,
                         onValueChange = { editableNotes = it },
                         placeholder = { Text("Add notes...", style = MaterialTheme.typography.bodyMedium) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
@@ -693,6 +707,7 @@ private fun SupersetCard(
                                     color = MaterialTheme.colorScheme.onSurface
                                 ),
                                 modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent
@@ -781,7 +796,7 @@ private fun SupersetCard(
                 },
                 placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
                 textStyle = MaterialTheme.typography.bodySmall,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         val normalized = exerciseNotes.trim()
@@ -1135,16 +1150,31 @@ private fun ExerciseEntryCard(
     var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val notesFocusRequester = remember { FocusRequester() }
 
     // Last session preview state
     var isPreviewingLastSession by remember { mutableStateOf(false) }
     var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
+    var lastSessionSupersetPreview by remember { mutableStateOf<ChironRepository.LastSessionSupersetPreview?>(null) }
 
-    LaunchedEffect(entry.exerciseId, workoutId) {
-        lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+    LaunchedEffect(entry.exerciseId, entry.id, workoutId, allEntries.size) {
+        // Check if this exercise is part of a superset
+        val isSupersetExercise = entry.groupId != null && entry.sequenceType != "NONE"
+        
+        if (isSupersetExercise) {
+            // Try to load superset preview first
+            lastSessionSupersetPreview = viewModel.getLastSessionSupersetPreview(entry.id, allEntries, workoutId)
+            // If no superset preview, fall back to single exercise preview
+            if (lastSessionSupersetPreview == null) {
+                lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+            }
+        } else {
+            // Not a superset exercise, load single exercise preview
+            lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+        }
     }
 
-    val hasHistory = lastSessionPreview != null
+    val hasHistory = lastSessionPreview != null || lastSessionSupersetPreview != null
     
     // Count how many exercises are actually in this superset
     val currentExercisesInSuperset = remember(allEntries, entry.id) {
@@ -1182,7 +1212,13 @@ private fun ExerciseEntryCard(
     val contentAlpha = if (isPreviewingLastSession) 0.55f else 1f
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = { notesFocusRequester.freeFocus() }
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = cardColor
@@ -1207,31 +1243,67 @@ private fun ExerciseEntryCard(
                  
                  // Name and Sets (Right)
                  Column(modifier = Modifier.weight(1f)) {
-                     if (isPreviewingLastSession && lastSessionPreview != null) {
-                         // Preview title: "Mon, Feb 10: Bench Press" — same size as normal
+                     if (isPreviewingLastSession && lastSessionSupersetPreview != null) {
+                         // Superset preview - show "Superset" as title
                          Text(
-                             text = "${lastSessionPreview!!.dateLabel}: ${exercise?.name ?: ""}",
+                             text = "Superset",
                              style = MaterialTheme.typography.titleMedium,
                              fontWeight = FontWeight.Bold,
                              color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                          )
-                     } else {
+                         
+                         Spacer(modifier = Modifier.height(8.dp))
+                         
+                         // Show all exercises in the superset
+                         Column(
+                             verticalArrangement = Arrangement.spacedBy(12.dp),
+                             modifier = Modifier.fillMaxWidth()
+                         ) {
+                             lastSessionSupersetPreview!!.exercises.forEach { exercisePreview ->
+                                 Column(
+                                     verticalArrangement = Arrangement.spacedBy(4.dp)
+                                 ) {
+                                     Text(
+                                         text = exercisePreview.exerciseName,
+                                         style = MaterialTheme.typography.bodyMedium,
+                                         fontWeight = FontWeight.SemiBold,
+                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                     )
+                                     
+                                     FlowRow(
+                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                         verticalArrangement = Arrangement.spacedBy(6.dp),
+                                         modifier = Modifier.fillMaxWidth()
+                                     ) {
+                                         exercisePreview.sets.forEach { set ->
+                                             SetPill(
+                                                 weightLbs = set.weightLbs,
+                                                 reps = set.reps,
+                                                 displayInKg = displayInKg,
+                                                 isPr = set.isPr == 1,
+                                                 onClick = { } // Non-interactive in preview
+                                             )
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     } else if (isPreviewingLastSession && lastSessionPreview != null) {
+                         // Single exercise preview title
                          Text(
                              text = exercise?.name ?: "Loading...",
                              style = MaterialTheme.typography.titleMedium,
                              fontWeight = FontWeight.Bold,
-                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                          )
-                     }
-                     
-                     Spacer(modifier = Modifier.height(8.dp))
-                     
-                     FlowRow(
-                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                         modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
-                     ) {
-                         if (isPreviewingLastSession && lastSessionPreview != null) {
+                         
+                         Spacer(modifier = Modifier.height(8.dp))
+                         
+                         FlowRow(
+                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                             verticalArrangement = Arrangement.spacedBy(8.dp),
+                             modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
+                         ) {
                              // Show prior session's sets
                              lastSessionPreview!!.sets.forEach { set ->
                                  SetPill(
@@ -1242,7 +1314,22 @@ private fun ExerciseEntryCard(
                                      onClick = { } // Non-interactive in preview
                                  )
                              }
-                         } else {
+                         }
+                     } else {
+                         Text(
+                             text = exercise?.name ?: "Loading...",
+                             style = MaterialTheme.typography.titleMedium,
+                             fontWeight = FontWeight.Bold,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                         )
+                         
+                         Spacer(modifier = Modifier.height(8.dp))
+                         
+                         FlowRow(
+                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                             verticalArrangement = Arrangement.spacedBy(8.dp),
+                             modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
+                         ) {
                              // Normal: show current sets
                              sets.forEachIndexed { index, set ->
                                  SetPill(
@@ -1269,59 +1356,120 @@ private fun ExerciseEntryCard(
                      }
                  }
                  
-                 // Delete Button (Top Right)
-                 IconButton(
-                     onClick = onDeleteEntry,
-                     modifier = Modifier.offset(x = 8.dp, y = (-8).dp) // Adjust position to corner
+                 // Right side buttons (Delete and Preview) stacked vertically
+                 Column(
+                     horizontalAlignment = Alignment.CenterHorizontally,
+                     verticalArrangement = Arrangement.spacedBy(4.dp)
                  ) {
-                     Icon(
-                         Icons.Default.Close,
-                         "Remove",
-                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
-                         modifier = Modifier.size(20.dp)
-                     )
+                     // Delete Button (Top)
+                     IconButton(
+                         onClick = onDeleteEntry,
+                         modifier = Modifier.size(40.dp)
+                     ) {
+                         Icon(
+                             Icons.Default.Close,
+                             "Remove",
+                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                             modifier = Modifier.size(20.dp)
+                         )
+                     }
+                     
+                     // Preview Button (Below delete if history exists)
+                     if (hasHistory) {
+                         val previewPressSource = remember { MutableInteractionSource() }
+                         val previewPressed by previewPressSource.collectIsPressedAsState()
+                         LaunchedEffect(previewPressed) {
+                             isPreviewingLastSession = previewPressed
+                         }
+                         
+                         Box(
+                             modifier = Modifier
+                                 .size(28.dp)
+                                 .clip(CircleShape)
+                                 .background(
+                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                                 )
+                                 .clickable(
+                                     interactionSource = previewPressSource,
+                                     indication = null,
+                                     onClick = {}
+                                 ),
+                             contentAlignment = Alignment.Center
+                         ) {
+                             Box(
+                                 modifier = Modifier
+                                     .size(10.dp)
+                                     .clip(CircleShape)
+                                     .background(
+                                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                     )
+                             )
+                         }
+                     }
                  }
             }
             
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Notes row with always-visible preview button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isPreviewingLastSession && lastSessionPreview != null) {
-                    // Show prior session notes (read-only, same size as normal)
-                    val previewNotes = lastSessionPreview!!.notes ?: ""
-                    OutlinedTextField(
-                        value = previewNotes,
-                        onValueChange = { },
-                        enabled = false,
-                        placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall) },
-                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.weight(1f),
-                        minLines = 1,
-                        maxLines = 3,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledContainerColor = Color.Transparent,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                            disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
+            // Notes with date display below
+            if (isPreviewingLastSession && (lastSessionPreview != null || lastSessionSupersetPreview != null)) {
+                // Show prior session notes (read-only, same size as normal)
+                val previewNotes = (lastSessionSupersetPreview?.notes ?: lastSessionPreview?.notes) ?: ""
+                val dateLabel = lastSessionSupersetPreview?.dateLabel ?: lastSessionPreview?.dateLabel ?: ""
+                
+                OutlinedTextField(
+                    value = previewNotes,
+                    onValueChange = { },
+                    enabled = false,
+                    placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall) },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 1,
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledContainerColor = Color.Transparent,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                        disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
-                } else {
-                    // Normal: editable notes
-                    OutlinedTextField(
-                        value = exerciseNotes,
-                        onValueChange = { 
-                            exerciseNotes = it
-                        },
-                        placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Date label below description
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            } else {
+                // Normal: editable notes
+                OutlinedTextField(
+                    value = exerciseNotes,
+                    onValueChange = { 
+                        exerciseNotes = it
+                    },
+                    placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            val normalized = exerciseNotes.trim()
+                            if (normalized != committedExerciseNotes.trim()) {
+                                committedExerciseNotes = normalized
+                                scope.launch {
+                                    viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
+                                }
+                            }
+                            focusManager.clearFocus()
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(notesFocusRequester)
+                        .onFocusChanged { focusState ->
+                            if (!focusState.isFocused) {
                                 val normalized = exerciseNotes.trim()
                                 if (normalized != committedExerciseNotes.trim()) {
                                     committedExerciseNotes = normalized
@@ -1329,67 +1477,19 @@ private fun ExerciseEntryCard(
                                         viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
                                     }
                                 }
-                                focusManager.clearFocus()
                             }
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { focusState ->
-                                if (!focusState.isFocused) {
-                                    val normalized = exerciseNotes.trim()
-                                    if (normalized != committedExerciseNotes.trim()) {
-                                        committedExerciseNotes = normalized
-                                        scope.launch {
-                                            viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
-                                        }
-                                    }
-                                }
-                            },
-                        minLines = 1,
-                        maxLines = 3,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
+                        },
+                    minLines = 1,
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                     )
-                }
-
-                // Last Session Preview button — ALWAYS rendered, never removed
-                if (hasHistory) {
-                    val previewPressSource = remember { MutableInteractionSource() }
-                    val previewPressed by previewPressSource.collectIsPressedAsState()
-                    LaunchedEffect(previewPressed) {
-                        isPreviewingLastSession = previewPressed
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-                            )
-                            .clickable(
-                                interactionSource = previewPressSource,
-                                indication = null,
-                                onClick = {}
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                )
-                        )
-                    }
-                }
+                )
             }
-
+            
             Spacer(modifier = Modifier.height(12.dp))
 
             // Superset Controls (hidden during preview)
@@ -1646,7 +1746,8 @@ private fun AddExerciseDialog(
                     onValueChange = { searchQuery = it },
                     label = { Text("Search exercises") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                 )
 
                 LazyColumn(
@@ -1761,13 +1862,15 @@ private fun EditSetDialog(
                     value = weight,
                     onValueChange = { weight = it },
                     label = { Text(if (displayInKg) "Weight (kg)" else "Weight (lbs)") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
                 OutlinedTextField(
                     value = reps,
                     onValueChange = { reps = it },
                     label = { Text("Reps") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
         },

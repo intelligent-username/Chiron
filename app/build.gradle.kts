@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.chiron.app"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -82,3 +82,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// Configure debug configurations to prevent AGP deprecation warnings
+afterEvaluate {
+    configurations.named("debugRuntimeClasspath") {
+        isCanBeConsumed = false
+    }
+}
+
+

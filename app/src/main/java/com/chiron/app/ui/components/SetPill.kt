@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.util.UnitConversion
@@ -44,6 +45,15 @@ fun SetPill(
     }
 
     val borderColor = if (isPr) PrGold else MaterialTheme.colorScheme.outline
+    
+    // Responsive font size: shrink if text is long to fit on one line
+    val baseStyle = MaterialTheme.typography.labelLarge
+    val responsiveFontSize = when {
+        displayText.length > 16 -> baseStyle.fontSize * 0.80f
+        displayText.length > 14 -> baseStyle.fontSize * 0.85f
+        displayText.length > 12 -> baseStyle.fontSize * 0.90f
+        else -> baseStyle.fontSize
+    }
 
     Box(
         modifier = modifier
@@ -56,8 +66,10 @@ fun SetPill(
     ) {
         Text(
             text = displayText,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            style = baseStyle.copy(fontSize = responsiveFontSize),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Clip
         )
     }
 }

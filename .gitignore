@@ -4,6 +4,7 @@ build/
 
 # Local configuration file (sdk path, etc)
 local.properties
+keystore.properties
 
 # Log/OS Files
 *.log
@@ -43,17 +44,23 @@ Spec.md
 byhand.md
 **cache**
 
-# Ignore all local testing stuff
-*.db
-*.db-shm
-*.db-wal
+# Local testing
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-exports/
-backups/
+
+# Exports
 export*.json
 export*.csv
 chiron_export*.json
 chiron_export*.csv
+*.db-shm
+*.db-wal
+ce_*.zip
+
+# Test folders
+old/
 workout_history/
+exports/
+backups/
+

@@ -1,13 +1,18 @@
 package com.chiron.app.ui.exercises
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalFocusManager
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.ui.components.IconPicker
 
@@ -67,11 +72,15 @@ fun ExerciseDetailScreen(
             )
         }
     ) { padding ->
+        val focusManager = LocalFocusManager.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                },
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
@@ -79,7 +88,8 @@ fun ExerciseDetailScreen(
                 onValueChange = { nameState = it },
                 label = { Text("Exercise Name") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
             )
 
             OutlinedTextField(
@@ -87,8 +97,8 @@ fun ExerciseDetailScreen(
                 onValueChange = { descState = it },
                 label = { Text("Description (optional)") },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 6
+                maxLines = 6,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
             
             // Icon picker

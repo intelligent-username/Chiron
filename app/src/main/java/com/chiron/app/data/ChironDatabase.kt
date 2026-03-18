@@ -28,7 +28,7 @@ import com.chiron.app.data.entities.TimerPreset
         TimerPreset::class,
         ExercisePr::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -101,6 +101,34 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Recreate exercise_pr to add missing FK(set_id -> set_entry.id) and missing index(set_id)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_pr_new` (
+                        `exercise_id` INTEGER NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `weight_lbs` REAL NOT NULL,
+                        `set_id` INTEGER NOT NULL,
+                        `timestamp_utc` INTEGER NOT NULL,
+                        PRIMARY KEY(`exercise_id`, `reps`),
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE,
+                        FOREIGN KEY(`set_id`) REFERENCES `set_entry`(`id`) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO `exercise_pr_new` (`exercise_id`, `reps`, `weight_lbs`, `set_id`, `timestamp_utc`)
+                    SELECT `exercise_id`, `reps`, `weight_lbs`, `set_id`, `timestamp_utc` FROM `exercise_pr`
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE `exercise_pr`")
+                db.execSQL("ALTER TABLE `exercise_pr_new` RENAME TO `exercise_pr`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_pr_exercise_id` ON `exercise_pr` (`exercise_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_pr_set_id` ON `exercise_pr` (`set_id`)")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -108,7 +136,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)
@@ -155,7 +183,7 @@ abstract class ChironDatabase : RoomDatabase() {
                             "Good Morning" to "smiley",
                             "Smith Machine Squat" to "smith",
                             "Squat" to "squat",
-                            "Stationary Bike" to "stationary-bike",
+                            "Stationary Bike" to "stationary_bike",
                             "Treadmill" to "treadmill"
                         )
 

@@ -3,14 +3,21 @@ package com.chiron.app.ui.exercises
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -27,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 fun ExercisesScreen(
     viewModel: ExercisesViewModel,
     onOpenDetail: (Long) -> Unit,
+    onSearchQueryChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -35,12 +43,26 @@ fun ExercisesScreen(
     var selectedIcon by remember { mutableStateOf<String?>("default") }
     val context = LocalContext.current
 
+    // Notify parent about search query changes
+    LaunchedEffect(state.searchQuery) {
+        onSearchQueryChange(state.searchQuery.isNotBlank())
+    }
 
+    // Handle back button: clear search if text exists
+    val hasSearchQuery = state.searchQuery.isNotBlank()
+    androidx.activity.compose.BackHandler(enabled = hasSearchQuery) {
+        viewModel.updateSearchQuery("")
+    }
+
+    val focusManager = LocalFocusManager.current
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             OutlinedTextField(
@@ -50,7 +72,22 @@ fun ExercisesScreen(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 label = { Text("Search exercises") },
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                trailingIcon = {
+                    if (state.searchQuery.isNotBlank()) {
+                        IconButton(
+                            onClick = { viewModel.updateSearchQuery("") },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Clear search",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             )
 
             if (state.showArchived) {
@@ -123,6 +160,7 @@ fun ExercisesScreen(
                             onValueChange = { newExerciseName = it },
                             label = { Text("Exercise Name") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             modifier = Modifier.fillMaxWidth()
                         )
                         HorizontalDivider()

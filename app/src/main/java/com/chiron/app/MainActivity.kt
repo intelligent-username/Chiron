@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 var isPresetsOpen by rememberSaveable { mutableStateOf(false) }
                 var showAddPresetDialog by rememberSaveable { mutableStateOf(false) }
                 var isPrScreenOpen by rememberSaveable { mutableStateOf(false) }
+                var exercisesSearchHasText by remember { mutableStateOf(false) }
 
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)
                 val exercisesViewModel: ExercisesViewModel = viewModel(factory = ServiceLocator.exercisesViewModelFactory)
@@ -92,6 +94,10 @@ class MainActivity : ComponentActivity() {
                         historyState.isEditorOpen -> {
                             historyViewModel.closeEditor()
                         }
+                        selectedTab == NavTab.EXERCISES && exercisesSearchHasText -> {
+                            // Let ExercisesScreen's BackHandler handle clearing search
+                            // Do nothing here; the ExercisesScreen's BackHandler will handle it
+                        }
                         pagerState.currentPage > 0 -> {
                             scope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage - 1)
@@ -105,6 +111,8 @@ class MainActivity : ComponentActivity() {
                 if (isSettingsOpen) {
                     SettingsScreen(
                         repository = historyViewModel.getSettingsRepository(),
+                        onExportData = { ServiceLocator.repository.exportDataSnapshot() },
+                        onImportData = { uri -> ServiceLocator.repository.importDataFromFile(uri) },
                         onBack = { isSettingsOpen = false }
                     )
                 } else {
@@ -189,7 +197,8 @@ class MainActivity : ComponentActivity() {
                                                 onOpenDetail = { exId ->
                                                     activeExerciseId = exId
                                                     isExerciseDetailOpen = true
-                                                }
+                                                },
+                                                onSearchQueryChange = { hasText -> exercisesSearchHasText = hasText }
                                             )
                                             if (isExerciseDetailOpen) {
                                                 val exercise = exercisesState.exercises.find { it.id == activeExerciseId }

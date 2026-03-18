@@ -58,10 +58,10 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("pulldown", "pulldown.xml"),
     ExerciseIcon("pushdown", "pushdown.xml"),
     ExerciseIcon("squat", "squat.xml"),
-    ExerciseIcon("45-plate", "plate_45.xml"),
-    ExerciseIcon("25-plate", "plate_25.xml"),    
-    ExerciseIcon("20-plate", "plate_20.xml"),    
-    ExerciseIcon("10-plate", "plate_10.xml"),    
+    ExerciseIcon("45-plate", "plate_ta.xml"),
+    ExerciseIcon("25-plate", "plate_tb.xml"),    
+    ExerciseIcon("20-plate", "plate_tc.xml"),    
+    ExerciseIcon("10-plate", "plate_td.xml"),    
     ExerciseIcon("pull-up", "pull_up.xml"),
     ExerciseIcon("smiley", "smiley.xml"),
     ExerciseIcon("push-up", "push_up.xml"),
@@ -100,23 +100,9 @@ fun getIconUrl(iconName: String?): String {
         AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
     } else null
     
-    // Try VectorDrawable XML first, fallback to SVG
+    // Always use VectorDrawable XML from assets
     val xmlFileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
     return "file:///android_asset/vector_drawables/$xmlFileName"
-}
-
-fun getIconUrlFallback(iconName: String?): String {
-    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
-    val underscoreMatch = if (exactMatch == null && iconName != null) {
-        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
-    } else null
-    
-    // SVG filenames match the icon names (with hyphens), not the XML filenames (with underscores)
-    val iconDisplayName = (exactMatch ?: underscoreMatch)?.name
-        ?: iconName?.replace('_', '-')
-        ?: "default"
-    val svgFileName = "$iconDisplayName.svg"
-    return "file:///android_asset/icons/$svgFileName"
 }
 
 fun prefetchAllIcons(context: Context) {
@@ -183,14 +169,30 @@ fun ExerciseAsyncIcon(
             }
         )
     } else {
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(getIconUrlFallback(iconName))
-                .build(),
-            contentDescription = contentDescription,
-            modifier = modifier,
-            colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
-        )
+        // Fallback: load the default icon if the requested one fails
+        val defaultFileName = remember { resolveIconFileName("default") }
+        val defaultDrawable = remember { loadVectorDrawableFromAssets(context, defaultFileName) }
+        
+        if (defaultDrawable != null) {
+            AndroidView(
+                modifier = modifier,
+                factory = { viewContext ->
+                    ImageView(viewContext).apply {
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                    }
+                },
+                update = { imageView ->
+                    val drawable = defaultDrawable.constantState?.newDrawable()?.mutate() ?: defaultDrawable.mutate()
+                    imageView.setImageDrawable(drawable)
+                    if (tint != Color.Unspecified) {
+                        imageView.setColorFilter(tint.toArgb(), PorterDuff.Mode.SRC_IN)
+                    } else {
+                        imageView.clearColorFilter()
+                    }
+                    imageView.contentDescription = contentDescription
+                }
+            )
+        }
     }
 }
 
