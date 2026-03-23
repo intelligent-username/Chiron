@@ -1,9 +1,6 @@
 package com.chiron.app.ui.components
 
 import android.content.Context
-import android.graphics.PorterDuff
-import android.util.Xml
-import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,115 +25,111 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
-import org.xmlpull.v1.XmlPullParser
 
-// Available exercise icons
+// Available exercise icons — name matches the icon ID stored in DB, fileName matches assets/icons/
 data class ExerciseIcon(val name: String, val fileName: String)
 
 val AVAILABLE_ICONS = listOf(
-    ExerciseIcon("default", "default.xml"),
-    ExerciseIcon("benchpress", "benchpress.xml"),
-    ExerciseIcon("chest-press", "chest_press.xml"),
-    ExerciseIcon("curl", "curl.xml"),
-    ExerciseIcon("hammer-curl", "hammer_curl.xml"),
-    ExerciseIcon("deadlift", "deadlift.xml"),
-    ExerciseIcon("incline-bench", "incline_bench.xml"),
-    ExerciseIcon("jump", "jump.xml"),
-    ExerciseIcon("leg-curl", "leg_curl.xml"),
-    ExerciseIcon("leg-extension", "leg_extension.xml"),
-    ExerciseIcon("leg-raise", "leg_raise.xml"),
-    ExerciseIcon("machine", "machine.xml"),
-    ExerciseIcon("overhead-press", "overhead_press.xml"),
-    ExerciseIcon("pulldown", "pulldown.xml"),
-    ExerciseIcon("pushdown", "pushdown.xml"),
-    ExerciseIcon("squat", "squat.xml"),
-    ExerciseIcon("45-plate", "plate_ta.xml"),
-    ExerciseIcon("25-plate", "plate_tb.xml"),    
-    ExerciseIcon("20-plate", "plate_tc.xml"),    
-    ExerciseIcon("10-plate", "plate_td.xml"),    
-    ExerciseIcon("pull-up", "pull_up.xml"),
-    ExerciseIcon("smiley", "smiley.xml"),
-    ExerciseIcon("push-up", "push_up.xml"),
-    ExerciseIcon("sit-up", "sit_up.xml"),
-    ExerciseIcon("lunge", "lunge.xml"),
-    ExerciseIcon("hip-thrust", "hip_thrust.xml"),
-    ExerciseIcon("dip", "dip.xml"),
-    ExerciseIcon("kettlebell", "kettlebell.xml"),
-    ExerciseIcon("lateral-raise", "lateral_raise.xml"),
-    ExerciseIcon("barbell", "barbell.xml"),
-    ExerciseIcon("medicine-ball", "medicine_ball.xml"),
-    ExerciseIcon("stationary-bike", "stationary_bike.xml"),
-    ExerciseIcon("leg-press", "leg_press.xml"),
-    ExerciseIcon("smith", "smith.xml"),
-    ExerciseIcon("cables", "cables.xml"),
-    ExerciseIcon("heart-rate", "heart_rate.xml"),
-    ExerciseIcon("bands", "bands.xml"),
-    ExerciseIcon("rings", "rings.xml"),
-    ExerciseIcon("fly-machine", "fly_machine.xml"),
-    ExerciseIcon("preacher-curl", "preacher_curl.xml"),
-    ExerciseIcon("machine-row", "machine_row.xml"),
-    ExerciseIcon("single-arm-row", "single_arm_row.xml"),
-    ExerciseIcon("incline-press-machine", "incline_press_machine.xml"),
-    ExerciseIcon("treadmill", "treadmill.xml"),
-    ExerciseIcon("farmers-carry", "farmers_carry.xml"),
-    ExerciseIcon("cable-crossover", "cable_crossover.xml"),
-    ExerciseIcon("ab-twister", "ab_twister.xml"),
-    ExerciseIcon("landmine-rotation", "landmine_rotation.xml"),
-    ExerciseIcon("link", "link.xml"),
-    ExerciseIcon("hack-squat-machine", "hack_squat_machine.xml")
+    ExerciseIcon("dumbell",                "dumbell.svg"),
+    ExerciseIcon("benchpress",             "benchpress.svg"),
+    ExerciseIcon("chest-press",            "chest-press.svg"),
+    ExerciseIcon("incline-bench",          "incline-bench.svg"),
+    ExerciseIcon("incline-press-machine",  "incline-press-machine.svg"),
+    ExerciseIcon("incline-dumbbell-press", "incline-db-press.svg"),
+    ExerciseIcon("overhead-press",         "overhead-press.svg"),
+
+    ExerciseIcon("curl",                   "curl.svg"),
+    ExerciseIcon("hammer-curl",            "hammer-curl.svg"),
+    ExerciseIcon("preacher-curl",          "preacher-curl.svg"),
+
+    ExerciseIcon("deadlift",               "deadlift.svg"),
+    ExerciseIcon("zercher-deadlift",       "zercher-deadlift.svg"),
+    ExerciseIcon("farmers-carry",          "farmers-carry.svg"),
+
+    ExerciseIcon("jump",                   "jump.svg"),
+    ExerciseIcon("leg-curl",               "leg-curl.svg"),
+    ExerciseIcon("leg-extension",          "leg-extension.svg"),
+    ExerciseIcon("leg-raise",              "leg-raise.svg"),
+    ExerciseIcon("squat",                  "squat.svg"),
+    ExerciseIcon("leg-press",              "leg-press.svg"),
+    ExerciseIcon("calf-machine",           "calf-machine.svg"),
+    ExerciseIcon("hack-squat-machine",     "hack-squat-machine.svg"),
+    ExerciseIcon("lunge",                  "lunge.svg"),
+    ExerciseIcon("hip-thrust",             "hip-thrust.svg"),
+
+    ExerciseIcon("machine",                "machine.svg"),
+    ExerciseIcon("pulldown",               "pulldown.svg"),
+    ExerciseIcon("pushdown",               "pushdown.svg"),
+
+    ExerciseIcon("45-plate",               "plate-ta.svg"),
+    ExerciseIcon("25-plate",               "plate-tb.svg"),
+    ExerciseIcon("20-plate",               "plate-tc.svg"),
+    ExerciseIcon("10-plate",               "plate-td.svg"),
+
+    ExerciseIcon("pull-up",                "pull-up.svg"),
+    ExerciseIcon("neutral-pullup",         "neutral-pull.svg"),
+    ExerciseIcon("push-up",                "push-up.svg"),
+    ExerciseIcon("dip",                    "dip.svg"),
+    ExerciseIcon("rings",                  "rings.svg"),
+
+    ExerciseIcon("treadmill",              "treadmill.svg"),
+    ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
+    ExerciseIcon("heart-rate",             "heart-rate.svg"),
+
+    ExerciseIcon("lateral-raise",          "lateral-raise.svg"),
+    ExerciseIcon("barbell",                "barbell.svg"),
+    ExerciseIcon("smith",                  "smith.svg"),
+    ExerciseIcon("cables",                 "cables.svg"),
+    ExerciseIcon("bands",                  "bands.svg"),
+
+    ExerciseIcon("fly-machine",            "fly-machine.svg"),
+    ExerciseIcon("peck-deck",              "deck.svg"),
+    ExerciseIcon("cable-crossover",        "cable-crossover.svg"),
+
+    ExerciseIcon("ab-twister",             "ab-twister.svg"),
+    ExerciseIcon("landmine-rotation",      "landmine-rotation.svg"),
+    ExerciseIcon("medicine-ball",          "medicine-ball.svg"),
+
+    ExerciseIcon("machine-row",            "machine-row.svg"),
+    ExerciseIcon("single-arm-row",         "single-arm-row.svg"),
+
+    ExerciseIcon("itrot",                  "internal-rotation.svg"),
+    ExerciseIcon("neck-curl",              "neck-curl.svg"),
+
+    ExerciseIcon("link",                   "link.svg"),
+    ExerciseIcon("smiley",                 "smiley.svg"),
+    ExerciseIcon("sit-up",                 "sit-up.svg"),
+    ExerciseIcon("kettlebell",             "kettlebell.svg"),
 )
 
+private fun resolveFileName(iconName: String?): String {
+    if (iconName == null) return "dumbell.svg"
+    // Try exact match first
+    AVAILABLE_ICONS.find { it.name == iconName }?.let { return it.fileName }
+    // Try replacing underscores with dashes
+    AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }?.let { return it.fileName }
+    return "dumbell.svg"
+}
+
 fun getIconUrl(iconName: String?): String {
-    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
-    val underscoreMatch = if (exactMatch == null && iconName != null) {
-        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
-    } else null
-    
-    // Always use VectorDrawable XML from assets
-    val xmlFileName = (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
-    return "file:///android_asset/vector_drawables/$xmlFileName"
+    return "file:///android_asset/icons/${resolveFileName(iconName)}"
 }
 
 fun prefetchAllIcons(context: Context) {
-    val imageLoader = context.imageLoader
+    val loader = context.imageLoader
     AVAILABLE_ICONS.forEach { icon ->
-        imageLoader.enqueue(
+        loader.enqueue(
             ImageRequest.Builder(context)
-                .data(getIconUrl(icon.name))
+                .data("file:///android_asset/icons/${icon.fileName}")
                 .build()
         )
     }
 }
-
-private fun resolveIconFileName(iconName: String?): String {
-    val exactMatch = AVAILABLE_ICONS.find { it.name == iconName }
-    val underscoreMatch = if (exactMatch == null && iconName != null) {
-        AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }
-    } else null
-    return (exactMatch ?: underscoreMatch)?.fileName ?: "default.xml"
-}
-
-private fun loadVectorDrawableFromAssets(context: Context, fileName: String) = runCatching {
-    context.assets.open("vector_drawables/$fileName").use { input ->
-        val parser = Xml.newPullParser()
-        parser.setInput(input, null)
-        var eventType = parser.eventType
-        while (eventType != XmlPullParser.START_TAG && eventType != XmlPullParser.END_DOCUMENT) {
-            eventType = parser.next()
-        }
-        if (eventType != XmlPullParser.START_TAG || parser.name != "vector") return@runCatching null
-        val attrs = Xml.asAttributeSet(parser)
-        VectorDrawableCompat.createFromXmlInner(context.resources, parser, attrs, context.theme)
-    }
-}.getOrNull()
 
 @Composable
 fun ExerciseAsyncIcon(
@@ -146,58 +139,18 @@ fun ExerciseAsyncIcon(
     tint: Color = Color.Unspecified
 ) {
     val context = LocalContext.current
-    val fileName = remember(iconName) { resolveIconFileName(iconName) }
-    val vectorDrawable = remember(fileName) { loadVectorDrawableFromAssets(context, fileName) }
+    val url = remember(iconName) { getIconUrl(iconName) }
 
-    if (vectorDrawable != null) {
-        AndroidView(
-            modifier = modifier,
-            factory = { viewContext ->
-                ImageView(viewContext).apply {
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                }
-            },
-            update = { imageView ->
-                val drawable = vectorDrawable.constantState?.newDrawable()?.mutate() ?: vectorDrawable.mutate()
-                imageView.setImageDrawable(drawable)
-                if (tint != Color.Unspecified) {
-                    imageView.setColorFilter(tint.toArgb(), PorterDuff.Mode.SRC_IN)
-                } else {
-                    imageView.clearColorFilter()
-                }
-                imageView.contentDescription = contentDescription
-            }
-        )
-    } else {
-        // Fallback: load the default icon if the requested one fails
-        val defaultFileName = remember { resolveIconFileName("default") }
-        val defaultDrawable = remember { loadVectorDrawableFromAssets(context, defaultFileName) }
-        
-        if (defaultDrawable != null) {
-            AndroidView(
-                modifier = modifier,
-                factory = { viewContext ->
-                    ImageView(viewContext).apply {
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                    }
-                },
-                update = { imageView ->
-                    val drawable = defaultDrawable.constantState?.newDrawable()?.mutate() ?: defaultDrawable.mutate()
-                    imageView.setImageDrawable(drawable)
-                    if (tint != Color.Unspecified) {
-                        imageView.setColorFilter(tint.toArgb(), PorterDuff.Mode.SRC_IN)
-                    } else {
-                        imageView.clearColorFilter()
-                    }
-                    imageView.contentDescription = contentDescription
-                }
-            )
-        }
-    }
+    AsyncImage(
+        model = ImageRequest.Builder(context)
+            .data(url)
+            .crossfade(true)
+            .build(),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
+    )
 }
-
-
-
 
 @Composable
 fun IconPicker(
@@ -212,7 +165,7 @@ fun IconPicker(
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(Modifier.height(8.dp))
-        
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(5),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -221,7 +174,7 @@ fun IconPicker(
         ) {
             items(
                 items = AVAILABLE_ICONS,
-                key = { it.name } // Unique icon name as key
+                key = { it.name }
             ) { icon ->
                 val isSelected = icon.name == selectedIcon
                 Box(

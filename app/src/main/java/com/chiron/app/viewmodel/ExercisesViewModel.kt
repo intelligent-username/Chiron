@@ -16,6 +16,8 @@ data class ExercisesUiState(
     val archivedExercises: List<Exercise> = emptyList(),
     val searchQuery: String = "",
     val searchResults: List<Exercise> = emptyList(),
+    val prSearchQuery: String = "",
+    val prSearchResults: List<Exercise> = emptyList(),
     val selectedExerciseId: Long? = null,
     val isDetailOpen: Boolean = false,
     val showArchived: Boolean = false,
@@ -30,6 +32,7 @@ class ExercisesViewModel(
     val uiState: StateFlow<ExercisesUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
+    private var prSearchJob: Job? = null
     private val searchDebounceMs = 300L
 
     init {
@@ -63,6 +66,26 @@ class ExercisesViewModel(
 
     fun clearSearch() {
         _uiState.update { it.copy(searchQuery = "", searchResults = emptyList()) }
+    }
+
+    fun updatePrSearchQuery(query: String) {
+        _uiState.update { it.copy(prSearchQuery = query) }
+
+        prSearchJob?.cancel()
+        prSearchJob = viewModelScope.launch {
+            delay(searchDebounceMs)
+            if (query.isBlank()) {
+                _uiState.update { it.copy(prSearchResults = emptyList()) }
+            } else {
+                val archived = _uiState.value.showArchived
+                val results = repository.searchExercises(query, archived = archived)
+                _uiState.update { it.copy(prSearchResults = results) }
+            }
+        }
+    }
+
+    fun clearPrSearch() {
+        _uiState.update { it.copy(prSearchQuery = "", prSearchResults = emptyList()) }
     }
 
     fun openDetail(exerciseId: Long) {

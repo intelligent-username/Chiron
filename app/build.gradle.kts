@@ -89,5 +89,3 @@ afterEvaluate {
         isCanBeConsumed = false
     }
 }
-
-

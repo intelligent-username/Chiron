@@ -172,7 +172,7 @@ abstract class ChironDatabase : RoomDatabase() {
                             "Pec Deck" to "machine",
                             "Medicine Ball Slam" to "medicine-ball",
                             "Overhead Press" to "overhead-press",
-                            "Plank" to "plate",
+                            "Plank" to "45-plate",
                             "Preacher Curl" to "preacher-curl",
                             "Pull Ups" to "pull-up",
                             "Lat Pulldown" to "pulldown",

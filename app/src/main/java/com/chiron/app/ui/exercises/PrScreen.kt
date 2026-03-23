@@ -6,16 +6,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,6 +64,14 @@ fun PrScreen(
 
     var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
 
+    // Handle back button: clear search if text exists
+    val hasPrSearchQuery = uiState.prSearchQuery.isNotBlank()
+    androidx.activity.compose.BackHandler(enabled = hasPrSearchQuery) {
+        viewModel.clearPrSearch()
+    }
+
+    val focusManager = LocalFocusManager.current
+
     Scaffold(
         modifier = modifier,
         // IMPORTANT: tell the nested Scaffold not to re-apply window insets.
@@ -89,58 +105,137 @@ fun PrScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                }
         ) {
-            // Left panel: exercise list
-            LazyColumn(
+            // Left panel: exercise list with search
+            Column(
                 modifier = Modifier
                     .width(180.dp)
-                    .fillMaxHeight(),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                    .fillMaxHeight()
             ) {
-                if (exercisesWithPrs.isEmpty()) {
-                    item {
+                // Search field
+                TextField(
+                    value = uiState.prSearchQuery,
+                    onValueChange = viewModel::updatePrSearchQuery,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                        .height(44.dp),
+                    placeholder = { 
                         Text(
-                            text = "No PRs yet.\nFinish some sets!",
+                            "Search", 
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        ) 
+                    },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Search
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = { focusManager.clearFocus() }
+                    ),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    },
+                    trailingIcon = {
+                        if (uiState.prSearchQuery.isNotBlank()) {
+                            IconButton(
+                                onClick = { viewModel.clearPrSearch() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Clear search",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                )
+
+
+                // Exercise list
+                val displayedList = if (uiState.prSearchQuery.isNotBlank()) {
+                    uiState.prSearchResults.filter { exercise ->
+                        val ids = exercisesWithPrs.map { it.id }.toSet()
+                        exercise.id in ids
+                    }
+                } else {
+                    exercisesWithPrs
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    if (displayedList.isEmpty()) {
+                        item {
+                            Text(
+                                text = if (uiState.prSearchQuery.isNotBlank()) 
+                                    "No matching exercises"
+                                else 
+                                    "No PRs yet.\nFinish some sets!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp)
+                            )
+                        }
+                    }
+                    items(displayedList) { exercise ->
+                        val isSelected = selectedExercise?.id == exercise.id
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp)
-                        )
-                    }
-                }
-                items(exercisesWithPrs) { exercise ->
-                    val isSelected = selectedExercise?.id == exercise.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedExercise = exercise }
-                            .background(
-                                if (isSelected)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else Color.Transparent
+                                .clickable { selectedExercise = exercise }
+                                .background(
+                                    if (isSelected)
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    else Color.Transparent
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            com.chiron.app.ui.components.ExerciseAsyncIcon(
+                                iconName = exercise.iconName,
+                                contentDescription = exercise.name,
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.Unspecified
                             )
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        com.chiron.app.ui.components.ExerciseAsyncIcon(
-                            iconName = exercise.iconName,
-                            contentDescription = exercise.name,
-                            modifier = Modifier.size(24.dp),
-                            tint = Color.Unspecified
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = exercise.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            lineHeight = 14.sp
-                        )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = exercise.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 14.sp
+                            )
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 }
             }
 

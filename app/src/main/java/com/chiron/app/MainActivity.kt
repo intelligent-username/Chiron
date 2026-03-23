@@ -4,11 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import com.chiron.app.ui.ChironSplashScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -108,14 +113,27 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                if (isSettingsOpen) {
+                // ── Splash screen overlay (fades out when loading is done) ──────
+                val isAppLoading = exercisesState.isLoading
+                AnimatedVisibility(
+                    visible = isAppLoading,
+                    enter = fadeIn(tween(300)),
+                    exit = fadeOut(tween(600))
+                ) {
+                    ChironSplashScreen(
+                        isLoading = isAppLoading,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                if (!isAppLoading && isSettingsOpen) {
                     SettingsScreen(
                         repository = historyViewModel.getSettingsRepository(),
                         onExportData = { ServiceLocator.repository.exportDataSnapshot() },
                         onImportData = { uri -> ServiceLocator.repository.importDataFromFile(uri) },
                         onBack = { isSettingsOpen = false }
                     )
-                } else {
+                } else if (!isAppLoading) {
                     androidx.compose.material3.Scaffold(
                         topBar = {
                             androidx.compose.material3.TopAppBar(

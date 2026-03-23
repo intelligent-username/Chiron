@@ -60,7 +60,7 @@ To modify the app, you'll need to use Android Studio or XCode depending on if yo
 
 ## Upcoming Changes
 
-These are the changes I want to make. Basically all features are done. The only thing that's left is the miniplayer feature, some refactoring, and creating 'release-ready' builds via kts properties. Note that, for the iOS release, this will be very inconvenient since it looks like codes expire after 7 days, so I might just abonden the iOS version completely.
+These are the changes I want to make. Basically all features are done. The only thing that's left is the miniplayer feature, some refactoring, and creating 'release-ready' builds via kts properties. To make iOS release, this will be very inconvenient since it looks like codes expire after 7 days, so I might just abonden the iOS version completely.
 
 Steps:
 
