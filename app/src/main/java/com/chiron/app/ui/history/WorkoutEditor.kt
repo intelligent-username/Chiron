@@ -108,7 +108,7 @@ fun WorkoutEditor(
 ) {
     if (workout == null) return
 
-    val entries by viewModel.getEntriesForWorkout(workout.id).collectAsState(initial = emptyList())
+    val entries by viewModel.getEntriesForWorkout(workout.id).collectAsState(initial = emptyList<ExerciseEntry>())
     val uiState by viewModel.uiState.collectAsState()
     val displayInKg = uiState.displayInKg
     
@@ -611,7 +611,7 @@ fun WorkoutEditor(
 
     // Edit set dialog
     editingSetEntry?.let { (entryId, setIndex) ->
-        val sets by viewModel.getSetsForEntry(entryId).collectAsState(initial = emptyList())
+        val sets by viewModel.getSetsForEntry(entryId).collectAsState(initial = emptyList<com.chiron.app.data.entities.SetEntry>())
         val set = sets.getOrNull(setIndex - 1)
         if (set != null) {
             EditSetDialog(
@@ -1011,7 +1011,7 @@ private fun SupersetExerciseColumn(
     onSetClick: (Int) -> Unit,
     onAddSet: () -> Unit
 ) {
-    val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
+    val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList<com.chiron.app.data.entities.SetEntry>())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
     var isPreviewingLastSession by remember { mutableStateOf(false) }
     var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
@@ -1143,7 +1143,7 @@ private fun ExerciseEntryCard(
     workoutId: Long,
     onRequestAddExercise: () -> Unit
 ) {
-    val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
+    val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList<com.chiron.app.data.entities.SetEntry>())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
     var exerciseNotes by remember { mutableStateOf(entry.notes ?: "") }
     var committedExerciseNotes by remember(entry.id) { mutableStateOf(entry.notes ?: "") }

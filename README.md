@@ -38,6 +38,8 @@ Run
 .\gradlew.bat assembleDebug
 ```
 
+All the releases so far have been debug versions.
+
 To assemble a debug version of the app. This is not secure for distribution, but it's decent and fast.
 
 Run
