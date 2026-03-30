@@ -68,9 +68,7 @@ Steps:
 
   1. Create the miniplayer. Get certified with Spotify's SDK.
 
-  2. Modularize all files and functions to a decent extent, so they're easier to track. Possibly also convert icons to XML (tried this before) to increase loading effiency.
-
-  3. Add the following modules:
+  2. Add the following modules to create cross-platform compatibility:
 
       ```md
         - `shared/`
@@ -81,23 +79,23 @@ Steps:
         - `iosApp/`
       ```
 
-      If this step is done, need to ensure compatibility with the miniplayer.
+      Once this step is done, need to ensure support for the miniplayer.
 
-  4. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
+  3. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
 
 <!--   
 
-These are the files that need to be refactored:
+These are the files that I might want to refactor:
 
-  1798 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditor.kt
-  422 ./app/src/main/java/com/chiron/app/data/ChironRepository.kt
-  352 ./app/src/main/java/com/chiron/app/ui/timer/PresetsSheet.kt
-  320 ./app/src/main/java/com/chiron/app/viewmodel/HistoryViewModel.kt
-  307 ./app/src/main/java/com/chiron/app/ui/exercises/PrScreen.kt
-  269 ./app/src/main/java/com/chiron/app/MainActivity.kt
-  262 ./app/src/main/java/com/chiron/app/ui/history/HistoryScreen.kt
-  255 ./app/src/main/java/com/chiron/app/ui/exercises/ExercisesScreen.kt
-  248 ./app/src/main/java/com/chiron/app/ui/components/IconPicker.kt  
+   408 ./app/src/main/java/com/chiron/app/data/transfer/DataTransferRepository.kt
+   388 ./app/src/main/java/com/chiron/app/ui/history/ExerciseEntryCard.kt
+   345 ./app/src/main/java/com/chiron/app/data/ChironRepository.kt
+   324 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditor.kt
+   285 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditorHeader.kt
+   282 ./app/src/main/java/com/chiron/app/ui/history/SupersetCard.kt
+   239 ./app/src/main/java/com/chiron/app/ui/timer/TimerScreen.kt
+   231 ./app/src/main/java/com/chiron/app/ui/settings/SettingsScreen.kt
+   224 ./app/src/main/java/com/chiron/app/ui/SplashScreen.kt
 
 Command:
 

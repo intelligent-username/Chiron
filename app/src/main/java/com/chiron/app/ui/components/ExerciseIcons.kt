@@ -12,6 +12,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("incline-dumbbell-press", "incline-db-press.svg"),
     ExerciseIcon("overhead-press",         "overhead-press.svg"),
 
+    ExerciseIcon("incline-curl",           "incline-curl.svg"),
     ExerciseIcon("curl",                   "curl.svg"),
     ExerciseIcon("hammer-curl",            "hammer-curl.svg"),
     ExerciseIcon("preacher-curl",          "preacher-curl.svg"),
@@ -25,6 +26,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("leg-extension",          "leg-extension.svg"),
     ExerciseIcon("leg-raise",              "leg-raise.svg"),
     ExerciseIcon("squat",                  "squat.svg"),
+    ExerciseIcon("bulgarian-split-squat",  "BSS.svg"),
     ExerciseIcon("leg-press",              "leg-press.svg"),
     ExerciseIcon("calf-machine",           "calf-machine.svg"),
     ExerciseIcon("hack-squat-machine",     "hack-squat-machine.svg"),
