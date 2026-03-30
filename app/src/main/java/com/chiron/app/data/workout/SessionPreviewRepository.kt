@@ -40,8 +40,10 @@ class SessionPreviewRepository(
         exerciseId: Long,
         currentWorkoutId: Long
     ): LastSessionPreview? {
-        val entry = exerciseEntryDao.getMostRecentEntryForExercise(exerciseId, currentWorkoutId)
-            ?: return null
+        val currentWorkout = workoutSessionDao.getById(currentWorkoutId) ?: return null
+        val entry = exerciseEntryDao.getMostRecentEntryForExercise(
+            exerciseId, currentWorkoutId, currentWorkout.dateUtc
+        ) ?: return null
         val sets = setEntryDao.getSetsForEntrySync(entry.id)
         if (sets.isEmpty()) return null
 
@@ -67,13 +69,14 @@ class SessionPreviewRepository(
 
         if (supersetEntries.isEmpty()) return null
 
+        val currentWorkout = workoutSessionDao.getById(currentWorkoutId) ?: return null
         val exercises = mutableListOf<SupersetExercisePreview>()
         var dateLabel = ""
         var notes: String? = null
 
         for (entry in supersetEntries) {
             val prevEntry = exerciseEntryDao.getMostRecentEntryForExercise(
-                entry.exerciseId, currentWorkoutId
+                entry.exerciseId, currentWorkoutId, currentWorkout.dateUtc
             ) ?: continue
             val sets = setEntryDao.getSetsForEntrySync(prevEntry.id)
             if (sets.isEmpty()) continue
@@ -103,7 +106,6 @@ class SessionPreviewRepository(
                 notes = notes
             )
         } else {
-            // Only return superset preview if there are multiple exercises
             null
         }
     }

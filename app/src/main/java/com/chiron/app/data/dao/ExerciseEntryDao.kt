@@ -45,7 +45,10 @@ interface ExerciseEntryDao {
 
     /**
      * Find the most recent ExerciseEntry for a given exercise,
-     * excluding the current workout. Used for "last session preview".
+     * excluding the current workout, looking only at workouts whose date
+     * is at or before [currentWorkoutDateUtc]. This ensures the preview
+     * shows the "previous performance relative to the viewed workout",
+     * not relative to today.
      */
     @Query("""
         SELECT ee.* FROM exercise_entry ee
@@ -54,10 +57,11 @@ interface ExerciseEntryDao {
           AND ee.workout_id != :currentWorkoutId
           AND ee.archived = 0
           AND ws.archived = 0
+          AND ws.date_utc <= :currentWorkoutDateUtc
         ORDER BY ws.date_utc DESC
         LIMIT 1
     """)
-    suspend fun getMostRecentEntryForExercise(exerciseId: Long, currentWorkoutId: Long): ExerciseEntry?
+    suspend fun getMostRecentEntryForExercise(exerciseId: Long, currentWorkoutId: Long, currentWorkoutDateUtc: Long): ExerciseEntry?
 
     @Transaction
     suspend fun deleteAndReindex(workoutId: Long, entryId: Long) {

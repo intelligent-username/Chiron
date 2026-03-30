@@ -2,33 +2,21 @@
 
 ![Cover Image](imgs/Cover.png)
 
-My Personal Workout Tracker.
+Chiron is a high-speed, customizable, and feature-rich workout tracker designed to get rid of all the bloat, recommendations, lack of customization, and/or tracking that's found in virutally every single other app. It's designed to my taste, so it has every faeture that I will need. Download the version for your device [here](https://github.com/intelligent-username/Chiron/releases).
 
 ## Features
 
 - Pre-made exercises
 - Create custom exercises
-- Create workouts by adding exercises to them. Add sets, reps, and weight to each exercise in the workout.
+- Workouts composed of exercise, each exercise composed of (weight, reps.
 - Functional Supersets
 - Workout history with filterable tags.
   - Ordered by recency.
 - Timer and stopwatch with presets.
 - Duplicate workouts
 - View 'previous' performance of an exercise
-- Store personal records
-
-## File Structure
-
-```md
-Chiron/
-├── imgs/         # Images used in the README, documentation, etc.
-├── src/          # The actual source code for the app
-├── docs/         # Documentation files (coming soon!?)
-├── tests/        # Unit and integration (will add once project is done)
-├── .gitignore    # Specifies files to ignore in git
-├── LICENSE       # APACHE 2.0
-└── README.md     # This file
-```
+- Automatically tracks personal records
+- Spotify integration
 
 ## Compilation
 
