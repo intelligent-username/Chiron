@@ -65,8 +65,7 @@ fun ChironApp(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(spotifyEnabled) {
-        if (spotifyEnabled) SpotifyManager.connect(context)
-        else SpotifyManager.disconnect()
+        if (!spotifyEnabled) SpotifyManager.disconnect()
     }
 
     LaunchedEffect(selectedTab) { pagerState.animateScrollToPage(selectedTab.ordinal) }

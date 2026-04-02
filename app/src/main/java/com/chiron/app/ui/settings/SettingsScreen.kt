@@ -137,7 +137,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (spotifyEnabled) "Showing playback controls" else "Hidden",
+                        text = if (spotifyEnabled) "Showing playback controls\n(Must have Spotify installed)" else "Hidden\n(Must have Spotify installed)",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

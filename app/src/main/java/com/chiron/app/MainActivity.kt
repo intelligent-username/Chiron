@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        SpotifyManager.cancelScheduledDisconnect()
         lifecycleScope.launch {
             val enabled = ServiceLocator.userSettingsRepository.spotifyEnabledFlow.first()
             if (enabled) SpotifyManager.connect(this@MainActivity)
@@ -47,6 +48,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        SpotifyManager.scheduleDisconnect()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         SpotifyManager.disconnect()
     }
 }

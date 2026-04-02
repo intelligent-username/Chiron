@@ -28,6 +28,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
+
+        manifestPlaceholders["redirectSchemeName"] = "com.chiron.app"
+        manifestPlaceholders["redirectHostName"] = "callback"
+        manifestPlaceholders["redirectPathPattern"] = ""
     }
 
     buildTypes {
@@ -82,6 +86,7 @@ dependencies {
 
     // Spotify App Remote SDK
     implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
+    implementation("com.spotify.android:auth:3.1.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
     implementation(libs.androidx.room.runtime)
