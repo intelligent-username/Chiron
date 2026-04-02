@@ -18,9 +18,12 @@ Chiron is a high-speed, customizable, and feature-rich workout tracker designed 
 - Duplicate workouts
 - View 'previous' performance of an exercise to see what numbers you have to beat.
 - Automatically tracks personal records
-- Spotify integration
+- Import and Export data
+- Spotify integration with equally clean UI :D
 
 ## Compilation
+
+First, make sure you have [JDK](https://www.oracle.com/java/technologies/downloads/) and [Gradle](https://docs.gradle.org/current/userguide/installation.html) installed.
 
 Run
 
@@ -38,27 +41,27 @@ Run
 .\gradlew.bat assembleRelease
 ```
 
-For an actual release build. (Note that you'll need a proper `keystore.properties` file with the right credentials to sign the app, otherwise pre-existing versions of it won't update.)
+For assembling an actual release build. (Note that you'll need a proper `keystore.properties` file with the right credentials to sign the app, otherwise pre-existing versions of it won't update.)
 
 And look the file at `app\build\outputs\apk\debug\app-debug.apk`
 
 For official builds, check the [releases](https://github.com/intelligent-username/Chiron/releases).
 
-As of right now, there's only an Android version. Download the `apk` file. The security warnings are harmless (since downloading from GitHub is not the same as the official Play Store, these things will pop up).
+To develop on your own, I recommend [Android Studio](https://developer.android.com/studio).
+
+Download your respective installer to download the app. Then, you can run it like any other app. For Spotify integration, you'll need to log in with your Spotify account on the Spotify app first (this is a feature required by Spotify itself). 
 
 ## Modifying the App
 
 To modify the app, you'll need to use Android Studio or XCode depending on if you want to twaek an Android or iOS version of the app. Clone this repository and make whatever changes you want.
 
-## Upcoming Changes
+## Upcoming Changes🚧🗓️🚧‼️
 
-These are the changes I want to make. Basically all features are done. The only thing that's left is the miniplayer feature, some refactoring, and creating 'release-ready' builds via kts properties. To make iOS release, this will be very inconvenient since it looks like codes expire after 7 days, so I might just abonden the iOS version completely.
+Basically all features are done. I might make some UI/efficiency tweaks, but otherwise, the only thing left is to make an iOS version. The problem here is, for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time. 
 
 Steps:
 
-  1. Create the miniplayer. Get certified with Spotify's SDK.
-
-  2. Add the following modules to create cross-platform compatibility:
+  1. Add the following modules to create cross-platform compatibility:
 
       ```md
         - `shared/`
@@ -71,27 +74,30 @@ Steps:
 
       Once this step is done, need to ensure support for the miniplayer.
 
-  3. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
+  2. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
 
 <!--   
 
 These are the files that I might want to refactor:
 
-   408 ./app/src/main/java/com/chiron/app/data/transfer/DataTransferRepository.kt
+   436 ./app/src/main/java/com/chiron/app/data/transfer/DataTransferRepository.kt
    388 ./app/src/main/java/com/chiron/app/ui/history/ExerciseEntryCard.kt
    345 ./app/src/main/java/com/chiron/app/data/ChironRepository.kt
    324 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditor.kt
    285 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditorHeader.kt
    282 ./app/src/main/java/com/chiron/app/ui/history/SupersetCard.kt
+   265 ./app/src/main/java/com/chiron/app/ui/settings/SettingsScreen.kt
+   259 ./app/src/main/java/com/chiron/app/spotify/MiniPlayerBar.kt
    239 ./app/src/main/java/com/chiron/app/ui/timer/TimerScreen.kt
-   231 ./app/src/main/java/com/chiron/app/ui/settings/SettingsScreen.kt
-   224 ./app/src/main/java/com/chiron/app/ui/SplashScreen.kt
 
 Command:
 
 ```bash
 find . -type f -name "*.kt" -exec wc -l {} + | sort -nr | head -n 10
 ```
+
+9153 Lines total btw
+
  -->
 
 <!-- 
@@ -117,6 +123,6 @@ Using Kotlin Multiplateform
  
   -->
 
-## License
+## License <img src="imgs/image.png" width="32" height="32">
 
 This project is licensed under the Apache 2.0 License.
