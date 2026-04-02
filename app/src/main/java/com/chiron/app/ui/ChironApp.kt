@@ -18,6 +18,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.chiron.app.di.ServiceLocator
 import com.chiron.app.ui.components.BottomNavBar
+import com.chiron.app.spotify.MiniPlayerBar
+import com.chiron.app.spotify.SpotifyManager
 import com.chiron.app.ui.components.NavTab
 import com.chiron.app.ui.exercises.ExerciseDetailScreen
 import com.chiron.app.ui.exercises.ExercisesScreen
@@ -57,6 +59,15 @@ fun ChironApp(
     val tabs = NavTab.values()
     val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { tabs.size }
     val scope = rememberCoroutineScope()
+
+    val spotifyEnabled by ServiceLocator.userSettingsRepository.spotifyEnabledFlow
+        .collectAsState(initial = false)
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(spotifyEnabled) {
+        if (spotifyEnabled) SpotifyManager.connect(context)
+        else SpotifyManager.disconnect()
+    }
 
     LaunchedEffect(selectedTab) { pagerState.animateScrollToPage(selectedTab.ordinal) }
     LaunchedEffect(pagerState.currentPage) { selectedTab = tabs[pagerState.currentPage] }
@@ -107,7 +118,10 @@ fun ChironApp(
                 )
             },
             bottomBar = {
-                BottomNavBar(selectedTab = selectedTab, onTabSelected = { tab -> selectedTab = tab; isExerciseDetailOpen = false })
+                Column {
+                    if (spotifyEnabled) MiniPlayerBar()
+                    BottomNavBar(selectedTab = selectedTab, onTabSelected = { tab -> selectedTab = tab; isExerciseDetailOpen = false })
+                }
             }
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {

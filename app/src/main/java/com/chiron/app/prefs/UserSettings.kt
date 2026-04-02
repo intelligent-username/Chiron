@@ -20,6 +20,7 @@ class UserSettingsRepository(private val context: Context) {
     companion object {
         private val DISPLAY_IN_KG = booleanPreferencesKey("display_in_kg")
         private val CUSTOM_LOCATIONS = stringSetPreferencesKey("custom_locations")
+        private val SPOTIFY_ENABLED = booleanPreferencesKey("spotify_enabled")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -42,6 +43,16 @@ class UserSettingsRepository(private val context: Context) {
             prefs[CUSTOM_LOCATIONS] = current + location
         }
     }
+
+    val spotifyEnabledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[SPOTIFY_ENABLED] ?: false
+    }
+
+    suspend fun setSpotifyEnabled(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[SPOTIFY_ENABLED] = value
+        }
+    }
 }
 
 /**
@@ -49,5 +60,6 @@ class UserSettingsRepository(private val context: Context) {
  */
 data class UserSettings(
     val displayInKg: Boolean = false,
-    val customLocations: List<String> = emptyList()
+    val customLocations: List<String> = emptyList(),
+    val spotifyEnabled: Boolean = false
 )

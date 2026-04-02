@@ -4,13 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiron.app.di.ServiceLocator
+import com.chiron.app.spotify.SpotifyManager
 import com.chiron.app.ui.ChironApp
 import com.chiron.app.ui.theme.ChironTheme
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,5 +35,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch {
+            val enabled = ServiceLocator.userSettingsRepository.spotifyEnabledFlow.first()
+            if (enabled) SpotifyManager.connect(this@MainActivity)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        SpotifyManager.disconnect()
     }
 }

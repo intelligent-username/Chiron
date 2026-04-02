@@ -30,6 +30,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val displayInKg by repository.displayInKgFlow.collectAsState(initial = false)
+    val spotifyEnabled by repository.spotifyEnabledFlow.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -113,6 +114,39 @@ fun SettingsScreen(
                     checked = displayInKg,
                     onCheckedChange = { checked ->
                         scope.launch { repository.setDisplayInKg(checked) }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Spotify Mini-Player
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        scope.launch { repository.setSpotifyEnabled(!spotifyEnabled) }
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Spotify Mini-Player",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = if (spotifyEnabled) "Showing playback controls" else "Hidden",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Switch(
+                    checked = spotifyEnabled,
+                    onCheckedChange = { checked ->
+                        scope.launch { repository.setSpotifyEnabled(checked) }
                     }
                 )
             }

@@ -8,13 +8,15 @@ Chiron is a high-speed, customizable, and feature-rich workout tracker designed 
 
 - Pre-made exercises
 - Create custom exercises
-- Workouts composed of exercise, each exercise composed of (weight, reps.
+- Workouts composed of exercise, each exercise is composed of sets: (weight, reps) tuples.
 - Functional Supersets
-- Workout history with filterable tags.
+- Create and Save custom reusable names and locations.
   - Ordered by recency.
+  - Filter by names
+  - Filter by locations
 - Timer and stopwatch with presets.
 - Duplicate workouts
-- View 'previous' performance of an exercise
+- View 'previous' performance of an exercise to see what numbers you have to beat.
 - Automatically tracks personal records
 - Spotify integration
 
@@ -26,9 +28,9 @@ Run
 .\gradlew.bat assembleDebug
 ```
 
-All the releases so far have been debug versions.
+To assemble a debug version of the app. This isn't the best for serious production & distribution, but it's decent and fast.
 
-To assemble a debug version of the app. This is not secure for distribution, but it's decent and fast.
+All the releases so far have been debug versions.
 
 Run
 
@@ -36,7 +38,7 @@ Run
 .\gradlew.bat assembleRelease
 ```
 
-For an actual release build. Note that you'll need a proper `keystore.properties` file with the right credentials to sign the app, otherwise pre-existing versions of it won't update.
+For an actual release build. (Note that you'll need a proper `keystore.properties` file with the right credentials to sign the app, otherwise pre-existing versions of it won't update.)
 
 And look the file at `app\build\outputs\apk\debug\app-debug.apk`
 
@@ -101,6 +103,19 @@ Using Kotlin Multiplateform
 - Playback checker for miniplayer logic
 
  -->
+
+ <!-- 
+ Misc To-Do
+ 
+ Minor behavioral conflict when previewing last performance of the last exercise in a workuot (so the bottom one). Sometimes stuck and need to re-press to unpress, sometimes just works. IDK why
+ 
+ Better UI?
+
+ Loading Screen?
+
+ Add a demo recording.
+ 
+  -->
 
 ## License
 
