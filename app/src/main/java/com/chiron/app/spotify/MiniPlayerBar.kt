@@ -22,13 +22,17 @@ import androidx.compose.ui.unit.sp
 fun MiniPlayerBar(modifier: Modifier = Modifier) {
     val playerState by SpotifyManager.playerState.collectAsState()
     val isConnected by SpotifyManager.isConnected.collectAsState()
+    val isConnecting by SpotifyManager.isConnecting.collectAsState()
+    val connectionError by SpotifyManager.connectionError.collectAsState()
 
-    if (!isConnected || playerState?.track == null) return
+    val track = if (isConnected) playerState?.track else null
 
-    val state = playerState!!
-    val track = state.track
-    val duration = track.duration.toFloat()
-    val position = state.playbackPosition.toFloat()
+    val idleText = when {
+        connectionError != null -> "Spotify: $connectionError"
+        isConnecting -> "Connecting to Spotify…"
+        isConnected && track == null -> "Nothing playing in Spotify"
+        else -> "Connecting to Spotify…"
+    }
 
     Column(
         modifier = modifier
@@ -37,6 +41,36 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
             .background(Color(0xFF121212))
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        if (!isConnected || track == null) {
+            // Idle / connecting state — always visible so the user knows the feature is active
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color(0xFF535353),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = idleText,
+                    color = Color(0xFF535353),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            return@Column
+        }
+
+        val state = playerState!!
+        val duration = track.duration.toFloat()
+        val position = state.playbackPosition.toFloat()
+
         // Seek bar (visible always, functional only for Premium)
         if (duration > 0) {
             Slider(

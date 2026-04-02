@@ -33,4 +33,17 @@
         </activity>
     </application>
 
+    <!--
+        Required on Android 11+ (API 30+) for package visibility.
+        Without this, SpotifyAppRemote cannot detect the Spotify app and
+        SpotifyAppRemote.connect() silently stalls — no onFailure, no auth prompt.
+    -->
+    <queries>
+        <package android:name="com.spotify.music" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="open.spotify.com" />
+        </intent>
+    </queries>
+
 </manifest>

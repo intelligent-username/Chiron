@@ -22,8 +22,7 @@ import com.chiron.app.data.entities.WorkoutSession
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+
 
 /**
  * Handles database export (snapshot to Downloads) and import (merge from .db file).
@@ -56,9 +55,7 @@ class DataTransferRepository(
             val dbFile = context.getDatabasePath(dbName)
             require(dbFile.exists()) { "Database file not found" }
 
-            val timestamp = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-            val fileName = "ce_$timestamp.db"
+            val fileName = resolveExportFileName()
 
             // Best-effort WAL checkpoint so DB + WAL are as consistent as possible.
             try {
@@ -114,6 +111,37 @@ class DataTransferRepository(
                 fileName = fileName
             )
         }
+    }
+
+    /**
+     * Resolves a unique export filename in Downloads/Chiron.
+     * Returns "Chiron.db" if available, otherwise "Chiron2.db", "Chiron3.db", etc.
+     */
+    private fun resolveExportFileName(): String {
+        val resolver = context.contentResolver
+        val projection = arrayOf(MediaStore.Downloads.DISPLAY_NAME)
+        val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            "${MediaStore.Downloads.RELATIVE_PATH} = ? AND ${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
+        } else null
+        val selectionArgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf("${Environment.DIRECTORY_DOWNLOADS}/Chiron/", "Chiron%.db")
+        } else null
+
+        val existingNames = mutableSetOf<String>()
+        resolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection, selection, selectionArgs, null
+        )?.use { cursor ->
+            val nameCol = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                if (nameCol >= 0) existingNames.add(cursor.getString(nameCol))
+            }
+        }
+
+        if ("Chiron.db" !in existingNames) return "Chiron.db"
+        var index = 2
+        while ("Chiron$index.db" in existingNames) index++
+        return "Chiron$index.db"
     }
 
     /**

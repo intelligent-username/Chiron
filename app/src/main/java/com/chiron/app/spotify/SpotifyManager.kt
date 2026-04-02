@@ -23,7 +23,17 @@ object SpotifyManager {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
 
+    private val _isConnecting = MutableStateFlow(false)
+    val isConnecting: StateFlow<Boolean> = _isConnecting
+
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError
+
     fun connect(context: Context) {
+        if (_isConnected.value || _isConnecting.value) return
+        _isConnecting.value = true
+        _connectionError.value = null
+
         val params = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
             .showAuthView(true)
@@ -33,13 +43,18 @@ object SpotifyManager {
             override fun onConnected(remote: SpotifyAppRemote) {
                 appRemote = remote
                 _isConnected.value = true
+                _isConnecting.value = false
+                _connectionError.value = null
                 Log.d("SpotifyManager", "Connected")
                 subscribeToPlayerState()
             }
 
             override fun onFailure(error: Throwable) {
-                Log.e("SpotifyManager", "Connection failed: ${error.message}")
+                Log.e("SpotifyManager", "Connection failed: ${error.message}", error)
                 _isConnected.value = false
+                _isConnecting.value = false
+                _connectionError.value = error.message ?: "Unknown error"
+                appRemote = null
             }
         })
     }
@@ -47,9 +62,12 @@ object SpotifyManager {
     fun disconnect() {
         appRemote?.let {
             SpotifyAppRemote.disconnect(it)
-            _isConnected.value = false
-            appRemote = null
         }
+        _isConnected.value = false
+        _isConnecting.value = false
+        _connectionError.value = null
+        _playerState.value = null
+        appRemote = null
     }
 
     private fun subscribeToPlayerState() {
