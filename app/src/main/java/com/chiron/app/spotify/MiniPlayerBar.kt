@@ -16,6 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import kotlin.math.sin
+import kotlin.math.PI
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
@@ -180,27 +185,37 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
 
         // Seek bar (visible always, functional only for Premium)
         if (duration > 0) {
-            Slider(
-                value = localPosition,
-                onValueChange = { 
-                    isDragging = true
-                    localPosition = it 
-                },
-                onValueChangeFinished = {
-                    isDragging = false
-                    lastSeekEventTime = System.currentTimeMillis()
-                    SpotifyManager.seekTo(localPosition.toLong())
-                },
-                valueRange = 0f..duration,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF1DB954),
-                    activeTrackColor = Color(0xFF1DB954),
-                    inactiveTrackColor = Color(0xFF535353)
-                ),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp)
-            )
+                    .height(24.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                WaveSliderBackground(
+                    progress = if (duration > 0) localPosition / duration else 0f,
+                    isPaused = state.isPaused,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Slider(
+                    value = localPosition,
+                    onValueChange = { 
+                        isDragging = true
+                        localPosition = it 
+                    },
+                    onValueChangeFinished = {
+                        isDragging = false
+                        lastSeekEventTime = System.currentTimeMillis()
+                        SpotifyManager.seekTo(localPosition.toLong())
+                    },
+                    valueRange = 0f..duration,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF1DB954),
+                        activeTrackColor = Color.Transparent,
+                        inactiveTrackColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         Row(
@@ -254,6 +269,75 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun WaveSliderBackground(
+    progress: Float,
+    isPaused: Boolean,
+    modifier: Modifier = Modifier,
+    activeColor: Color = Color(0xFF1DB954),
+    inactiveColor: Color = Color(0xFF535353)
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "wavePhase"
+    )
+
+    // Smoothly animate the amplitude depending on whether it's paused
+    val targetAmplitude = if (isPaused) 1.5f else 8f
+    val amplitude by animateFloatAsState(
+        targetValue = targetAmplitude,
+        animationSpec = tween(600), label = "waveAmplitude"
+    )
+
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val midY = height / 2f
+        val progressX = (width * progress).coerceIn(0f, width)
+
+        // Draw inactive track (straight line)
+        drawLine(
+            color = inactiveColor,
+            start = androidx.compose.ui.geometry.Offset(progressX, midY),
+            end = androidx.compose.ui.geometry.Offset(width, midY),
+            strokeWidth = 2.dp.toPx(),
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+
+        if (progressX > 0f) {
+            // Draw active track (waves)
+            val path = Path()
+            path.moveTo(0f, midY)
+            
+            val waveLength = 120f // pixels per wave cycle
+            val step = 4f // precision
+
+            var x = 0f
+            while (x <= progressX) {
+                val normalizedX = x / waveLength
+                val yOffset = amplitude * sin(normalizedX * 2 * PI.toFloat() - phase) * (x / progressX).coerceAtMost(1f) // Scale amplitude up slightly towards the thumb
+                path.lineTo(x, midY + yOffset)
+                x += step
+            }
+            if (x < progressX) {
+                val yOffset = amplitude * sin((progressX / waveLength) * 2 * PI.toFloat() - phase)
+                path.lineTo(progressX, midY + yOffset)
+            }
+
+            drawPath(
+                path = path,
+                color = activeColor,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+            )
         }
     }
 }

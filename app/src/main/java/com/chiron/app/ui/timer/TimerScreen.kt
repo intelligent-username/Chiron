@@ -93,12 +93,12 @@ fun CountdownContent(viewModel: TimerViewModel) {
     val isIdle = !state.isCountdownRunning && state.countdownRemaining == state.countdownSeconds
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(48.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(360.dp) // Increased size
+            modifier = Modifier.size(320.dp) // Adjusted size for smaller viewports
         ) {
             // ── The Circle: Always Visible ───────────────────────────────
             Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -179,6 +179,27 @@ fun CountdownContent(viewModel: TimerViewModel) {
                     )
                 )
             }
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Checkbox(
+                checked = state.isConstantCycling,
+                onCheckedChange = { viewModel.toggleConstantCycling() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Constant Cycling", 
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         // ── High Contrast Buttons ────────────────────────────────────────

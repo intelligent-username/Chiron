@@ -27,6 +27,7 @@ data class TimerUiState(
     val countdownSeconds: Int = 60,
     val countdownRemaining: Int = 60,
     val isCountdownRunning: Boolean = false,
+    val isConstantCycling: Boolean = false,
 
     // Stopwatch state
     val stopwatchMillis: Long = 0L,
@@ -84,26 +85,40 @@ class TimerViewModel(
         }
     }
 
+    fun toggleConstantCycling() {
+        _uiState.update { it.copy(isConstantCycling = !it.isConstantCycling) }
+    }
+
     fun startCountdown() {
         if (_uiState.value.isCountdownRunning) return
 
         _uiState.update { it.copy(isCountdownRunning = true) }
 
-        val startTime = System.currentTimeMillis()
-        val totalDurationMs = _uiState.value.countdownRemaining * 1000L
+        var startTime = System.currentTimeMillis()
+        var totalDurationMs = _uiState.value.countdownRemaining * 1000L
 
         countdownJob = viewModelScope.launch {
             while (_uiState.value.isCountdownRunning) {
                 val elapsedMs = System.currentTimeMillis() - startTime
-                val remainingSeconds = (totalDurationMs - elapsedMs) / 1000
+                val remainingMs = totalDurationMs - elapsedMs
 
-                if (remainingSeconds <= 0) {
-                    _uiState.update { it.copy(countdownRemaining = 0, isCountdownRunning = false) }
-                    _timerFinished.emit(Unit)
-                    break
+                if (remainingMs <= 0) {
+                    if (_uiState.value.isConstantCycling) {
+                        _uiState.update { it.copy(countdownRemaining = it.countdownSeconds) }
+                        _timerFinished.emit(Unit)
+                        
+                        startTime = System.currentTimeMillis()
+                        totalDurationMs = _uiState.value.countdownSeconds * 1000L
+                        continue
+                    } else {
+                        _uiState.update { it.copy(countdownRemaining = 0, isCountdownRunning = false) }
+                        _timerFinished.emit(Unit)
+                        break
+                    }
                 }
 
-                _uiState.update { it.copy(countdownRemaining = remainingSeconds.toInt()) }
+                val displaySeconds = kotlin.math.ceil(remainingMs / 1000.0).toInt().coerceAtLeast(0)
+                _uiState.update { it.copy(countdownRemaining = displaySeconds) }
                 delay(100L) // Check 10x per second for smoother updates
             }
             _uiState.update { it.copy(isCountdownRunning = false) }

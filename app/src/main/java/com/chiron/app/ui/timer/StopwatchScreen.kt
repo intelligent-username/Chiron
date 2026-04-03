@@ -35,7 +35,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
     val hasTime = state.stopwatchMillis > 0
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(28.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
