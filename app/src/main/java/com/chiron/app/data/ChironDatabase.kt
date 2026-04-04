@@ -18,6 +18,8 @@ import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.data.entities.TimerPreset
+import com.chiron.app.data.dao.Exercise1rmEstimateDao
+import com.chiron.app.data.entities.Exercise1rmEstimate
 
 @Database(
     entities = [
@@ -26,9 +28,10 @@ import com.chiron.app.data.entities.TimerPreset
         ExerciseEntry::class,
         SetEntry::class,
         TimerPreset::class,
-        ExercisePr::class
+        ExercisePr::class,
+        Exercise1rmEstimate::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -39,6 +42,7 @@ abstract class ChironDatabase : RoomDatabase() {
     abstract fun setEntryDao(): SetEntryDao
     abstract fun timerPresetDao(): TimerPresetDao
     abstract fun exercisePrDao(): ExercisePrDao
+    abstract fun exercise1rmEstimateDao(): Exercise1rmEstimateDao
 
     companion object {
         @Volatile
@@ -129,6 +133,19 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_1rm_estimate` (
+                        `exercise_id` INTEGER NOT NULL,
+                        `estimate_lbs` REAL NOT NULL,
+                        PRIMARY KEY(`exercise_id`),
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -136,7 +153,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

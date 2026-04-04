@@ -99,7 +99,13 @@ fun ChironApp(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(text = when (selectedTab) { NavTab.HISTORY -> "History"; NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer" }) },
+                    title = { 
+                        Text(
+                            text = when (selectedTab) { NavTab.HISTORY -> "History"; NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer" },
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        ) 
+                    },
                     actions = {
                         when (selectedTab) {
                             NavTab.EXERCISES -> {

@@ -46,6 +46,9 @@ class ExercisesViewModel(
                 _uiState.update { it.copy(archivedExercises = archived, isLoading = false) }
             }
         }
+        viewModelScope.launch {
+            repository.backfill1rmEstimates()
+        }
     }
 
     fun updateSearchQuery(query: String) {
@@ -171,6 +174,9 @@ class ExercisesViewModel(
 
     /** Get all current PRs for an exercise (rep count → best weight). */
     fun getPrsForExerciseFlow(exerciseId: Long) = repository.getPrsForExerciseFlow(exerciseId)
+
+    /** Get 1RM estimate flow for an exercise. */
+    fun get1rmEstimateForExerciseFlow(exerciseId: Long) = repository.get1rmEstimateForExerciseFlow(exerciseId)
 
     /** One-shot fetch of all exercise IDs that have at least one PR on record. */
     suspend fun getExerciseIdsWithPrs(): List<Long> = repository.getExerciseIdsWithPrs()

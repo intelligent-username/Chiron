@@ -37,21 +37,13 @@ fun HistoryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            Text(
-                text = "History",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 0.dp, bottom = 4.dp)) {
                 FilterChip(selected = !state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(false) }, label = { Text("Active") })
                 FilterChip(selected = state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(true) }, label = { Text("Archived") })
             }
 
             if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                     item { FilterChip(selected = state.selectedDayTag == null, onClick = { viewModel.filterByDayTag(null) }, label = { Text("All") }) }
                     items(state.dayTags) { tag ->
                         FilterChip(selected = state.selectedDayTag == tag, onClick = { viewModel.filterByDayTag(tag) }, label = { Text(tag) })

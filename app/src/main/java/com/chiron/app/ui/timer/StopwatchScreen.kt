@@ -30,7 +30,8 @@ fun StopwatchContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
     val startColor = Color(0xFF43A047)
-    val pauseColor = Color(0xEF4A1CFF)
+    val pauseColor = MaterialTheme.colorScheme.error
+    val onPauseColor = MaterialTheme.colorScheme.onError
     val isRunning = state.isStopwatchRunning
     val hasTime = state.stopwatchMillis > 0
 
@@ -116,7 +117,8 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                     .height(72.dp),
                 shape = RoundedCornerShape(20.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRunning) pauseColor else startColor
+                    containerColor = if (isRunning) pauseColor else startColor,
+                    contentColor = if (isRunning) onPauseColor else Color.White
                 )
             ) {
                 Icon(
@@ -150,6 +152,12 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                 val reversedLaps = state.laps.asReversed()
                 val maxLaps = 6
 
+                val lapDurations = state.laps.mapIndexed { index, time ->
+                    time - if (index == 0) 0L else state.laps[index - 1]
+                }
+                val minLapIndex = if (lapDurations.size > 1) lapDurations.indices.minByOrNull { lapDurations[it] } else null
+                val maxLapIndex = if (lapDurations.size > 1) lapDurations.indices.maxByOrNull { lapDurations[it] } else null
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,10 +165,18 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     itemsIndexed(reversedLaps) { index, lapTime ->
+                        val originalIndex = state.laps.size - 1 - index
+                        val lapDuration = lapDurations[originalIndex]
                         val lapNumber = state.laps.size - index
+                        val isFastest = originalIndex == minLapIndex
+                        val isSlowest = originalIndex == maxLapIndex
+
                         LapRow(
                             lapNumber = lapNumber,
-                            lapTime = TimerViewModel.formatStopwatch(lapTime)
+                            lapDuration = TimerViewModel.formatStopwatch(lapDuration),
+                            lapTimestamp = TimerViewModel.formatStopwatch(lapTime),
+                            isFastest = isFastest,
+                            isSlowest = isSlowest
                         )
                     }
                 }
@@ -172,47 +188,60 @@ fun StopwatchContent(viewModel: TimerViewModel) {
 @Composable
 private fun LapRow(
     lapNumber: Int,
-    lapTime: String
+    lapDuration: String,
+    lapTimestamp: String,
+    isFastest: Boolean = false,
+    isSlowest: Boolean = false
 ) {
-    Row(
+    val durationColor = when {
+        isFastest -> Color(0xFF4CAF50)
+        isSlowest -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Numbered disc
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "$lapNumber",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(Modifier.width(10.dp))
+        // Numbered disc
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                text = "Lap $lapNumber",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                text = "$lapNumber",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
+        // Timestamp
         Text(
-            text = lapTime,
+            text = lapTimestamp,
+            modifier = Modifier.align(Alignment.Center),
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold
             )
+        )
+
+        // Duration
+        Text(
+            text = "+$lapDuration",
+            modifier = Modifier.align(Alignment.CenterEnd),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium
+            ),
+            color = durationColor
         )
     }
 }

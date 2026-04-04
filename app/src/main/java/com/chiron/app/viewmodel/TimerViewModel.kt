@@ -111,7 +111,7 @@ class TimerViewModel(
                         totalDurationMs = _uiState.value.countdownSeconds * 1000L
                         continue
                     } else {
-                        _uiState.update { it.copy(countdownRemaining = 0, isCountdownRunning = false) }
+                        _uiState.update { it.copy(countdownRemaining = it.countdownSeconds, isCountdownRunning = false) }
                         _timerFinished.emit(Unit)
                         break
                     }

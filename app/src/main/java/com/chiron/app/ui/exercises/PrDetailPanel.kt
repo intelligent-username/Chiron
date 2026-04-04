@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExercisePr
+import com.chiron.app.data.entities.Exercise1rmEstimate
 import com.chiron.app.ui.components.ExerciseAsyncIcon
 import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.ui.theme.PrGoldDark
@@ -28,6 +29,7 @@ internal fun PrDetailPanel(
     displayInKg: Boolean
 ) {
     val prs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
+    val estimate by viewModel.get1rmEstimateForExerciseFlow(exercise.id).collectAsState(initial = null)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -60,6 +62,11 @@ internal fun PrDetailPanel(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                estimate?.let { est ->
+                    item {
+                        Estimate1rmRow(estimate = est, displayInKg = displayInKg)
+                    }
+                }
                 items(prs) { pr -> PrRow(pr = pr, displayInKg = displayInKg) }
             }
         }
@@ -117,3 +124,34 @@ internal fun PrRow(pr: ExercisePr, displayInKg: Boolean) {
 
 internal fun formatPrWeight(value: Double): String =
     String.format("%.2f", value).trimEnd('0').trimEnd('.')
+
+@Composable
+internal fun Estimate1rmRow(estimate: Exercise1rmEstimate, displayInKg: Boolean) {
+    val weightText = if (displayInKg) {
+        "${formatPrWeight(UnitConversion.lbsToDisplayKg(estimate.estimateLbs))} kg"
+    } else {
+        "${formatPrWeight(estimate.estimateLbs)} lbs"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = "Estimated 1RM",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = weightText,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}

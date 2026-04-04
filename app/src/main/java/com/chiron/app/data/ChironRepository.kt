@@ -5,7 +5,9 @@ import android.net.Uri
 import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.ExercisePrDao
+import com.chiron.app.data.dao.Exercise1rmEstimateDao
 import com.chiron.app.data.dao.SetEntryDao
+import com.chiron.app.data.entities.Exercise1rmEstimate
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.dao.WorkoutSessionDao
 import com.chiron.app.data.entities.Exercise
@@ -49,7 +51,8 @@ class ChironRepository(
     private val exerciseEntryDao: ExerciseEntryDao,
     private val setEntryDao: SetEntryDao,
     private val timerPresetDao: TimerPresetDao,
-    private val exercisePrDao: ExercisePrDao
+    private val exercisePrDao: ExercisePrDao,
+    private val exercise1rmEstimateDao: Exercise1rmEstimateDao
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -80,7 +83,7 @@ class ChironRepository(
 
     // ─── Sub-repository construction ──────────────────────────────────────────
 
-    private val prRepository = PrRepository(exercisePrDao, setEntryDao)
+    private val prRepository = PrRepository(exercisePrDao, setEntryDao, exercise1rmEstimateDao)
 
     private val exerciseRepository = ExerciseRepository(exerciseDao)
 
@@ -295,8 +298,14 @@ class ChironRepository(
     fun getPrsForExerciseFlow(exerciseId: Long): Flow<List<ExercisePr>> =
         prRepository.getPrsForExerciseFlow(exerciseId)
 
+    fun get1rmEstimateForExerciseFlow(exerciseId: Long): Flow<Exercise1rmEstimate?> =
+        prRepository.get1rmEstimateForExerciseFlow(exerciseId)
+
     suspend fun getExerciseIdsWithPrs(): List<Long> =
         prRepository.getExerciseIdsWithPrs()
+
+    suspend fun backfill1rmEstimates() =
+        prRepository.backfill1rmEstimates()
 
     // ─────────────────────────────────────────────────────────────────────────
     // Image handling

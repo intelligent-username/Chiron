@@ -57,7 +57,11 @@ To modify the app, you'll need to use Android Studio or XCode depending on if yo
 
 ## Upcoming Changes🚧🗓️🚧‼️
 
-Basically all features are done. I might make some UI/efficiency tweaks, but otherwise, the only thing left is to make an iOS version. The problem here is, for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time. 
+Basically all features are done. I might make some UI/efficiency tweaks, but otherwise, the only thing left is to make an iOS version.
+
+Idea: calorie tracker to centralize tracking needs, and do analyses like "on days where you eat lots of carbs you break a PR". But this seems uncessary.
+
+Problem: for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time. 
 
 Steps:
 

@@ -40,12 +40,14 @@ fun WheelPicker(
 
     // Sync state: Snap to the nearest valid item if value changes externally
     LaunchedEffect(value) {
-        val currentIndex = listState.firstVisibleItemIndex
-        val currentMod = currentIndex % count
-        if (currentMod != value) {
-             val diff = value - currentMod
-             // Scroll to the target index smoothly but quickly
-             listState.animateScrollToItem(currentIndex + diff)
+        if (!listState.isScrollInProgress) {
+            val currentIndex = listState.firstVisibleItemIndex
+            val currentMod = currentIndex % count
+            if (currentMod != value) {
+                 val diff = value - currentMod
+                 // Scroll to the target index smoothly but quickly
+                 listState.animateScrollToItem(currentIndex + diff)
+            }
         }
     }
 

@@ -28,7 +28,8 @@ object ServiceLocator {
             exerciseEntryDao = database.exerciseEntryDao(),
             setEntryDao = database.setEntryDao(),
             timerPresetDao = database.timerPresetDao(),
-            exercisePrDao = database.exercisePrDao()
+            exercisePrDao = database.exercisePrDao(),
+            exercise1rmEstimateDao = database.exercise1rmEstimateDao()
         )
     }
 
