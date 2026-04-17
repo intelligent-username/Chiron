@@ -47,12 +47,20 @@ fun ExerciseAsyncIcon(
 ) {
     val context = LocalContext.current
     val url = remember(iconName) { getIconUrl(iconName) }
-    AsyncImage(
-        model = ImageRequest.Builder(context).data(url).crossfade(true).build(),
-        contentDescription = contentDescription,
-        modifier = modifier,
-        colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
-    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context).data(url).crossfade(true).build(),
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
+        )
+    }
 }
 
 @Composable

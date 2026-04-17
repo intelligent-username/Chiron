@@ -2,7 +2,7 @@
 
 ![Cover Image](imgs/Cover.png)
 
-Chiron is a high-speed, customizable, and feature-rich workout tracker designed to get rid of all the bloat, recommendations, lack of customization, and/or tracking that's found in virutally every single other app. It's designed to my taste, so it has every faeture that I will need. Download the version for your device [here](https://github.com/intelligent-username/Chiron/releases).
+Chiron is a high-speed, customizable, and feature-rich workout tracker designed to get rid of all the bloat, recommendations, lack of customization, and/or tracking that's found in virutally every single other app. It's designed to my taste, so it has every faeture that I will need. Download the version for your device from the [releases tab](https://github.com/intelligent-username/Chiron/releases).
 
 ## Features
 
@@ -49,7 +49,7 @@ For official builds, check the [releases](https://github.com/intelligent-usernam
 
 To develop on your own, I recommend [Android Studio](https://developer.android.com/studio).
 
-Download your respective installer to download the app. Then, you can run it like any other app. For Spotify integration, you'll need to log in with your Spotify account on the Spotify app first (this is a feature required by Spotify itself). 
+Download your respective installer to download the app. Then, you can run it like any other app. For Spotify integration, you'll need to log in with your Spotify account on the Spotify app first (this is a feature required by Spotify itself).
 
 ## Modifying the App
 
@@ -61,7 +61,7 @@ Basically all features are done. I might make some UI/efficiency tweaks, but oth
 
 Idea: calorie tracker to centralize tracking needs, and do analyses like "on days where you eat lots of carbs you break a PR". But this seems uncessary.
 
-Problem: for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time. 
+Problem: for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time.
 
 Steps:
 

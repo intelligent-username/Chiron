@@ -67,13 +67,18 @@ fun TimerScreen(
             SegmentedButton(
                 selected = state.activeTab == TimerTab.TIMER,
                 onClick = { viewModel.selectTab(TimerTab.TIMER) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
             ) { Text("Timer") }
             SegmentedButton(
                 selected = state.activeTab == TimerTab.STOPWATCH,
                 onClick = { viewModel.selectTab(TimerTab.STOPWATCH) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
             ) { Text("Stopwatch") }
+            SegmentedButton(
+                selected = state.activeTab == TimerTab.METRONOME,
+                onClick = { viewModel.selectTab(TimerTab.METRONOME) },
+                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+            ) { Text("Metronome") }
         }
 
         Spacer(modifier = Modifier.weight(1.5f))
@@ -85,6 +90,10 @@ fun TimerScreen(
             when (state.activeTab) {
                 TimerTab.TIMER -> CountdownContent(viewModel)
                 TimerTab.STOPWATCH -> StopwatchContent(viewModel)
+                TimerTab.METRONOME -> MetronomeContent(
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
 

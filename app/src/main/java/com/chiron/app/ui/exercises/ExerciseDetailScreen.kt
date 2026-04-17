@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -22,6 +23,7 @@ fun ExerciseDetailScreen(
     exercise: Exercise?,
     onSave: (Exercise) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
+    onOpenPrForExercise: ((Long) -> Unit)? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -46,6 +48,15 @@ fun ExerciseDetailScreen(
                     }
                 },
                 actions = {
+                    if (onOpenPrForExercise != null) {
+                        IconButton(onClick = { onOpenPrForExercise(exercise.id) }) {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                "Open PR",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     if (onDelete != null) {
                         IconButton(onClick = { showDeleteConfirmation = true }) {
                             Icon(

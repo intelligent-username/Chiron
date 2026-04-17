@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.data.entities.TimerPreset
 
-enum class TimerTab { TIMER, STOPWATCH }
+enum class TimerTab { TIMER, STOPWATCH, METRONOME }
 
 data class TimerUiState(
     val activeTab: TimerTab = TimerTab.TIMER,
@@ -33,6 +33,11 @@ data class TimerUiState(
     val stopwatchMillis: Long = 0L,
     val isStopwatchRunning: Boolean = false,
     val laps: List<Long> = emptyList(),
+
+    // Metronome state
+    val metronomeBpm: Int = 60,
+    val metronomeTickAsset: String = "Tick1.mp3",
+    val isMetronomeRunning: Boolean = false,
 
     // Presets
     val presets: List<TimerPreset> = emptyList()
@@ -50,8 +55,12 @@ class TimerViewModel(
     private val _timerFinished = MutableSharedFlow<Unit>()
     val timerFinished: SharedFlow<Unit> = _timerFinished.asSharedFlow()
 
+    private val _metronomeTick = MutableSharedFlow<Unit>()
+    val metronomeTick: SharedFlow<Unit> = _metronomeTick.asSharedFlow()
+
     private var countdownJob: Job? = null
     private var stopwatchJob: Job? = null
+    private var metronomeJob: Job? = null
 
     init {
         // Load presets from database
@@ -67,7 +76,50 @@ class TimerViewModel(
     // ─────────────────────────────────────────────────────────────────────────
 
     fun selectTab(tab: TimerTab) {
+        if (tab != TimerTab.METRONOME) {
+            pauseMetronome()
+        }
         _uiState.update { it.copy(activeTab = tab) }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Metronome
+    // ─────────────────────────────────────────────────────────────────────────
+
+    fun setMetronomeBpm(bpm: Int) {
+        val clamped = bpm.coerceIn(20, 300)
+        _uiState.update { it.copy(metronomeBpm = clamped) }
+    }
+
+    fun setMetronomeTickAsset(assetFileName: String) {
+        _uiState.update { it.copy(metronomeTickAsset = assetFileName) }
+    }
+
+    fun startMetronome() {
+        if (_uiState.value.isMetronomeRunning) return
+
+        _uiState.update { it.copy(isMetronomeRunning = true) }
+
+        metronomeJob = viewModelScope.launch {
+            while (_uiState.value.isMetronomeRunning) {
+                _metronomeTick.emit(Unit)
+                val intervalMs = (60_000L / _uiState.value.metronomeBpm.coerceAtLeast(1))
+                delay(intervalMs)
+            }
+        }
+    }
+
+    fun pauseMetronome() {
+        metronomeJob?.cancel()
+        _uiState.update { it.copy(isMetronomeRunning = false) }
+    }
+
+    fun toggleMetronome() {
+        if (_uiState.value.isMetronomeRunning) {
+            pauseMetronome()
+        } else {
+            startMetronome()
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -179,6 +231,13 @@ class TimerViewModel(
     fun recordLap() {
         val currentMillis = _uiState.value.stopwatchMillis
         _uiState.update { it.copy(laps = it.laps + currentMillis) }
+    }
+
+    override fun onCleared() {
+        countdownJob?.cancel()
+        stopwatchJob?.cancel()
+        metronomeJob?.cancel()
+        super.onCleared()
     }
 
     // ─────────────────────────────────────────────────────────────────────────

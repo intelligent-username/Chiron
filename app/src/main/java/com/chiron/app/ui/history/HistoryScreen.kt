@@ -20,6 +20,8 @@ import com.chiron.app.viewmodel.HistoryViewModel
 fun HistoryScreen(
     viewModel: HistoryViewModel,
     onOpenWorkout: (Long?) -> Unit,
+    onOpenPrForExercise: (Long) -> Unit = {},
+    onOpenExerciseDetail: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -31,7 +33,14 @@ fun HistoryScreen(
 
     if (state.isEditorOpen && state.editingWorkoutId != null) {
         val workout = (state.workouts + state.archivedWorkouts).find { it.id == state.editingWorkoutId }
-        WorkoutEditor(workout = workout, viewModel = viewModel, onClose = { viewModel.closeEditor() }, modifier = modifier)
+        WorkoutEditor(
+            workout = workout,
+            viewModel = viewModel,
+            onClose = { viewModel.closeEditor() },
+            onOpenPrForExercise = onOpenPrForExercise,
+            onOpenExerciseDetail = onOpenExerciseDetail,
+            modifier = modifier
+        )
         return
     }
 

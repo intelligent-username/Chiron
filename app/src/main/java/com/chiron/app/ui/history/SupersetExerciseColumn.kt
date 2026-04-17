@@ -1,6 +1,7 @@
 package com.chiron.app.ui.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
@@ -50,7 +51,9 @@ fun SupersetExerciseColumn(
     workoutId: Long,
     modifier: Modifier = Modifier,
     onSetClick: (Int) -> Unit,
-    onAddSet: () -> Unit
+    onAddSet: () -> Unit,
+    onOpenPrForExercise: (Long) -> Unit,
+    onOpenExerciseDetail: (Long) -> Unit
 ) {
     val sets by viewModel.getSetsForEntry(entry.id)
         .collectAsState(initial = emptyList())
@@ -90,12 +93,15 @@ fun SupersetExerciseColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(42.dp)
+                .clickable { onOpenExerciseDetail(entry.exerciseId) }
         )
 
         ExerciseAsyncIcon(
             iconName = exercise?.iconName,
             contentDescription = exercise?.name,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .size(40.dp)
+                .clickable { onOpenPrForExercise(entry.exerciseId) },
             tint = Color.Unspecified
         )
 

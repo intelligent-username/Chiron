@@ -64,6 +64,8 @@ fun SupersetCard(
     onSetClick: (Long, Int) -> Unit,
     onAddSet: (Long) -> Unit,
     onDeleteSuperset: () -> Unit,
+    onOpenPrForExercise: (Long) -> Unit,
+    onOpenExerciseDetail: (Long) -> Unit,
     onRequestAddExercise: (fromIncrement: Boolean) -> Unit
 ) {
     val startEntry = entries.firstOrNull() ?: return
@@ -182,7 +184,9 @@ fun SupersetCard(
                             workoutId = workoutId,
                             modifier = Modifier.width(columnWidth),
                             onSetClick = { setIndex -> onSetClick(entry.id, setIndex) },
-                            onAddSet = { onAddSet(entry.id) }
+                            onAddSet = { onAddSet(entry.id) },
+                            onOpenPrForExercise = onOpenPrForExercise,
+                            onOpenExerciseDetail = onOpenExerciseDetail
                         )
                     }
                 }

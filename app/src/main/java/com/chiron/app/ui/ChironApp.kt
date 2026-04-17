@@ -32,6 +32,7 @@ import com.chiron.app.ui.timer.PresetsSheet
 import com.chiron.app.ui.timer.TimerScreenHost
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
+import com.chiron.app.viewmodel.TimerTab
 import com.chiron.app.viewmodel.TimerViewModel
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,9 @@ fun ChironApp(
     var isPresetsOpen by rememberSaveable { mutableStateOf(false) }
     var showAddPresetDialog by rememberSaveable { mutableStateOf(false) }
     var isPrScreenOpen by rememberSaveable { mutableStateOf(false) }
+    var prTargetExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var prOpenedFromHistory by rememberSaveable { mutableStateOf(false) }
+    var exerciseDetailOpenedFromHistory by rememberSaveable { mutableStateOf(false) }
     var exercisesSearchHasText by remember { mutableStateOf(false) }
 
     val exercisesState by exercisesViewModel.uiState.collectAsState()
@@ -73,8 +77,22 @@ fun ChironApp(
 
     androidx.activity.compose.BackHandler(enabled = true) {
         when {
-            isPrScreenOpen -> isPrScreenOpen = false
-            isExerciseDetailOpen -> { isExerciseDetailOpen = false; activeExerciseId = null }
+            isPrScreenOpen -> {
+                isPrScreenOpen = false
+                prTargetExerciseId = null
+                if (prOpenedFromHistory) {
+                    selectedTab = NavTab.HISTORY
+                    prOpenedFromHistory = false
+                }
+            }
+            isExerciseDetailOpen -> {
+                isExerciseDetailOpen = false
+                activeExerciseId = null
+                if (exerciseDetailOpenedFromHistory) {
+                    selectedTab = NavTab.HISTORY
+                    exerciseDetailOpenedFromHistory = false
+                }
+            }
             isSettingsOpen -> isSettingsOpen = false
             historyState.isEditorOpen -> historyViewModel.closeEditor()
             selectedTab == NavTab.EXERCISES && exercisesSearchHasText -> { /* handled by child */ }
@@ -112,7 +130,11 @@ fun ChironApp(
                                 IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
                                     Icon(Icons.Default.Archive, contentDescription = if (exercisesState.showArchived) "Show active" else "Show archived", tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                IconButton(onClick = { isPrScreenOpen = true }) {
+                                IconButton(onClick = {
+                                    prTargetExerciseId = null
+                                    prOpenedFromHistory = false
+                                    isPrScreenOpen = true
+                                }) {
                                     Icon(Icons.Default.EmojiEvents, contentDescription = "Personal Records", tint = PrGold)
                                 }
                             }
@@ -125,31 +147,84 @@ fun ChironApp(
             bottomBar = {
                 Column {
                     if (spotifyEnabled) MiniPlayerBar()
-                    BottomNavBar(selectedTab = selectedTab, onTabSelected = { tab -> selectedTab = tab; isExerciseDetailOpen = false })
+                    BottomNavBar(selectedTab = selectedTab, onTabSelected = { tab ->
+                        selectedTab = tab
+                        isExerciseDetailOpen = false
+                        exerciseDetailOpenedFromHistory = false
+                    })
                 }
             }
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
                 HorizontalPager(state = pagerState, userScrollEnabled = !historyState.isEditorOpen) { page ->
                     when (tabs[page]) {
-                        NavTab.HISTORY -> HistoryScreen(viewModel = historyViewModel, onOpenWorkout = {})
+                        NavTab.HISTORY -> HistoryScreen(
+                            viewModel = historyViewModel,
+                            onOpenWorkout = {},
+                            onOpenPrForExercise = { exerciseId ->
+                                prTargetExerciseId = exerciseId
+                                prOpenedFromHistory = true
+                                selectedTab = NavTab.EXERCISES
+                                isPrScreenOpen = true
+                            },
+                            onOpenExerciseDetail = { exerciseId ->
+                                selectedTab = NavTab.EXERCISES
+                                activeExerciseId = exerciseId
+                                isExerciseDetailOpen = true
+                                exerciseDetailOpenedFromHistory = true
+                            }
+                        )
                         NavTab.EXERCISES -> Box(modifier = Modifier.fillMaxSize()) {
-                            ExercisesScreen(viewModel = exercisesViewModel, onOpenDetail = { exId -> activeExerciseId = exId; isExerciseDetailOpen = true }, onSearchQueryChange = { exercisesSearchHasText = it })
+                            ExercisesScreen(
+                                viewModel = exercisesViewModel,
+                                onOpenDetail = { exId ->
+                                    activeExerciseId = exId
+                                    isExerciseDetailOpen = true
+                                    exerciseDetailOpenedFromHistory = false
+                                },
+                                onSearchQueryChange = { exercisesSearchHasText = it }
+                            )
                             if (isExerciseDetailOpen) {
                                 ExerciseDetailScreen(
                                     exercise = exercisesState.exercises.find { it.id == activeExerciseId },
                                     onSave = { exercisesViewModel.updateExercise(it) },
                                     onDelete = { exercisesViewModel.archiveExercise(it) },
-                                    onClose = { isExerciseDetailOpen = false; activeExerciseId = null },
+                                    onOpenPrForExercise = { exerciseId ->
+                                        prTargetExerciseId = exerciseId
+                                        prOpenedFromHistory = false
+                                        isPrScreenOpen = true
+                                    },
+                                    onClose = {
+                                        isExerciseDetailOpen = false
+                                        activeExerciseId = null
+                                        if (exerciseDetailOpenedFromHistory) {
+                                            selectedTab = NavTab.HISTORY
+                                            exerciseDetailOpenedFromHistory = false
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
-                            }
-                            if (isPrScreenOpen) {
-                                PrScreen(viewModel = exercisesViewModel, displayInKg = historyState.displayInKg, onClose = { isPrScreenOpen = false }, modifier = Modifier.fillMaxSize())
                             }
                         }
                         NavTab.TIMER -> TimerScreenHost(viewModel = timerViewModel)
                     }
+                }
+
+                if (isPrScreenOpen) {
+                    PrScreen(
+                        viewModel = exercisesViewModel,
+                        displayInKg = historyState.displayInKg,
+                        initialExerciseId = prTargetExerciseId,
+                        onClose = {
+                            isPrScreenOpen = false
+                            prTargetExerciseId = null
+                            if (prOpenedFromHistory) {
+                                selectedTab = NavTab.HISTORY
+                                prOpenedFromHistory = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
@@ -158,7 +233,12 @@ fun ChironApp(
             PresetsSheet(
                 presets = timerState.presets,
                 currentDuration = timerState.countdownSeconds,
-                onSelectPreset = { timerViewModel.setCountdownPreset(it); timerViewModel.startCountdown(); isPresetsOpen = false },
+                onSelectPreset = {
+                    timerViewModel.selectTab(TimerTab.TIMER)
+                    timerViewModel.setCountdownPreset(it)
+                    timerViewModel.startCountdown()
+                    isPresetsOpen = false
+                },
                 onAddPreset = { showAddPresetDialog = true },
                 onDeletePreset = { scope.launch { timerViewModel.deletePreset(it) } },
                 onEditPreset = { scope.launch { timerViewModel.deletePreset(it) } },

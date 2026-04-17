@@ -37,6 +37,7 @@ import com.chiron.app.viewmodel.ExercisesViewModel
 fun PrScreen(
     viewModel: ExercisesViewModel,
     displayInKg: Boolean,
+    initialExerciseId: Long? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -49,6 +50,13 @@ fun PrScreen(
     }
 
     var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
+    LaunchedEffect(initialExerciseId, exercisesWithPrs) {
+        val targetId = initialExerciseId ?: return@LaunchedEffect
+        val target = exercisesWithPrs.firstOrNull { it.id == targetId }
+        if (target != null) {
+            selectedExercise = target
+        }
+    }
     androidx.activity.compose.BackHandler(enabled = uiState.prSearchQuery.isNotBlank()) {
         viewModel.clearPrSearch()
     }

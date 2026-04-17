@@ -29,6 +29,8 @@ fun WheelPicker(
     modifier: Modifier = Modifier,
     visibleCount: Int = 3,
     itemHeight: Dp = 100.dp,
+    wheelWidth: Dp = 120.dp,
+    animateExternalChanges: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.displayMedium,
     format: (Int) -> String = { "%02d".format(it) }
 ) {
@@ -45,8 +47,13 @@ fun WheelPicker(
             val currentMod = currentIndex % count
             if (currentMod != value) {
                  val diff = value - currentMod
-                 // Scroll to the target index smoothly but quickly
-                 listState.animateScrollToItem(currentIndex + diff)
+                 if (animateExternalChanges) {
+                     // Scroll to the target index smoothly but quickly
+                     listState.animateScrollToItem(currentIndex + diff)
+                 } else {
+                     // Snap instantly to requested value
+                     listState.scrollToItem(currentIndex + diff)
+                 }
             }
         }
     }
@@ -64,7 +71,7 @@ fun WheelPicker(
     Box(
         modifier = modifier
             .height(itemHeight * visibleCount)
-            .width(120.dp),
+            .width(wheelWidth),
         contentAlignment = Alignment.Center
     ) {
         LazyColumn(

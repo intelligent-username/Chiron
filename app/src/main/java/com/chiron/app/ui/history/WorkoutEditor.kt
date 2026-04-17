@@ -56,6 +56,8 @@ fun WorkoutEditor(
     workout: WorkoutSession?,
     viewModel: HistoryViewModel,
     onClose: () -> Unit,
+    onOpenPrForExercise: (Long) -> Unit = {},
+    onOpenExerciseDetail: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (workout == null) return
@@ -189,6 +191,8 @@ fun WorkoutEditor(
                                 }
                             }
                         },
+                        onOpenPrForExercise = onOpenPrForExercise,
+                        onOpenExerciseDetail = onOpenExerciseDetail,
                         onRequestAddExercise = { fromIncrement ->
                             didAddExerciseInDialog = false
                             supersetParentEntryId = group.firstOrNull()?.id
@@ -215,6 +219,8 @@ fun WorkoutEditor(
                                 viewModel.deleteExerciseEntry(workout.id, group[0].id)
                             }
                         },
+                        onOpenPrForExercise = onOpenPrForExercise,
+                        onOpenExerciseDetail = onOpenExerciseDetail,
                         onRequestAddExercise = {
                             supersetParentEntryId = group[0].id
                             showAddExerciseDialog = true

@@ -67,6 +67,8 @@ fun ExerciseEntryCard(
     onSetClick: (Int) -> Unit,
     onAddSet: () -> Unit,
     onDeleteEntry: () -> Unit,
+    onOpenPrForExercise: (Long) -> Unit,
+    onOpenExerciseDetail: (Long) -> Unit,
     workoutId: Long,
     onRequestAddExercise: () -> Unit
 ) {
@@ -141,12 +143,16 @@ fun ExerciseEntryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                ExerciseAsyncIcon(
-                    iconName = if (isSupersetEnabled) "link" else exercise?.iconName,
-                    contentDescription = exercise?.name,
-                    modifier = Modifier.size(48.dp),
-                    tint = Color.Unspecified
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ExerciseAsyncIcon(
+                        iconName = if (isSupersetEnabled) "link" else exercise?.iconName,
+                        contentDescription = exercise?.name,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable { onOpenPrForExercise(entry.exerciseId) },
+                        tint = Color.Unspecified
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
@@ -197,7 +203,8 @@ fun ExerciseEntryCard(
                                 exercise?.name ?: "Loading...",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.clickable { onOpenExerciseDetail(entry.exerciseId) }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             FlowRow(
@@ -222,7 +229,8 @@ fun ExerciseEntryCard(
                                 exercise?.name ?: "Loading...",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.clickable { onOpenExerciseDetail(entry.exerciseId) }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             FlowRow(

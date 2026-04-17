@@ -43,6 +43,7 @@ class PrRepository(
         val bestSet = setEntryDao.getBestSetForExerciseAndReps(exerciseId, reps)
         if (bestSet == null || bestSet.weightLbs == null) {
             exercisePrDao.deleteForExerciseAndReps(exerciseId, reps)
+            sync1rmEstimate(exerciseId)
             return
         }
 
@@ -110,7 +111,6 @@ class PrRepository(
             return
         }
 
-        var alphaSum = 0.0
         val components = mutableListOf<Pair<Double, Double>>()
 
         for (pr in validPrs) {
@@ -120,15 +120,28 @@ class PrRepository(
             val rDouble = r.toDouble()
             val alpha = 1.0 / (rDouble * rDouble * rDouble * rDouble) // 1/r^4 for much stronger low-rep bias
             components.add(alpha to mHatI)
-            alphaSum += alpha
         }
 
-        if (alphaSum > 0.0) {
+        if (components.isNotEmpty()) {
+            // Robustify against underperforming low-rep outliers by averaging on
+            // the upper envelope of implied 1RM values instead of all buckets.
+            val maxMHat = components.maxOf { it.second }
+            val envelopeThreshold = maxMHat * 0.90
+            val envelope = components.filter { (_, mHatI) -> mHatI >= envelopeThreshold }
+            val selected = if (envelope.isNotEmpty()) envelope else components
+            val selectedAlphaSum = selected.sumOf { it.first }
+
+            if (selectedAlphaSum <= 0.0) {
+                exercise1rmEstimateDao.deleteForExercise(exerciseId)
+                return
+            }
+
             var finalEstimate = 0.0
-            for ((alpha, mHatI) in components) {
-                val alphaTilde = alpha / alphaSum
+            for ((alpha, mHatI) in selected) {
+                val alphaTilde = alpha / selectedAlphaSum
                 finalEstimate += alphaTilde * mHatI
             }
+
             exercise1rmEstimateDao.upsert(
                 Exercise1rmEstimate(
                     exerciseId = exerciseId,
