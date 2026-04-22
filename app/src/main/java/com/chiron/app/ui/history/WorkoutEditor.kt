@@ -132,16 +132,35 @@ fun WorkoutEditor(
                 WorkoutEditorHeader(
                     workout = workout,
                     editableDayTag = editableDayTag,
-                    onDayTagChange = { editableDayTag = it },
+                    onDayTagChange = { 
+                        editableDayTag = it 
+                        viewModel.updateWorkout(workout.copy(dayTag = it, locationTag = editableLocation, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                    },
                     onWorkoutTimeChange = { dateUtc, endTimeUtc, dateIso ->
                         editableDateUtc = dateUtc
                         editableEndTimeUtc = endTimeUtc
                         editableDateIso = dateIso
+                        viewModel.saveWorkoutImmediate(
+                            workout.copy(
+                                dateIso = dateIso,
+                                dateUtc = dateUtc,
+                                endTimeUtc = endTimeUtc,
+                                dayTag = editableDayTag,
+                                locationTag = editableLocation,
+                                notes = editableNotes.ifBlank { null }
+                            )
+                        )
                     },
                     editableLocation = editableLocation,
-                    onLocationChange = { editableLocation = it },
+                    onLocationChange = { 
+                        editableLocation = it
+                        viewModel.updateWorkout(workout.copy(locationTag = it, dayTag = editableDayTag, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                    },
                     editableNotes = editableNotes,
-                    onNotesChange = { editableNotes = it },
+                    onNotesChange = { 
+                        editableNotes = it 
+                        viewModel.updateWorkout(workout.copy(notes = it.ifBlank { null }, dayTag = editableDayTag, locationTag = editableLocation, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                    },
                     dayTags = uiState.dayTags,
                     allLocations = allLocations,
                     onShowDeleteDialog = { showDeleteConfirmation = true },

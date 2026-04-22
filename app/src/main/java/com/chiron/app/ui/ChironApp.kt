@@ -94,7 +94,7 @@ fun ChironApp(
                 }
             }
             isSettingsOpen -> isSettingsOpen = false
-            historyState.isEditorOpen -> historyViewModel.closeEditor()
+            selectedTab == NavTab.HISTORY && historyState.isEditorOpen -> historyViewModel.closeEditor()
             selectedTab == NavTab.EXERCISES && exercisesSearchHasText -> { /* handled by child */ }
             pagerState.currentPage > 0 -> scope.launch { pagerState.animateScrollToPage(0) }
             else -> onFinish()
@@ -148,18 +148,30 @@ fun ChironApp(
                 Column {
                     if (spotifyEnabled) MiniPlayerBar()
                     BottomNavBar(selectedTab = selectedTab, onTabSelected = { tab ->
-                        selectedTab = tab
-                        isExerciseDetailOpen = false
-                        exerciseDetailOpenedFromHistory = false
-                        historyViewModel.closeEditor()
-                        isPrScreenOpen = false
-                        prTargetExerciseId = null
+                        if (tab == selectedTab) {
+                            // User clicked the currently active tab: pop to root
+                            if (tab == NavTab.HISTORY) {
+                                historyViewModel.closeEditor()
+                            } else if (tab == NavTab.EXERCISES) {
+                                isExerciseDetailOpen = false
+                                isPrScreenOpen = false
+                                prTargetExerciseId = null
+                            }
+                        } else {
+                            // User switched tabs: preserve memory
+                            selectedTab = tab
+                        }
                     })
                 }
             }
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
-                HorizontalPager(state = pagerState, userScrollEnabled = !historyState.isEditorOpen) { page ->
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = !historyState.isEditorOpen,
+                    beyondViewportPageCount = tabs.size,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
                     when (tabs[page]) {
                         NavTab.HISTORY -> HistoryScreen(
                             viewModel = historyViewModel,

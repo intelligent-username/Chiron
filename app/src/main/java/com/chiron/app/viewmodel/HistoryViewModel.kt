@@ -60,13 +60,33 @@ class HistoryViewModel(
         }
     }
 
+    private var pendingWorkout: WorkoutSession? = null
+
     fun updateWorkout(workout: WorkoutSession) {
+        pendingWorkout = workout
         debounceJob?.cancel()
-        debounceJob = viewModelScope.launch { delay(debounceDelayMs); runCatching { repository.updateWorkout(workout) } }
+        debounceJob = viewModelScope.launch {
+            delay(debounceDelayMs)
+            saveWorkoutImmediate(workout)
+        }
     }
 
-    fun saveWorkoutImmediate(workout: WorkoutSession) { debounceJob?.cancel(); viewModelScope.launch { runCatching { repository.updateWorkout(workout) } } }
-    fun forceSync() { debounceJob?.cancel() }
+    fun saveWorkoutImmediate(workout: WorkoutSession) {
+        pendingWorkout = null
+        debounceJob?.cancel()
+        viewModelScope.launch {
+            runCatching { repository.updateWorkout(workout) }
+        }
+    }
+
+    fun forceSync() {
+        val pending = pendingWorkout
+        if (pending != null) {
+            saveWorkoutImmediate(pending)
+        } else {
+            debounceJob?.cancel()
+        }
+    }
     fun archiveWorkout(workoutId: Long) { viewModelScope.launch { repository.archiveWorkout(workoutId) } }
     fun unarchiveWorkout(workoutId: Long) { viewModelScope.launch { repository.unarchiveWorkout(workoutId) } }
     fun permanentlyDeleteWorkout(workoutId: Long) { viewModelScope.launch { repository.permanentlyDeleteWorkout(workoutId) } }

@@ -98,6 +98,12 @@ object DateUtils {
         val startZdt = Instant.ofEpochMilli(workout.dateUtc).atZone(ZoneId.systemDefault())
         return startZdt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     }
+
+    fun getEndDateStr(workout: WorkoutSession): String {
+        val endEpoch = workout.endTimeUtc ?: workout.dateUtc
+        val endZdt = Instant.ofEpochMilli(endEpoch).atZone(ZoneId.systemDefault())
+        return endZdt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    }
     
     fun getStartStr(workout: WorkoutSession): String {
         val startZdt = Instant.ofEpochMilli(workout.dateUtc).atZone(ZoneId.systemDefault())
@@ -108,5 +114,50 @@ object DateUtils {
         val endEpoch = workout.endTimeUtc ?: workout.dateUtc
         val endZdt = Instant.ofEpochMilli(endEpoch).atZone(ZoneId.systemDefault())
         return endZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
+    }
+
+    fun parseWorkoutDateTimes(
+        startDateStr: String,
+        startTimeStr: String,
+        endDateStr: String,
+        endTimeStr: String,
+        workout: WorkoutSession
+    ): WorkoutSession? {
+        val startDatePart = startDateStr.trim()
+        val startTimePart = startTimeStr.trim().replace("/", ":")
+        val endDatePart = endDateStr.trim()
+        val endTimePart = endTimeStr.trim().replace("/", ":")
+
+        if (
+            startDatePart.length < 8 ||
+            endDatePart.length < 8 ||
+            startTimePart.length < 4 ||
+            endTimePart.length < 4
+        ) return null
+
+        return try {
+            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
+            val startZdt = java.time.LocalDateTime
+                .parse("$startDatePart $startTimePart", formatter)
+                .atZone(ZoneId.systemDefault())
+
+            var endZdt = java.time.LocalDateTime
+                .parse("$endDatePart $endTimePart", formatter)
+                .atZone(ZoneId.systemDefault())
+
+            // Preserve old behavior when only times are changed and end becomes earlier than start.
+            if (endZdt.toInstant().toEpochMilli() < startZdt.toInstant().toEpochMilli() && startDatePart == endDatePart) {
+                endZdt = endZdt.plusDays(1)
+            }
+
+            workout.copy(
+                dateUtc = startZdt.toInstant().toEpochMilli(),
+                endTimeUtc = endZdt.toInstant().toEpochMilli(),
+                dateIso = startZdt.toLocalDate().toString()
+            )
+        } catch (e: Exception) {
+            null
+        }
     }
 }

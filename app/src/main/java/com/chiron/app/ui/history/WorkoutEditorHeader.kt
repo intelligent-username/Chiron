@@ -15,8 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
@@ -27,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -52,7 +54,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.platform.LocalFocusManager
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 
 /**
@@ -88,8 +89,8 @@ fun WorkoutEditorHeader(
     var expandedLocation by remember { mutableStateOf(false) }
     var isTimeDialogOpen by remember { mutableStateOf(false) }
 
-    fun tryUpdateTimes(d: String, s: String, e: String) {
-        val parsed = DateUtils.parseWorkoutTimes(d, s, e, workout)
+    fun tryUpdateTimes(startDate: String, startTime: String, endDate: String, endTime: String) {
+        val parsed = DateUtils.parseWorkoutDateTimes(startDate, startTime, endDate, endTime, workout)
         if (parsed != null) {
             onWorkoutTimeChange(parsed.dateUtc, parsed.endTimeUtc, parsed.dateIso)
         }
@@ -181,7 +182,7 @@ fun WorkoutEditorHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${DateUtils.formatWorkoutCardDate(workout)} • ${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     textAlign = TextAlign.Start
@@ -194,12 +195,13 @@ fun WorkoutEditorHeader(
 
             if (isTimeDialogOpen) {
                 WorkoutTimeDialog(
-                    initialDate = DateUtils.getDateStr(workout),
+                    initialStartDate = DateUtils.getDateStr(workout),
                     initialStart = DateUtils.getStartStr(workout),
+                    initialEndDate = DateUtils.getEndDateStr(workout),
                     initialEnd = DateUtils.getEndStr(workout),
                     onDismiss = { isTimeDialogOpen = false },
-                    onConfirm = { d, s, e ->
-                        tryUpdateTimes(d, s, e)
+                    onConfirm = { startDate, startTime, endDate, endTime ->
+                        tryUpdateTimes(startDate, startTime, endDate, endTime)
                         isTimeDialogOpen = false
                     }
                 )
@@ -271,17 +273,84 @@ private fun transparentTextFieldColors() = TextFieldDefaults.colors(
     disabledIndicatorColor = Color.Transparent
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutTimeDialog(
-    initialDate: String,
+    initialStartDate: String,
     initialStart: String,
+    initialEndDate: String,
     initialEnd: String,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String) -> Unit
+    onConfirm: (String, String, String, String) -> Unit
 ) {
-    var date by remember { mutableStateOf(initialDate) }
+    var startDate by remember { mutableStateOf(initialStartDate) }
     var start by remember { mutableStateOf(initialStart) }
+    var endDate by remember { mutableStateOf(initialEndDate) }
     var end by remember { mutableStateOf(initialEnd) }
+
+    var isDateSectionExpanded by remember { mutableStateOf(false) }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+
+    val startDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = try {
+            val parts = startDate.split("/")
+            java.time.LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        } catch(e: Exception) { null }
+    )
+
+    val endDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = try {
+            val parts = endDate.split("/")
+            java.time.LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        } catch(e: Exception) { null }
+    )
+
+    if (showStartDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    startDatePickerState.selectedDateMillis?.let { millis ->
+                        val zdt = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC"))
+                        startDate = zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    }
+                    showStartDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = startDatePickerState)
+        }
+    }
+
+    if (showEndDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endDatePickerState.selectedDateMillis?.let { millis ->
+                        val zdt = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC"))
+                        endDate = zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    }
+                    showEndDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = endDatePickerState)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -294,19 +363,25 @@ fun WorkoutTimeDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                TextField(
-                    value = date,
-                    onValueChange = { date = it },
-                    label = { Text("Date (DD/MM/YYYY)") },
-                    placeholder = { Text("21/04/2026") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isDateSectionExpanded = !isDateSectionExpanded }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (isDateSectionExpanded) "Hide date editing" else "Edit dates",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                )
+                    Icon(
+                        imageVector = if (isDateSectionExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isDateSectionExpanded) "Collapse date editing" else "Expand date editing",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -340,11 +415,55 @@ fun WorkoutTimeDialog(
                         )
                     )
                 }
+
+                if (isDateSectionExpanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(modifier = Modifier.fillMaxWidth().clickable { showStartDatePicker = true }) {
+                            OutlinedTextField(
+                                value = startDate,
+                                onValueChange = { },
+                                label = { Text("Start Date") },
+                                placeholder = { Text("21/04/2026") },
+                                singleLine = true,
+                                readOnly = true,
+                                enabled = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = TextFieldDefaults.colors(
+                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    disabledIndicatorColor = Color.Transparent,
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+
+                        Box(modifier = Modifier.fillMaxWidth().clickable { showEndDatePicker = true }) {
+                            OutlinedTextField(
+                                value = endDate,
+                                onValueChange = { },
+                                label = { Text("End Date") },
+                                placeholder = { Text("21/04/2026") },
+                                singleLine = true,
+                                readOnly = true,
+                                enabled = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = TextFieldDefaults.colors(
+                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    disabledIndicatorColor = Color.Transparent,
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(date, start, end) },
+                onClick = { onConfirm(startDate, start, endDate, end) },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("Confirm", fontWeight = FontWeight.Bold)

@@ -42,12 +42,25 @@ class SetEntryRepository(
         val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
         setEntryDao.updateSet(set)
 
-        // Always update the workout's end time, regardless of whether reps/weight are set
+        val isNewlyCompleted = oldSet != null && oldSet.weightLbs == null && oldSet.reps == null && (set.weightLbs != null || set.reps != null)
+
+        // Only infer and update the workout's end time if a set is newly created or newly completed.
+        // This prevents overwriting manual date/time edits when merely updating an existing set's reps.
         val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
-        if (workoutId != null) {
-            val workout = workoutSessionDao.getById(workoutId)
-            if (workout != null && (workout.endTimeUtc == null || set.timestampUtc > workout.endTimeUtc)) {
-                workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = set.timestampUtc))
+
+        if (oldSet == null || isNewlyCompleted) {
+            if (workoutId != null) {
+                val workout = workoutSessionDao.getById(workoutId)
+                if (workout != null) {
+                    // Only auto-infer if the set timestamp is within 12 hours of the workout start.
+                    // This prevents modern set additions from corrupting old historical records.
+                    val isWithinSessionWindow = set.timestampUtc >= workout.dateUtc && 
+                                               (set.timestampUtc - workout.dateUtc) < 12 * 3600 * 1000L
+                    
+                    if (isWithinSessionWindow && (workout.endTimeUtc == null || set.timestampUtc > (workout.endTimeUtc ?: 0L))) {
+                        workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = set.timestampUtc))
+                    }
+                }
             }
         }
 
@@ -63,7 +76,7 @@ class SetEntryRepository(
         }
 
         val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
-        val workout = workoutSessionDao.getById(workoutId!!) ?: return
+        val workout = workoutId?.let { workoutSessionDao.getById(it) } ?: return
 
         val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
             exerciseId = exerciseId,
