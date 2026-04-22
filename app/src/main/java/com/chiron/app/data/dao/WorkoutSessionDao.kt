@@ -43,4 +43,21 @@ interface WorkoutSessionDao {
 
     @Query("DELETE FROM workout_session WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("""
+        UPDATE workout_session 
+        SET end_time_utc = (
+            SELECT MAX(se.timestamp_utc) 
+            FROM set_entry se
+            INNER JOIN exercise_entry ee ON se.exercise_entry_id = ee.id
+            WHERE ee.workout_id = workout_session.id
+        )
+        WHERE (end_time_utc IS NULL OR end_time_utc <= date_utc) 
+          AND EXISTS (
+             SELECT 1 FROM set_entry se
+             INNER JOIN exercise_entry ee ON se.exercise_entry_id = ee.id
+             WHERE ee.workout_id = workout_session.id
+          )
+    """)
+    suspend fun retroactiveInferEndTimes()
 }

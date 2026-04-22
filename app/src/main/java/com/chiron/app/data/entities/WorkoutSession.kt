@@ -31,5 +31,8 @@ data class WorkoutSession(
     val notes: String? = null,
 
     @ColumnInfo(name = "archived", defaultValue = "0")
-    val archived: Int = 0
+    val archived: Int = 0,
+
+    @ColumnInfo(name = "end_time_utc")
+    val endTimeUtc: Long? = null
 )

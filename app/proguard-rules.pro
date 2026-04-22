@@ -19,3 +19,15 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Spotify App Remote
+-keep class com.spotify.protocol.** { *; }
+-keep class com.spotify.android.appremote.** { *; }
+-dontwarn com.spotify.protocol.**
+-dontwarn com.spotify.android.appremote.**
+
+# Jackson (referenced by Spotify)
+-dontwarn com.fasterxml.jackson.**
+
+# Spotify internal annotations
+-dontwarn com.spotify.base.annotations.**

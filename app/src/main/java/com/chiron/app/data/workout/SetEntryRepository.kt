@@ -42,6 +42,15 @@ class SetEntryRepository(
         val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
         setEntryDao.updateSet(set)
 
+        // Always update the workout's end time, regardless of whether reps/weight are set
+        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
+        if (workoutId != null) {
+            val workout = workoutSessionDao.getById(workoutId)
+            if (workout != null && (workout.endTimeUtc == null || set.timestampUtc > workout.endTimeUtc)) {
+                workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = set.timestampUtc))
+            }
+        }
+
         val reps = set.reps
         val weight = set.weightLbs
         val shouldCheck = reps != null && weight != null && set.isFailed == 0
@@ -54,8 +63,7 @@ class SetEntryRepository(
         }
 
         val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
-        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) ?: return
-        val workout = workoutSessionDao.getById(workoutId) ?: return
+        val workout = workoutSessionDao.getById(workoutId!!) ?: return
 
         val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
             exerciseId = exerciseId,

@@ -14,9 +14,27 @@ if (localPropertiesFile.exists()) {
 }
 val spotifyClientId = localProperties.getProperty("SPOTIFY_CLIENT_ID") ?: ""
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.chiron.app"
     compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            val keyFile = rootProject.file(keystoreProperties.getProperty("KEYSTORE_FILE") ?: "release-key.jks")
+            if (keyFile.exists()) {
+                storeFile = keyFile
+                storePassword = keystoreProperties.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = keystoreProperties.getProperty("KEY_ALIAS")
+                keyPassword = keystoreProperties.getProperty("KEY_PASSWORD")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.chiron.app"
@@ -38,6 +56,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -70,6 +89,13 @@ android {
             excludes += "/META-INF/DEPENDENCIES"
             excludes += "/META-INF/LICENSE*"
             excludes += "/META-INF/NOTICE*"
+        }
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "Chiron-${name}.apk"
         }
     }
 }

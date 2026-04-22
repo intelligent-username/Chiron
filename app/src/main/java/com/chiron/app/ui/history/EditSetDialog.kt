@@ -65,7 +65,12 @@ fun EditSetDialog(
                         if (displayInKg) it * 2.2046226218 else it
                     }
                     val repsInt = reps.toIntOrNull()
-                    onSave(set.copy(weightLbs = weightLbs, reps = repsInt))
+                    val newTimestamp = if (set.weightLbs == null && set.reps == null) {
+                        System.currentTimeMillis()
+                    } else {
+                        set.timestampUtc
+                    }
+                    onSave(set.copy(weightLbs = weightLbs, reps = repsInt, timestampUtc = newTimestamp))
                 }
             ) { Text("Save") }
         },

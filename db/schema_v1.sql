@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS `workout_session` (
   `date_utc` INTEGER NOT NULL,
   `location_tag` TEXT NOT NULL,
   `notes` TEXT,
-  `archived` INTEGER NOT NULL DEFAULT 0
+  `archived` INTEGER NOT NULL DEFAULT 0,
+  `end_time_utc` INTEGER DEFAULT NULL
 );
 CREATE INDEX IF NOT EXISTS `index_workout_session_date_utc` ON `workout_session`(`date_utc`);
 

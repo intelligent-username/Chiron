@@ -1,5 +1,9 @@
 package com.chiron.app.ui.history
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -41,6 +46,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.chiron.app.data.entities.WorkoutSession
+import com.chiron.app.util.DateUtils
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.platform.LocalFocusManager
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -63,8 +73,7 @@ fun WorkoutEditorHeader(
     workout: WorkoutSession,
     editableDayTag: String,
     onDayTagChange: (String) -> Unit,
-    editableDate: String,
-    onDateChange: (String) -> Unit,
+    onWorkoutTimeChange: (Long, Long?, String) -> Unit,
     editableLocation: String,
     onLocationChange: (String) -> Unit,
     editableNotes: String,
@@ -77,41 +86,12 @@ fun WorkoutEditorHeader(
 ) {
     var expandedName by remember { mutableStateOf(false) }
     var expandedLocation by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var isTimeDialogOpen by remember { mutableStateOf(false) }
 
-    if (showDatePicker) {
-        val initialMillis = remember(editableDate) {
-            try {
-                LocalDate.parse(editableDate)
-                    .atStartOfDay(ZoneId.of("UTC"))
-                    .toInstant()
-                    .toEpochMilli()
-            } catch (e: Exception) {
-                System.currentTimeMillis()
-            }
-        }
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val millis = datePickerState.selectedDateMillis
-                    if (millis != null) {
-                        val newDate = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneId.of("UTC"))
-                            .toLocalDate()
-                            .toString()
-                        onDateChange(newDate)
-                    }
-                    showDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
+    fun tryUpdateTimes(d: String, s: String, e: String) {
+        val parsed = DateUtils.parseWorkoutTimes(d, s, e, workout)
+        if (parsed != null) {
+            onWorkoutTimeChange(parsed.dateUtc, parsed.endTimeUtc, parsed.dateIso)
         }
     }
 
@@ -200,23 +180,30 @@ fun WorkoutEditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextField(
-                value = editableDate,
-                onValueChange = onDateChange,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            Text(
+                text = "${DateUtils.formatWorkoutCardDate(workout)} • ${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Start
                 ),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
-                colors = transparentTextFieldColors(),
-                modifier = Modifier.width(160.dp),
-                singleLine = true,
-                placeholder = { Text("YYYY-MM-DD") },
-                trailingIcon = {
-                    IconButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Default.DateRange, "Select Date", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { isTimeDialogOpen = true }
+                    .padding(vertical = 8.dp)
             )
+
+            if (isTimeDialogOpen) {
+                WorkoutTimeDialog(
+                    initialDate = DateUtils.getDateStr(workout),
+                    initialStart = DateUtils.getStartStr(workout),
+                    initialEnd = DateUtils.getEndStr(workout),
+                    onDismiss = { isTimeDialogOpen = false },
+                    onConfirm = { d, s, e ->
+                        tryUpdateTimes(d, s, e)
+                        isTimeDialogOpen = false
+                    }
+                )
+            }
 
             val filteredLocations = remember(editableLocation, allLocations) {
                 allLocations.filter { it.contains(editableLocation, ignoreCase = true) }.take(5)
@@ -283,3 +270,92 @@ private fun transparentTextFieldColors() = TextFieldDefaults.colors(
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent
 )
+
+@Composable
+fun WorkoutTimeDialog(
+    initialDate: String,
+    initialStart: String,
+    initialEnd: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var date by remember { mutableStateOf(initialDate) }
+    var start by remember { mutableStateOf(initialStart) }
+    var end by remember { mutableStateOf(initialEnd) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Text(
+                "Edit Timing", 
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            ) 
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                TextField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = { Text("Date (DD/MM/YYYY)") },
+                    placeholder = { Text("21/04/2026") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextField(
+                        value = start,
+                        onValueChange = { start = it },
+                        label = { Text("Start Time") },
+                        placeholder = { Text("14:30") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                    
+                    TextField(
+                        value = end,
+                        onValueChange = { end = it },
+                        label = { Text("End Time") },
+                        placeholder = { Text("15:45") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(date, start, end) },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Confirm", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.extraLarge
+    )
+}

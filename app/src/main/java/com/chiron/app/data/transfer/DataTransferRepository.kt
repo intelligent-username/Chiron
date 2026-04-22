@@ -147,11 +147,11 @@ class DataTransferRepository(
     /**
      * Import data from an exported .db file.
      * Intelligently merges data to avoid conflicts:
-     * - Exercises: merge by ID/name (update/link/create)
-     * - WorkoutSessions: always append (historical data)
-     * - ExerciseEntry/SetEntry: remap IDs based on exercise merge
+     * - Exercises: merge by name (reuse existing ID or insert)
+     * - WorkoutSessions: always append (historical data), remap IDs
+     * - ExerciseEntry/SetEntry: always insert, remap FKs
      * - TimerPresets: merge by label + duration
-     * - ExercisePr: merge intelligently (keep best PR)
+     * - ExercisePr: rebuilt from set data after import
      */
     suspend fun importDataFromFile(fileUri: Uri): Result<String> {
         return runCatching {
@@ -222,17 +222,197 @@ class DataTransferRepository(
     /**
      * Merge an imported database with the current one, handling ID remapping
      * and conflict resolution for all entity types.
+     *
+     * Strategy:
+     * - Exercises: match by name; reuse existing ID if found, otherwise insert.
+     * - WorkoutSessions: always insert as new (historical data), remap IDs.
+     * - ExerciseEntry/SetEntry: always insert as new, remap exercise/workout FKs.
+     * - TimerPresets: merge by label+duration to avoid duplicates.
+     * - ExercisePr: skip (rebuilt from scratch via onRebuildPrs after import).
      */
     private suspend fun mergeImportedDatabase(importDb: File) {
-        // DatabaseImportMerger.mergeImportedDatabase(
-        //     importDb,
-        //     exerciseDao,
-        //     workoutSessionDao,
-        //     exerciseEntryDao,
-        //     setEntryDao,
-        //     exercisePrDao,
-        //     timerPresetDao,
-        //     onRebuildPrs
-        // )
+        val db = SQLiteDatabase.openDatabase(
+            importDb.absolutePath, null, SQLiteDatabase.OPEN_READONLY
+        )
+
+        try {
+            // ── 1. Exercises ──────────────────────────────────────────────────
+            // Map: importedExerciseId -> localExerciseId
+            val exerciseIdMap = mutableMapOf<Long, Long>()
+
+            db.rawQuery("SELECT * FROM exercise", null)
+                ?.use { cursor ->
+                    val iId = cursor.getColumnIndex("id")
+                    val iName = cursor.getColumnIndex("name")
+                    val iImageUri = cursor.getColumnIndex("image_uri")
+                    val iDesc = cursor.getColumnIndex("description")
+                    val iIcon = cursor.getColumnIndex("icon_name")
+                    val iArchived = cursor.getColumnIndex("archived")
+                    while (cursor.moveToNext()) {
+                        val importedId = cursor.getLong(iId)
+                        val name = cursor.getString(iName) ?: continue
+                        val existing = exerciseDao.getByName(name)
+                        if (existing != null) {
+                            exerciseIdMap[importedId] = existing.id
+                        } else {
+                            val newId = exerciseDao.insertExercise(
+                                Exercise(
+                                    name = name,
+                                    imageUri = if (iImageUri >= 0 && !cursor.isNull(iImageUri)) cursor.getString(iImageUri) else null,
+                                    description = if (iDesc >= 0 && !cursor.isNull(iDesc)) cursor.getString(iDesc) else null,
+                                    iconName = if (iIcon >= 0 && !cursor.isNull(iIcon)) cursor.getString(iIcon) else "default",
+                                    archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0
+                                )
+                            )
+                            exerciseIdMap[importedId] = newId
+                        }
+                    }
+                }
+
+            // ── 2. Workout Sessions ───────────────────────────────────────────
+            // Map: importedWorkoutId -> localWorkoutId
+            val workoutIdMap = mutableMapOf<Long, Long>()
+
+            db.rawQuery("SELECT * FROM workout_session", null)?.use { cursor ->
+                val iId = cursor.getColumnIndex("id")
+                val iDayTag = cursor.getColumnIndex("day_tag")
+                val iDateIso = cursor.getColumnIndex("date_iso")
+                val iDateUtc = cursor.getColumnIndex("date_utc")
+                val iLocation = cursor.getColumnIndex("location_tag")
+                val iNotes = cursor.getColumnIndex("notes")
+                val iArchived = cursor.getColumnIndex("archived")
+                val iEndTime = cursor.getColumnIndex("end_time_utc")
+                while (cursor.moveToNext()) {
+                    val importedId = cursor.getLong(iId)
+                    val newId = workoutSessionDao.insertWorkout(
+                        WorkoutSession(
+                            dayTag = cursor.getString(iDayTag) ?: "",
+                            dateIso = cursor.getString(iDateIso) ?: "",
+                            dateUtc = cursor.getLong(iDateUtc),
+                            locationTag = cursor.getString(iLocation) ?: "",
+                            notes = if (iNotes >= 0 && !cursor.isNull(iNotes)) cursor.getString(iNotes) else null,
+                            archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0,
+                            endTimeUtc = if (iEndTime >= 0 && !cursor.isNull(iEndTime)) cursor.getLong(iEndTime) else null
+                        )
+                    )
+                    workoutIdMap[importedId] = newId
+                }
+            }
+
+            // ── 3. Exercise Entries ───────────────────────────────────────────
+            // Map: importedEntryId -> localEntryId
+            val entryIdMap = mutableMapOf<Long, Long>()
+            // Also need to track imported groupId -> so we can remap later
+            val importedGroupIds = mutableMapOf<Long, Long?>() // localEntryId -> importedGroupId
+
+            db.rawQuery("SELECT * FROM exercise_entry", null)?.use { cursor ->
+                val iId = cursor.getColumnIndex("id")
+                val iWorkoutId = cursor.getColumnIndex("workout_id")
+                val iExerciseId = cursor.getColumnIndex("exercise_id")
+                val iSlotIndex = cursor.getColumnIndex("slot_index")
+                val iGroupId = cursor.getColumnIndex("group_id")
+                val iSeqType = cursor.getColumnIndex("sequence_type")
+                val iNotes = cursor.getColumnIndex("notes")
+                val iArchived = cursor.getColumnIndex("archived")
+                val iNumSuperset = cursor.getColumnIndex("num_exercises_in_superset")
+                while (cursor.moveToNext()) {
+                    val importedId = cursor.getLong(iId)
+                    val localWorkoutId = workoutIdMap[cursor.getLong(iWorkoutId)] ?: continue
+                    val localExerciseId = exerciseIdMap[cursor.getLong(iExerciseId)] ?: continue
+                    val importedGroupId = if (iGroupId >= 0 && !cursor.isNull(iGroupId)) cursor.getLong(iGroupId) else null
+                    val newId = exerciseEntryDao.insertEntry(
+                        ExerciseEntry(
+                            workoutId = localWorkoutId,
+                            exerciseId = localExerciseId,
+                            slotIndex = cursor.getInt(iSlotIndex),
+                            groupId = null, // set after all entries are inserted + remapped
+                            sequenceType = if (iSeqType >= 0) cursor.getString(iSeqType) ?: "NONE" else "NONE",
+                            notes = if (iNotes >= 0 && !cursor.isNull(iNotes)) cursor.getString(iNotes) else null,
+                            archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0,
+                            numExercisesInSuperset = if (iNumSuperset >= 0) cursor.getInt(iNumSuperset) else 2
+                        )
+                    )
+                    entryIdMap[importedId] = newId
+                    importedGroupIds[newId] = importedGroupId
+                }
+            }
+
+            // Remap group_id for superset entries now that all entries have local IDs
+            for ((localId, importedGroupId) in importedGroupIds) {
+                if (importedGroupId != null) {
+                    val localGroupId = entryIdMap[importedGroupId]
+                    if (localGroupId != null) {
+                        val entry = exerciseEntryDao.getById(localId) ?: continue
+                        exerciseEntryDao.updateEntry(entry.copy(groupId = localGroupId))
+                    }
+                }
+            }
+
+            // ── 4. Set Entries ────────────────────────────────────────────────
+            val affectedExerciseIds = mutableSetOf<Long>()
+
+            db.rawQuery("SELECT * FROM set_entry", null)?.use { cursor ->
+                val iEntryId = cursor.getColumnIndex("exercise_entry_id")
+                val iSetIndex = cursor.getColumnIndex("set_index")
+                val iWeight = cursor.getColumnIndex("weight_lbs")
+                val iReps = cursor.getColumnIndex("reps")
+                val iIsFailed = cursor.getColumnIndex("is_failed")
+                val iTempo = cursor.getColumnIndex("tempo")
+                val iNotes = cursor.getColumnIndex("notes")
+                val iTs = cursor.getColumnIndex("timestamp_utc")
+                while (cursor.moveToNext()) {
+                    val localEntryId = entryIdMap[cursor.getLong(iEntryId)] ?: continue
+                    setEntryDao.insertSet(
+                        SetEntry(
+                            exerciseEntryId = localEntryId,
+                            setIndex = cursor.getInt(iSetIndex),
+                            weightLbs = if (iWeight >= 0 && !cursor.isNull(iWeight)) cursor.getDouble(iWeight) else null,
+                            reps = if (iReps >= 0 && !cursor.isNull(iReps)) cursor.getInt(iReps) else null,
+                            isFailed = if (iIsFailed >= 0) cursor.getInt(iIsFailed) else 0,
+                            tempo = if (iTempo >= 0 && !cursor.isNull(iTempo)) cursor.getString(iTempo) else null,
+                            notes = if (iNotes >= 0 && !cursor.isNull(iNotes)) cursor.getString(iNotes) else null,
+                            timestampUtc = if (iTs >= 0) cursor.getLong(iTs) else System.currentTimeMillis(),
+                            isPr = 0 // will be rebuilt
+                        )
+                    )
+                    val exerciseId = setEntryDao.getExerciseIdForEntry(localEntryId)
+                    if (exerciseId != null) affectedExerciseIds.add(exerciseId)
+                }
+            }
+
+            // ── 5. Timer Presets ──────────────────────────────────────────────
+            db.rawQuery("SELECT duration_seconds, label, archived FROM timer_presets", null)
+                ?.use { cursor ->
+                    val iDuration = cursor.getColumnIndex("duration_seconds")
+                    val iLabel = cursor.getColumnIndex("label")
+                    val iArchived = cursor.getColumnIndex("archived")
+                    while (cursor.moveToNext()) {
+                        val duration = cursor.getInt(iDuration)
+                        val label = cursor.getString(iLabel) ?: continue
+                        val exists = timerPresetDao.getPresetByLabelAndDuration(label, duration)
+                        if (exists == null) {
+                            timerPresetDao.insertPreset(
+                                TimerPreset(
+                                    durationSeconds = duration,
+                                    label = label,
+                                    archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0
+                                )
+                            )
+                        }
+                    }
+                }
+
+            // ── 6. Fix Workout End Times ───────────────────────────────────────
+            // Retroactively infer end times for workouts that may lack them (e.g., from old exports)
+            workoutSessionDao.retroactiveInferEndTimes()
+
+            // ── 7. Rebuild PRs for all affected exercises ─────────────────────
+            for (exerciseId in affectedExerciseIds) {
+                onRebuildPrs(exerciseId)
+            }
+
+        } finally {
+            db.close()
+        }
     }
 }

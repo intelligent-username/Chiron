@@ -55,9 +55,9 @@ Download your respective installer to download the app. Then, you can run it lik
 
 To modify the app, you'll need to use Android Studio or XCode depending on if you want to twaek an Android or iOS version of the app. Clone this repository and make whatever changes you want.
 
-## Upcoming Changes🚧🗓️🚧‼️
+## Upcoming Changes🚧
 
-Basically all features are done. I might make some UI/efficiency tweaks, but otherwise, the only thing left is to make an iOS version.
+Basically all features are done. Just need to fix bugs.
 
 Idea: calorie tracker to centralize tracking needs, and do analyses like "on days where you eat lots of carbs you break a PR". But this seems uncessary.
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.chiron.app.data.entities.WorkoutSession
+import com.chiron.app.util.DateUtils
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -51,7 +52,7 @@ fun WorkoutCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = workout.dateIso,
+                    text = DateUtils.formatWorkoutCardDate(workout),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )

@@ -96,7 +96,7 @@ fun ChironApp(
             isSettingsOpen -> isSettingsOpen = false
             historyState.isEditorOpen -> historyViewModel.closeEditor()
             selectedTab == NavTab.EXERCISES && exercisesSearchHasText -> { /* handled by child */ }
-            pagerState.currentPage > 0 -> scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+            pagerState.currentPage > 0 -> scope.launch { pagerState.animateScrollToPage(0) }
             else -> onFinish()
         }
     }
@@ -151,6 +151,9 @@ fun ChironApp(
                         selectedTab = tab
                         isExerciseDetailOpen = false
                         exerciseDetailOpenedFromHistory = false
+                        historyViewModel.closeEditor()
+                        isPrScreenOpen = false
+                        prTargetExerciseId = null
                     })
                 }
             }

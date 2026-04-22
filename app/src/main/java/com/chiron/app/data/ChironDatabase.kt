@@ -31,7 +31,7 @@ import com.chiron.app.data.entities.Exercise1rmEstimate
         ExercisePr::class,
         Exercise1rmEstimate::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -146,6 +146,12 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workout_session ADD COLUMN end_time_utc INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -153,7 +159,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

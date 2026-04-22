@@ -1,5 +1,6 @@
 package com.chiron.app.ui.history
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,7 +86,9 @@ fun WorkoutEditor(
 
     // ── Header editable state ──────────────────────────────────────────────────
     var editableDayTag by remember { mutableStateOf(workout.dayTag) }
-    var editableDate by remember { mutableStateOf(workout.dateIso) }
+    var editableDateIso by remember { mutableStateOf(workout.dateIso) }
+    var editableDateUtc by remember { mutableStateOf(workout.dateUtc) }
+    var editableEndTimeUtc by remember { mutableStateOf(workout.endTimeUtc) }
     var editableLocation by remember { mutableStateOf(workout.locationTag) }
     var editableNotes by remember { mutableStateOf(workout.notes ?: "") }
 
@@ -111,7 +114,7 @@ fun WorkoutEditor(
     // Main content
     // ─────────────────────────────────────────────────────────────────────────
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
@@ -130,8 +133,11 @@ fun WorkoutEditor(
                     workout = workout,
                     editableDayTag = editableDayTag,
                     onDayTagChange = { editableDayTag = it },
-                    editableDate = editableDate,
-                    onDateChange = { editableDate = it },
+                    onWorkoutTimeChange = { dateUtc, endTimeUtc, dateIso ->
+                        editableDateUtc = dateUtc
+                        editableEndTimeUtc = endTimeUtc
+                        editableDateIso = dateIso
+                    },
                     editableLocation = editableLocation,
                     onLocationChange = { editableLocation = it },
                     editableNotes = editableNotes,
@@ -144,7 +150,9 @@ fun WorkoutEditor(
                         viewModel.saveWorkoutImmediate(
                             workout.copy(
                                 dayTag = editableDayTag,
-                                dateIso = editableDate,
+                                dateIso = editableDateIso,
+                                dateUtc = editableDateUtc,
+                                endTimeUtc = editableEndTimeUtc,
                                 locationTag = editableLocation,
                                 notes = editableNotes.ifBlank { null }
                             )
