@@ -72,8 +72,22 @@ fun ChironApp(
         if (!spotifyEnabled) SpotifyManager.disconnect()
     }
 
-    LaunchedEffect(selectedTab) { pagerState.animateScrollToPage(selectedTab.ordinal) }
-    LaunchedEffect(pagerState.currentPage) { selectedTab = tabs[pagerState.currentPage] }
+    LaunchedEffect(selectedTab) {
+        val page = selectedTab.ordinal
+        if (pagerState.currentPage != page) {
+            pagerState.animateScrollToPage(page)
+        }
+    }
+
+    // Keep selectedTab in sync with the pager, but only once the pager has settled.
+    // Using currentPage here causes a feedback loop when animating from page 0 -> 2:
+    // currentPage briefly becomes 1 (Exercises), overwriting selectedTab mid-animation.
+    LaunchedEffect(pagerState.settledPage) {
+        val settledTab = tabs[pagerState.settledPage]
+        if (selectedTab != settledTab) {
+            selectedTab = settledTab
+        }
+    }
 
     androidx.activity.compose.BackHandler(enabled = true) {
         when {
