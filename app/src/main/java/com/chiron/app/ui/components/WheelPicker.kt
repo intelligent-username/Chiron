@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -58,14 +59,15 @@ fun WheelPicker(
         }
     }
 
-    // Report value changes when scrolling stops or index changes
+    // Commit value changes only when the wheel settles.
+    // This avoids feedback loops where rapid scrolling triggers many external state updates.
     LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .map { index -> index % count }
+        snapshotFlow { listState.isScrollInProgress }
             .distinctUntilChanged()
-            .collect { normalizedIndex ->
-                onValueChange(normalizedIndex)
-            }
+            .filter { inProgress -> !inProgress }
+            .map { listState.firstVisibleItemIndex % count }
+            .distinctUntilChanged()
+            .collect { normalizedIndex -> onValueChange(normalizedIndex) }
     }
 
     Box(

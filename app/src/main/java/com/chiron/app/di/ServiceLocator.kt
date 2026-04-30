@@ -7,6 +7,7 @@ import com.chiron.app.prefs.UserSettingsRepository
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
+import com.chiron.app.viewmodel.VolumeViewModel
 
 /**
  * Simple service locator for manual dependency injection.
@@ -56,4 +57,9 @@ object ServiceLocator {
     val timerViewModelFactory: TimerViewModel.Factory by lazy {
         TimerViewModel.Factory(repository)
     }
+
+    val volumeViewModelFactory: VolumeViewModel.Factory by lazy {
+        VolumeViewModel.Factory(repository)
+    }
 }
+

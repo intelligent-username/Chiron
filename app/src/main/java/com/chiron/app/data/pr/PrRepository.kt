@@ -104,27 +104,41 @@ class PrRepository(
 
     private suspend fun sync1rmEstimate(exerciseId: Long) {
         val prs = exercisePrDao.getAllForExercise(exerciseId)
-        val validPrs = prs.filter { it.reps in 1..12 }
+        // 1. Initial filter for relevant rep range
+        val initialValid = prs.filter { it.reps in 1..12 }
 
-        if (validPrs.isEmpty()) {
+        if (initialValid.isEmpty()) {
             exercise1rmEstimateDao.deleteForExercise(exerciseId)
             return
         }
 
+        // 2. Monotonicity Filter: Discard lower-rep PRs that have less weight than a higher-rep PR.
+        // Since 'initialValid' is ordered by reps ASC, we iterate backwards.
+        val monotonicPrs = mutableListOf<ExercisePr>()
+        var maxWeightSeen = 0.0
+        for (i in initialValid.indices.reversed()) {
+            val pr = initialValid[i]
+            if (pr.weightLbs >= maxWeightSeen) {
+                monotonicPrs.add(0, pr)
+                maxWeightSeen = pr.weightLbs
+            }
+        }
+
         val components = mutableListOf<Pair<Double, Double>>()
 
-        for (pr in validPrs) {
+        for (pr in monotonicPrs) {
             val r = pr.reps
             val w = pr.weightLbs
+            // 3. Epley Estimate (mHatI)
             val mHatI = if (r == 1) w else w * (1.0 + r / 30.0)
             val rDouble = r.toDouble()
-            val alpha = 1.0 / (rDouble * rDouble * rDouble * rDouble) // 1/r^4 for much stronger low-rep bias
+            // 4. Inverse square weighting (1/r^2)
+            val alpha = 1.0 / (rDouble * rDouble)
             components.add(alpha to mHatI)
         }
 
         if (components.isNotEmpty()) {
-            // Robustify against underperforming low-rep outliers by averaging on
-            // the upper envelope of implied 1RM values instead of all buckets.
+            // 5. Envelope Filtering: Only keep estimates within 90% of the maximum implied 1RM.
             val maxMHat = components.maxOf { it.second }
             val envelopeThreshold = maxMHat * 0.90
             val envelope = components.filter { (_, mHatI) -> mHatI >= envelopeThreshold }
@@ -136,6 +150,7 @@ class PrRepository(
                 return
             }
 
+            // 6. Normalized Weighted Average
             var finalEstimate = 0.0
             for ((alpha, mHatI) in selected) {
                 val alphaTilde = alpha / selectedAlphaSum

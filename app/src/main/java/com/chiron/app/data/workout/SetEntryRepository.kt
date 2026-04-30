@@ -118,4 +118,7 @@ class SetEntryRepository(
     /** Get the last set recorded for an exercise (for autofill). */
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryDao.getLastSetForExercise(exerciseId)
+
+    /** Returns total volume (weight * reps) grouped by workout day. */
+    suspend fun getVolumeSummaryByDay() = setEntryDao.getVolumeSummaryByDay()
 }

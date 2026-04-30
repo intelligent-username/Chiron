@@ -2,6 +2,7 @@ package com.chiron.app.spotify
 
 import android.content.Context
 import android.util.Log
+import android.app.Activity
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
@@ -43,7 +44,7 @@ object SpotifyManager {
     private var sleepJob: kotlinx.coroutines.Job? = null
     private val managerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
 
-    fun getAuthIntent(context: android.content.Context): android.content.Intent {
+    fun getAuthIntent(activity: Activity): android.content.Intent {
         val builder = AuthorizationRequest.Builder(
             CLIENT_ID, 
             AuthorizationResponse.Type.TOKEN, 
@@ -51,7 +52,7 @@ object SpotifyManager {
         )
         builder.setScopes(arrayOf("app-remote-control", "user-read-playback-state"))
         return AuthorizationClient.createLoginActivityIntent(
-            context as android.app.Activity, 
+            activity,
             builder.build()
         )
     }
@@ -62,7 +63,8 @@ object SpotifyManager {
             AuthorizationResponse.Type.TOKEN -> {
                 Log.d("SpotifyManager", "Auth successful, token received. Connecting remote...")
                 _needsAuthFlow.value = false
-                connect(context, response.accessToken)
+                // After explicit user auth, allow an interactive connect to complete any remaining handshake.
+                connect(context, token = response.accessToken, interactive = true)
             }
             AuthorizationResponse.Type.ERROR -> {
                 Log.e("SpotifyManager", "Auth error: ${response.error}")
@@ -77,19 +79,33 @@ object SpotifyManager {
         }
     }
 
-    fun connect(context: Context, token: String? = null) {
+    fun connect(context: Context, token: String? = null, interactive: Boolean = false) {
         // Stop any previous hang
         timeoutJob?.cancel()
-        
+
         if (_isConnected.value) return
-        
+
+        // A pending auth request means the user must go through the Spotify login flow.
+        // Silent background reconnects must not clobber that state — bail out.
+        if (_needsAuthFlow.value && !interactive) return
+
+        if (CLIENT_ID.isBlank()) {
+            _isConnecting.value = false
+            _isConnected.value = false
+            _connectionError.value = "Spotify not configured (missing Client ID)."
+            return
+        }
+
         _isConnecting.value = true
         _connectionError.value = null
-        _needsAuthFlow.value = false
+        // _needsAuthFlow is intentionally NOT reset here.
+        // Only a successful handleAuthResponse() should clear it.
 
+        // Use a silent connect by default. Only show Spotify's auth UI when the user explicitly
+        // taps to connect/login; this avoids forcing an auth webview during background reconnects.
         val params = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
-            .showAuthView(true)
+            .showAuthView(interactive)
             .build()
 
         // Start 10s timeout

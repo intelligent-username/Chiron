@@ -120,4 +120,28 @@ interface SetEntryDao {
         )
     """)
     suspend fun clearPrFlagsForExercise(exerciseId: Long)
+
+    /**
+     * Returns total volume (weight * reps) grouped by workout day.
+     * Only counts non-failed sets that have both weight and reps filled in.
+     * Result ordered by date ascending.
+     */
+    @Query("""
+        SELECT w.date_utc AS dateUtc, SUM(s.weight_lbs * s.reps) AS volumeLbs
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE s.weight_lbs IS NOT NULL
+          AND s.reps IS NOT NULL
+          AND s.is_failed = 0
+          AND w.archived = 0
+        GROUP BY w.id
+        ORDER BY w.date_utc ASC
+    """)
+    suspend fun getVolumeSummaryByDay(): List<DailyVolume>
 }
+
+data class DailyVolume(
+    val dateUtc: Long,
+    val volumeLbs: Double
+)

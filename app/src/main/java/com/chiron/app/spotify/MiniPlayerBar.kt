@@ -32,6 +32,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import androidx.compose.runtime.saveable.rememberSaveable
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 @Composable
 fun MiniPlayerBar(modifier: Modifier = Modifier) {
@@ -43,6 +57,43 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
     val albumArt by SpotifyManager.albumArt.collectAsState()
 
     val context = LocalContext.current
+
+    // Network state for gating auto-connect retries.
+    // Spotify App Remote often can't complete its auth/handshake while fully offline
+    // (even if the Spotify app can play downloaded tracks), so we avoid thrashing.
+    var isOnline by rememberSaveable { mutableStateOf(true) }
+
+    DisposableEffect(context) {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        if (cm == null) {
+            isOnline = true
+            onDispose { }
+        } else {
+            fun updateOnline() {
+                val network = cm.activeNetwork
+                val caps = cm.getNetworkCapabilities(network)
+                isOnline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            }
+
+            updateOnline()
+
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = updateOnline()
+                override fun onLost(network: Network) = updateOnline()
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) = updateOnline()
+            }
+
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(request, callback)
+
+            onDispose {
+                runCatching { cm.unregisterNetworkCallback(callback) }
+            }
+        }
+    }
     
     val authLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -50,31 +101,28 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
         SpotifyManager.handleAuthResponse(result.resultCode, result.data, context)
     }
 
-    // Attempt a silent connect on mount
-    LaunchedEffect(Unit) {
-        if (!isConnected && !isConnecting) {
+    // Attempt a silent connect on mount/network-recovery, but never while auth is pending.
+    LaunchedEffect(Unit, isOnline) {
+        if (isOnline && !isConnected && !isConnecting && !needsAuthFlow) {
             SpotifyManager.connect(context)
-        }
-    }
-
-    // Auto-redirect to auth screen ONLY if Spotify tells us auth is needed
-    LaunchedEffect(needsAuthFlow) {
-        if (needsAuthFlow) {
-            try {
-                authLauncher.launch(SpotifyManager.getAuthIntent(context))
-            } catch (e: Exception) {
-                // Fallback handled
-            }
         }
     }
 
     val track = if (isConnected) playerState?.track else null
 
-    val idleTextAsAnnotated = remember(needsAuthFlow, connectionError, isConnecting, isConnected, track) {
+    val idleTextAsAnnotated = remember(isOnline, needsAuthFlow, connectionError, isConnecting, isConnected, track) {
         buildAnnotatedString {
             when {
+                !isOnline -> {
+                    append("Spotify: Offline (controls need internet to connect)")
+                }
                 needsAuthFlow -> {
                     append("Spotify: Needs Authorization (Tap to login)")
+                }
+                connectionError != null -> {
+                    append("Spotify: ")
+                    append(connectionError)
+                    append(" (Tap to retry)")
                 }
                 isConnecting -> {
                     append("Connecting to Spotify…")
@@ -84,10 +132,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                 }
                 else -> {
                     // Catch-all for disconnected/timeout/crash
-                    append("Unknown Error. Try ")
-                    withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) {
-                        append("Launching Spotify?")
-                    }
+                    append("Spotify: Disconnected (Tap to connect)")
                 }
             }
         }
@@ -101,10 +146,15 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
             .clickable {
                 if (!isConnected) {
                     if (needsAuthFlow) {
-                        try {
-                            authLauncher.launch(SpotifyManager.getAuthIntent(context))
-                        } catch (e: Exception) {
-                            SpotifyManager.connect(context)
+                        val activity = context.findActivity()
+                        if (activity != null) {
+                            runCatching {
+                                authLauncher.launch(SpotifyManager.getAuthIntent(activity))
+                            }.getOrElse {
+                                SpotifyManager.connect(context, interactive = true)
+                            }
+                        } else {
+                            SpotifyManager.connect(context, interactive = true)
                         }
                     } else {
                         try {
@@ -113,7 +163,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                                 context.startActivity(launchIntent)
                             }
                         } catch (e: Exception) {}
-                        SpotifyManager.connect(context)
+                        SpotifyManager.connect(context, interactive = true)
                     }
                 } else {
                     try {

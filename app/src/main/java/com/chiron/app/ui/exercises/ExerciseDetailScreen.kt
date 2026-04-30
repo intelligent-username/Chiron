@@ -15,7 +15,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
 import com.chiron.app.data.entities.Exercise
-import com.chiron.app.ui.components.IconPicker
+import com.chiron.app.ui.components.IconPickerDropdown
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +41,7 @@ fun ExerciseDetailScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Edit Exercise") },
+                title = { Text("Edit Exercise", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Default.Close, "Close")
@@ -94,13 +94,27 @@ fun ExerciseDetailScreen(
                 },
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
+            TextField(
                 value = nameState,
                 onValueChange = { nameState = it },
-                label = { Text("Exercise Name") },
                 modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.displaySmall,
+                placeholder = { Text("Exercise Name", style = MaterialTheme.typography.displaySmall) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                ),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+            )
+
+            // Icon picker: big current icon acting as a button
+            IconPickerDropdown(
+                selectedIcon = iconState,
+                onIconSelected = { iconState = it },
+                modifier = Modifier.fillMaxWidth()
             )
 
             OutlinedTextField(
@@ -110,13 +124,6 @@ fun ExerciseDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 6,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-            )
-            
-            // Icon picker
-            IconPicker(
-                selectedIcon = iconState,
-                onIconSelected = { iconState = it },
-                modifier = Modifier.fillMaxWidth().weight(1f)
             )
         }
 

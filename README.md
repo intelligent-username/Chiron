@@ -127,6 +127,6 @@ Using Kotlin Multiplateform
  
   -->
 
-## License <img src="imgs/image.png" width="32" height="32">
+## License
 
 This project is licensed under the Apache 2.0 License.
