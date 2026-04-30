@@ -285,7 +285,7 @@ class ChironRepository(
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryRepository.getLastSetForExercise(exerciseId)
 
-    suspend fun getVolumeSummaryByDay() = setEntryRepository.getVolumeSummaryByDay()
+    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDay(exerciseId)
 
     // ─────────────────────────────────────────────────────────────────────────
     // PR Detection

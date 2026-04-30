@@ -61,10 +61,9 @@ object SpotifyManager {
         val response = AuthorizationClient.getResponse(resultCode, data)
         when (response.type) {
             AuthorizationResponse.Type.TOKEN -> {
-                Log.d("SpotifyManager", "Auth successful, token received. Connecting remote...")
+                Log.d("SpotifyManager", "Auth successful, token received.")
                 _needsAuthFlow.value = false
-                // After explicit user auth, allow an interactive connect to complete any remaining handshake.
-                connect(context, token = response.accessToken, interactive = true)
+                connect(context, response.accessToken)
             }
             AuthorizationResponse.Type.ERROR -> {
                 Log.e("SpotifyManager", "Auth error: ${response.error}")
@@ -79,15 +78,9 @@ object SpotifyManager {
         }
     }
 
-    fun connect(context: Context, token: String? = null, interactive: Boolean = false) {
-        // Stop any previous hang
+    fun connect(context: Context, token: String? = null) {
         timeoutJob?.cancel()
-
         if (_isConnected.value) return
-
-        // A pending auth request means the user must go through the Spotify login flow.
-        // Silent background reconnects must not clobber that state — bail out.
-        if (_needsAuthFlow.value && !interactive) return
 
         if (CLIENT_ID.isBlank()) {
             _isConnecting.value = false
@@ -98,14 +91,11 @@ object SpotifyManager {
 
         _isConnecting.value = true
         _connectionError.value = null
-        // _needsAuthFlow is intentionally NOT reset here.
-        // Only a successful handleAuthResponse() should clear it.
+        _needsAuthFlow.value = false
 
-        // Use a silent connect by default. Only show Spotify's auth UI when the user explicitly
-        // taps to connect/login; this avoids forcing an auth webview during background reconnects.
         val params = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
-            .showAuthView(interactive)
+            .showAuthView(true) // Attempt auto-auth
             .build()
 
         // Start 10s timeout

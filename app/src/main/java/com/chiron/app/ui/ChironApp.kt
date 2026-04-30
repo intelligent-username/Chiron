@@ -10,6 +10,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -101,6 +102,10 @@ fun ChironApp(
 
     androidx.activity.compose.BackHandler(enabled = true) {
         when {
+            isVolumeMode -> {
+                isVolumeMode = false
+                volumeViewModel.setExerciseFilter(null)
+            }
             isPrScreenOpen -> {
                 isPrScreenOpen = false
                 prTargetExerciseId = null
@@ -154,7 +159,12 @@ fun ChironApp(
                                     modifier = Modifier.clickable(
                                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                         indication = null
-                                    ) { isVolumeMode = !isVolumeMode }
+                                    ) { 
+                                        isVolumeMode = !isVolumeMode 
+                                        if (isVolumeMode) {
+                                            volumeViewModel.setExerciseFilter(null)
+                                        }
+                                    }
                                 )
                             }
                         } else {
@@ -180,7 +190,12 @@ fun ChironApp(
                                 }
                             }
                             NavTab.TIMER -> IconButton(onClick = { isPresetsOpen = true }) { Icon(Icons.Default.Tune, contentDescription = "Presets") }
-                            else -> IconButton(onClick = { isSettingsOpen = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
+                            else -> {
+                                if (selectedTab == NavTab.HISTORY && isVolumeMode) {
+                                    IconButton(onClick = { volumeViewModel.refresh() }) { Icon(Icons.Default.Refresh, "Refresh") }
+                                }
+                                IconButton(onClick = { isSettingsOpen = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
+                            }
                         }
                     }
                 )
@@ -257,6 +272,8 @@ fun ChironApp(
                             if (isExerciseDetailOpen) {
                                 ExerciseDetailScreen(
                                     exercise = exercisesState.exercises.find { it.id == activeExerciseId },
+                                    volumeViewModel = volumeViewModel,
+                                    displayInKg = historyState.displayInKg,
                                     onSave = { exercisesViewModel.updateExercise(it) },
                                     onDelete = { exercisesViewModel.archiveExercise(it) },
                                     onOpenPrForExercise = { exerciseId ->
@@ -267,6 +284,7 @@ fun ChironApp(
                                     onClose = {
                                         isExerciseDetailOpen = false
                                         activeExerciseId = null
+                                        volumeViewModel.setExerciseFilter(null)
                                         if (exerciseDetailOpenedFromHistory) {
                                             selectedTab = NavTab.HISTORY
                                             exerciseDetailOpenedFromHistory = false

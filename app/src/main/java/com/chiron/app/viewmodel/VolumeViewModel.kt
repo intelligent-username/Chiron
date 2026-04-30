@@ -27,10 +27,12 @@ data class VolumePoint(
 
 data class VolumeStats(
     val thisWeek: Double = 0.0,
+    val lastWeek: Double = 0.0,
     val rollingWeeklyAvg: Double = 0.0,
     val rollingVolChange: Double = 0.0,
     val highestEver: Double = 0.0,
-    val lowestEver: Double = 0.0
+    val lowestEver: Double = 0.0,
+    val allTimeTotal: Double = 0.0
 )
 
 enum class VolumeMode { BY_DAY, BY_WEEK }
@@ -66,8 +68,21 @@ class VolumeViewModel(
     /** The first Sunday on or before the earliest recorded workout. */
     private var firstWeekStart: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
+    private var exerciseFilter: Long? = null
+
     init {
         load()
+    }
+
+    fun refresh() {
+        load()
+    }
+
+    fun setExerciseFilter(exerciseId: Long?) {
+        if (exerciseFilter != exerciseId) {
+            exerciseFilter = exerciseId
+            load()
+        }
     }
 
     private fun load() {
@@ -75,7 +90,7 @@ class VolumeViewModel(
             _uiState.update { it.copy(isLoading = true) }
 
             val rawRows: List<DailyVolume> = runCatching {
-                repository.getVolumeSummaryByDay()
+                repository.getVolumeSummaryByDay(exerciseFilter)
             }.getOrDefault(emptyList())
 
             val zone = ZoneId.systemDefault()
@@ -102,6 +117,8 @@ class VolumeViewModel(
             }
 
             val thisWeek = weeklyTotals.lastOrNull() ?: 0.0
+            val lastWeek = if (weeklyTotals.size >= 2) weeklyTotals[weeklyTotals.size - 2] else 0.0
+            val allTimeTotal = weeklyTotals.sum()
             val highestEver = weeklyTotals.maxOrNull() ?: 0.0
             val lowestEver = weeklyTotals.filter { it > 0 }.minOrNull() ?: 0.0
             val rollingWeeklyAvg = if (weeklyTotals.size >= 4) {
@@ -118,10 +135,12 @@ class VolumeViewModel(
 
             val stats = VolumeStats(
                 thisWeek = thisWeek,
+                lastWeek = lastWeek,
                 rollingWeeklyAvg = rollingWeeklyAvg,
                 rollingVolChange = rollingVolChange,
                 highestEver = highestEver,
-                lowestEver = lowestEver
+                lowestEver = lowestEver,
+                allTimeTotal = allTimeTotal
             )
 
             _uiState.update { state ->

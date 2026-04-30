@@ -4,9 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -14,13 +15,19 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.ui.components.IconPickerDropdown
+import com.chiron.app.viewmodel.VolumeViewModel
+import com.chiron.app.ui.volume.VolumeContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseDetailScreen(
     exercise: Exercise?,
+    volumeViewModel: VolumeViewModel,
+    displayInKg: Boolean,
     onSave: (Exercise) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
     onOpenPrForExercise: ((Long) -> Unit)? = null,
@@ -84,10 +91,17 @@ fun ExerciseDetailScreen(
         }
     ) { padding ->
         val focusManager = LocalFocusManager.current
+
+        LaunchedEffect(exercise.id) {
+            volumeViewModel.setExerciseFilter(exercise.id)
+        }
+        val volumeState by volumeViewModel.uiState.collectAsState()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
@@ -124,6 +138,18 @@ fun ExerciseDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 6,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Volume Trend", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            
+            VolumeContent(
+                state = volumeState,
+                displayInKg = displayInKg,
+                onModeChange = volumeViewModel::setMode,
+                onWeekCountChange = volumeViewModel::setWeekCount,
+                onPrevWeek = volumeViewModel::goToPreviousWeek,
+                onNextWeek = volumeViewModel::goToNextWeek
             )
         }
 

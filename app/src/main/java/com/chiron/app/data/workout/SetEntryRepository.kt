@@ -120,5 +120,7 @@ class SetEntryRepository(
         setEntryDao.getLastSetForExercise(exerciseId)
 
     /** Returns total volume (weight * reps) grouped by workout day. */
-    suspend fun getVolumeSummaryByDay() = setEntryDao.getVolumeSummaryByDay()
+    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = 
+        if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExercise(exerciseId)
+        else setEntryDao.getVolumeSummaryByDay()
 }

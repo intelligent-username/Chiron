@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -84,7 +87,7 @@ fun VolumeScreen(
 }
 
 @Composable
-private fun VolumeContent(
+fun VolumeContent(
     state: VolumeUiState,
     displayInKg: Boolean,
     onModeChange: (VolumeMode) -> Unit,
@@ -256,8 +259,30 @@ private fun VolumeLineGraph(
     val textMeasurer = rememberTextMeasurer()
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
 
+    var hoveredX by remember { mutableStateOf<Float?>(null) }
+
     Box(modifier = modifier) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(points) {
+                    detectDragGestures(
+                        onDragEnd = { hoveredX = null },
+                        onDragCancel = { hoveredX = null }
+                    ) { change, _ ->
+                        hoveredX = change.position.x
+                    }
+                }
+                .pointerInput(points) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            hoveredX = offset.x
+                            tryAwaitRelease()
+                            hoveredX = null
+                        }
+                    )
+                }
+        ) {
             val w = size.width
             val h = size.height
             val padLeft = 100f
@@ -359,6 +384,57 @@ private fun VolumeLineGraph(
                     )
                 }
             }
+
+            if (hoveredX != null && points.isNotEmpty()) {
+                val hx = hoveredX!!
+                val closestIndex = (0 until n).minByOrNull { kotlin.math.abs(xOf(it) - hx) }
+                if (closestIndex != null) {
+                    val p = points[closestIndex]
+                    val px = xOf(closestIndex)
+                    val py = yOf(p.volumeLbs * animProgress)
+                    
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.5f),
+                        start = Offset(px, padTop),
+                        end = Offset(px, padTop + graphH),
+                        strokeWidth = 2f,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                    )
+                    
+                    drawCircle(color = Color.White, radius = 6f, center = Offset(px, py))
+                    
+                    val dateFmt = java.time.format.DateTimeFormatter.ofPattern("EEEE MMM d")
+                    val dateStr = p.date.format(dateFmt)
+                    val tooltipText = "$dateStr, ${p.volumeLbs.formatVolume(displayInKg)} $unit"
+                    
+                    val textLayoutResult = textMeasurer.measure(
+                        text = tooltipText,
+                        style = TextStyle(color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    )
+                    
+                    val tw = textLayoutResult.size.width.toFloat()
+                    val th = textLayoutResult.size.height.toFloat()
+                    val tooltipPad = 12f
+                    
+                    var tx = px - tw / 2f
+                    if (tx < padLeft) tx = padLeft
+                    if (tx + tw > w - padRight) tx = w - padRight - tw
+                    
+                    val ty = padTop - 20f
+                    
+                    drawRoundRect(
+                        color = Color.White,
+                        topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
+                        size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                    )
+                    
+                    drawText(
+                        textLayoutResult = textLayoutResult,
+                        topLeft = Offset(tx, ty)
+                    )
+                }
+            }
         }
     }
 }
@@ -417,13 +493,10 @@ private fun VolumeStatsSection(stats: VolumeStats, displayInKg: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(16.dp)
     ) {
-        Text("Statistics", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
-        Spacer(modifier = Modifier.height(12.dp))
         StatRow("This week", "${stats.thisWeek.formatVolume(displayInKg)} $unit")
+        StatRow("Last week", "${stats.lastWeek.formatVolume(displayInKg)} $unit")
         StatRow("Rolling weekly avg", "${stats.rollingWeeklyAvg.formatVolume(displayInKg)} $unit")
         
         val sign = if (stats.rollingVolChange > 0) "+" else ""
@@ -431,6 +504,7 @@ private fun VolumeStatsSection(stats: VolumeStats, displayInKg: Boolean) {
         
         StatRow("Highest ever weekly", "${stats.highestEver.formatVolume(displayInKg)} $unit")
         StatRow("Lowest ever weekly", "${stats.lowestEver.formatVolume(displayInKg)} $unit")
+        StatRow("All time total", "${stats.allTimeTotal.formatVolume(displayInKg)} $unit")
     }
 }
 
