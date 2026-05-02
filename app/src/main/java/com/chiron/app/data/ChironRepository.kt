@@ -151,6 +151,9 @@ class ChironRepository(
     suspend fun unarchiveExercise(id: Long) =
         exerciseRepository.unarchiveExercise(id)
 
+    suspend fun deleteExercisePermanently(id: Long) =
+        exerciseRepository.deleteExercisePermanently(id)
+
     suspend fun searchExercises(
         query: String,
         archived: Boolean = false,

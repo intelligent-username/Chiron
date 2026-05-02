@@ -31,6 +31,7 @@ fun SettingsScreen(
 ) {
     val displayInKg by repository.displayInKgFlow.collectAsState(initial = false)
     val spotifyEnabled by repository.spotifyEnabledFlow.collectAsState(initial = false)
+    val matchThemeWithMedia by repository.matchThemeWithMediaFlow.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -149,6 +150,38 @@ fun SettingsScreen(
                         scope.launch { repository.setSpotifyEnabled(checked) }
                     }
                 )
+            }
+
+            if (spotifyEnabled) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scope.launch { repository.setMatchThemeWithMedia(!matchThemeWithMedia) }
+                        }
+                        .padding(start = 32.dp, top = 4.dp, bottom = 12.dp, end = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Match app theme with playing media",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Uses colors from album art",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = matchThemeWithMedia,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setMatchThemeWithMedia(checked) }
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

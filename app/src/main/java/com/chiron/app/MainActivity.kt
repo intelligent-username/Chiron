@@ -15,6 +15,11 @@ import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.Color
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,7 +27,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            ChironTheme {
+            val matchTheme by ServiceLocator.userSettingsRepository.matchThemeWithMediaFlow.collectAsState(initial = false)
+            val dominantColor by SpotifyManager.dominantColor.collectAsState()
+            val targetColor = if (matchTheme) (dominantColor ?: Color.Transparent) else Color.Transparent
+
+            // Smoothly animate the color so theme shifts aren't jarring
+            val animatedColor by animateColorAsState(
+                targetValue = targetColor,
+                animationSpec = tween(durationMillis = 800),
+                label = "mediaColor"
+            )
+            val mediaColor = if (matchTheme && dominantColor != null) animatedColor else null
+
+            ChironTheme(mediaColor = mediaColor) {
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)
                 val exercisesViewModel: ExercisesViewModel = viewModel(factory = ServiceLocator.exercisesViewModelFactory)
                 val timerViewModel: TimerViewModel = viewModel(factory = ServiceLocator.timerViewModelFactory)

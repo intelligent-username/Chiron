@@ -40,4 +40,7 @@ interface ExerciseDao {
 
     @Query("UPDATE exercise SET archived = 0 WHERE id = :id")
     suspend fun unarchive(id: Long)
+
+    @Query("DELETE FROM exercise WHERE id = :id")
+    suspend fun deleteExercise(id: Long)
 }

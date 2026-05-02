@@ -80,7 +80,8 @@ fun VolumeScreen(
                 onModeChange = viewModel::setMode,
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
-                onNextWeek = viewModel::goToNextWeek
+                onNextWeek = viewModel::goToNextWeek,
+                onToggleAbridgeGaps = viewModel::toggleAbridgeGaps
             )
         }
     }
@@ -93,7 +94,8 @@ fun VolumeContent(
     onModeChange: (VolumeMode) -> Unit,
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
-    onNextWeek: () -> Unit
+    onNextWeek: () -> Unit,
+    onToggleAbridgeGaps: () -> Unit
 ) {
     val unit = if (displayInKg) "kg" else "lbs"
     val weekLabel = remember(state.currentWeekStart, state.mode, state.weekCount) {
@@ -124,7 +126,24 @@ fun VolumeContent(
             onSelect = onModeChange
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleAbridgeGaps() }
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Checkbox(
+                checked = state.abridgeGaps,
+                onCheckedChange = { onToggleAbridgeGaps() },
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Abridge Gaps", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.8f))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // ── Graph card ────────────────────────────────────────────────────────
         Card(

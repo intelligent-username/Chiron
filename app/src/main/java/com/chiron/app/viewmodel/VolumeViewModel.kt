@@ -50,6 +50,7 @@ data class VolumeUiState(
     val isAtFirstWeek: Boolean = false,
     /** True when we're at the current week (can't go forward) */
     val isAtCurrentWeek: Boolean = true,
+    val abridgeGaps: Boolean = false,
     val stats: VolumeStats = VolumeStats()
 )
 
@@ -146,7 +147,7 @@ class VolumeViewModel(
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
-                    points = buildPoints(state.mode, state.currentWeekStart, state.weekCount),
+                    points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps),
                     isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
                     isAtCurrentWeek = isCurrentWeek(state.currentWeekStart),
                     stats = stats
@@ -159,7 +160,7 @@ class VolumeViewModel(
         _uiState.update { state ->
             state.copy(
                 mode = mode,
-                points = buildPoints(mode, state.currentWeekStart, state.weekCount)
+                points = buildPoints(mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
             )
         }
     }
@@ -168,7 +169,7 @@ class VolumeViewModel(
         _uiState.update { state ->
             state.copy(
                 weekCount = count,
-                points = buildPoints(state.mode, state.currentWeekStart, count)
+                points = buildPoints(state.mode, state.currentWeekStart, count, state.abridgeGaps)
             )
         }
     }
@@ -180,7 +181,7 @@ class VolumeViewModel(
             if (newWeek < firstWeekStart) return@update state
             state.copy(
                 currentWeekStart = newWeek,
-                points = buildPoints(state.mode, newWeek, state.weekCount),
+                points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
                 isAtFirstWeek = newWeek <= firstWeekStart,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
             )
@@ -195,9 +196,19 @@ class VolumeViewModel(
             if (newWeek > todayWeek) return@update state
             state.copy(
                 currentWeekStart = newWeek,
-                points = buildPoints(state.mode, newWeek, state.weekCount),
+                points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
                 isAtFirstWeek = newWeek <= firstWeekStart,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
+            )
+        }
+    }
+
+    fun toggleAbridgeGaps() {
+        _uiState.update { state ->
+            val newAbridge = !state.abridgeGaps
+            state.copy(
+                abridgeGaps = newAbridge,
+                points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, newAbridge)
             )
         }
     }
@@ -213,11 +224,12 @@ class VolumeViewModel(
      * BY_DAY: 7 points (Sun–Sat) for the week anchored at [weekStart].
      * BY_WEEK: daily points for [weekCount] weeks ending at the week of [weekStart].
      */
-    private fun buildPoints(mode: VolumeMode, weekStart: LocalDate, weekCount: Int): List<VolumePoint> {
-        return when (mode) {
+    private fun buildPoints(mode: VolumeMode, weekStart: LocalDate, weekCount: Int, abridgeGaps: Boolean): List<VolumePoint> {
+        val pts = when (mode) {
             VolumeMode.BY_DAY -> buildDayPoints(weekStart)
             VolumeMode.BY_WEEK -> buildLongTermPoints(weekStart, weekCount)
         }
+        return if (abridgeGaps) pts.filter { it.volumeLbs > 0.0 } else pts
     }
 
     private fun buildDayPoints(weekStart: LocalDate): List<VolumePoint> {

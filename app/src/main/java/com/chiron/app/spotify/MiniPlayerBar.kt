@@ -108,16 +108,6 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
         }
     }
 
-    // Auth Trigger
-    LaunchedEffect(needsAuthFlow) {
-        if (needsAuthFlow) {
-            val activity = context.findActivity()
-            if (activity != null) {
-                try { authLauncher.launch(SpotifyManager.getAuthIntent(activity)) } catch (e: Exception) {}
-            }
-        }
-    }
-
     val track = if (isConnected) playerState?.track else null
 
     val idleTextAsAnnotated = remember(isOnline, needsAuthFlow, connectionError, isConnecting, isConnected, track) {
@@ -161,10 +151,10 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             runCatching {
                                 authLauncher.launch(SpotifyManager.getAuthIntent(activity))
                             }.getOrElse {
-                                SpotifyManager.connect(context)
+                                SpotifyManager.connect(context, interactive = true)
                             }
                         } else {
-                            SpotifyManager.connect(context)
+                            SpotifyManager.connect(context, interactive = true)
                         }
                     } else {
                         try {
@@ -173,7 +163,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                                 context.startActivity(launchIntent)
                             }
                         } catch (e: Exception) {}
-                        SpotifyManager.connect(context)
+                        SpotifyManager.connect(context, interactive = true)
                     }
                 } else {
                     try {

@@ -5,7 +5,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
@@ -30,6 +32,8 @@ fun ExerciseDetailScreen(
     displayInKg: Boolean,
     onSave: (Exercise) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
+    onUnarchive: ((Long) -> Unit)? = null,
+    onDeletePermanently: ((Long) -> Unit)? = null,
     onOpenPrForExercise: ((Long) -> Unit)? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -43,6 +47,7 @@ fun ExerciseDetailScreen(
     var descState by remember { mutableStateOf(exercise.description ?: "") }
     var iconState by remember { mutableStateOf(exercise.iconName ?: "default") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showPermanentDeleteConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -64,13 +69,34 @@ fun ExerciseDetailScreen(
                             )
                         }
                     }
-                    if (onDelete != null) {
-                        IconButton(onClick = { showDeleteConfirmation = true }) {
-                            Icon(
-                                Icons.Default.Archive,
-                                "Archive",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                    if (exercise.archived == 0) {
+                        if (onDelete != null) {
+                            IconButton(onClick = { showDeleteConfirmation = true }) {
+                                Icon(
+                                    Icons.Default.Archive,
+                                    "Archive",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    } else {
+                        if (onUnarchive != null) {
+                            IconButton(onClick = { onUnarchive(exercise.id); onClose() }) {
+                                Icon(
+                                    Icons.Default.Unarchive,
+                                    "Unarchive",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        if (onDeletePermanently != null) {
+                            IconButton(onClick = { showPermanentDeleteConfirmation = true }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    "Delete permanently",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                     TextButton(
@@ -149,7 +175,8 @@ fun ExerciseDetailScreen(
                 onModeChange = volumeViewModel::setMode,
                 onWeekCountChange = volumeViewModel::setWeekCount,
                 onPrevWeek = volumeViewModel::goToPreviousWeek,
-                onNextWeek = volumeViewModel::goToNextWeek
+                onNextWeek = volumeViewModel::goToNextWeek,
+                onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps
             )
         }
 
@@ -175,6 +202,32 @@ fun ExerciseDetailScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+        if (showPermanentDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showPermanentDeleteConfirmation = false },
+                title = { Text("Delete Permanently?") },
+                text = { Text("Permanently delete \"${exercise.name}\"? This cannot be undone and all history will be lost.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDeletePermanently?.invoke(exercise.id)
+                            showPermanentDeleteConfirmation = false
+                            onClose()
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPermanentDeleteConfirmation = false }) {
                         Text("Cancel")
                     }
                 }

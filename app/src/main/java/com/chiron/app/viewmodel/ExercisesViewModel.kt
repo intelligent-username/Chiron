@@ -166,6 +166,13 @@ class ExercisesViewModel(
         }
     }
 
+    fun deleteExercisePermanently(exerciseId: Long) {
+        viewModelScope.launch {
+            repository.deleteExercisePermanently(exerciseId)
+            closeDetail()
+        }
+    }
+
     fun toggleShowArchived() {
         _uiState.update { it.copy(showArchived = !it.showArchived) }
     }

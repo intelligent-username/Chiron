@@ -270,12 +270,16 @@ fun ChironApp(
                                 onSearchQueryChange = { exercisesSearchHasText = it }
                             )
                             if (isExerciseDetailOpen) {
+                                val exercise = exercisesState.exercises.find { it.id == activeExerciseId }
+                                    ?: exercisesState.archivedExercises.find { it.id == activeExerciseId }
                                 ExerciseDetailScreen(
-                                    exercise = exercisesState.exercises.find { it.id == activeExerciseId },
+                                    exercise = exercise,
                                     volumeViewModel = volumeViewModel,
                                     displayInKg = historyState.displayInKg,
                                     onSave = { exercisesViewModel.updateExercise(it) },
                                     onDelete = { exercisesViewModel.archiveExercise(it) },
+                                    onUnarchive = { exercisesViewModel.unarchiveExercise(it) },
+                                    onDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },
                                     onOpenPrForExercise = { exerciseId ->
                                         prTargetExerciseId = exerciseId
                                         prOpenedFromHistory = false

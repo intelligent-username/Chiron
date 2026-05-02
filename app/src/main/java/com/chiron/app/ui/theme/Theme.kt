@@ -73,15 +73,27 @@ private val DarkColorScheme = darkColorScheme(
 fun ChironTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    mediaColor: androidx.compose.ui.graphics.Color? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
+    val baseScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    val colorScheme = if (mediaColor != null) {
+        baseScheme.copy(
+            primary = androidx.compose.ui.graphics.lerp(baseScheme.primary, mediaColor, 0.6f),
+            background = androidx.compose.ui.graphics.lerp(baseScheme.background, mediaColor, 0.1f),
+            surface = androidx.compose.ui.graphics.lerp(baseScheme.surface, mediaColor, 0.1f),
+            surfaceVariant = androidx.compose.ui.graphics.lerp(baseScheme.surfaceVariant, mediaColor, 0.15f)
+        )
+    } else {
+        baseScheme
     }
 
     val view = LocalView.current

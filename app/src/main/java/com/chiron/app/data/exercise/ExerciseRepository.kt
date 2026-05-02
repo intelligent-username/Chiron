@@ -29,6 +29,8 @@ class ExerciseRepository(
 
     suspend fun unarchiveExercise(id: Long) = exerciseDao.unarchive(id)
 
+    suspend fun deleteExercisePermanently(id: Long) = exerciseDao.deleteExercise(id)
+
     suspend fun getAllExercises(): List<Exercise> = exerciseDao.getAllNonArchived()
 
     /**
