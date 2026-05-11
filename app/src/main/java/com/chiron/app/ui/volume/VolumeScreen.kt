@@ -66,7 +66,13 @@ fun VolumeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                androidx.compose.ui.graphics.lerp(
+                    MaterialTheme.colorScheme.background,
+                    Color(0xFF2979FF),
+                    0.03f
+                )
+            )
     ) {
         if (state.isLoading) {
             CircularProgressIndicator(
@@ -245,7 +251,7 @@ private fun ModeSelector(
             ) {
                 Text(
                     text = label,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 14.sp
                 )

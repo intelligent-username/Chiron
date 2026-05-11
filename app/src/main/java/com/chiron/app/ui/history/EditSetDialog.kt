@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -72,12 +73,22 @@ fun EditSetDialog(
                     }
                     onSave(set.copy(weightLbs = weightLbs, reps = repsInt, timestampUtc = newTimestamp))
                 }
-            ) { Text("Save") }
+            ) { Text("Save", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onDelete) { Text("Delete") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) { Text("Cancel") }
             }
         }
     )

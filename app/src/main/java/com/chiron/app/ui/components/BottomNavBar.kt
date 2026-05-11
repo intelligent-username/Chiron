@@ -14,8 +14,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 enum class NavTab(val label: String, val icon: ImageVector) {
     HISTORY("History", Icons.Default.DateRange),
     EXERCISES("Exercises", Icons.Default.FitnessCenter),
-    TIMER("Timer", Icons.Default.Timer),
-    VOLUME("Volume", Icons.Default.ShowChart)
+    TIMER("Timer", Icons.Default.Timer)
 }
 
 @Composable
@@ -26,8 +25,7 @@ fun BottomNavBar(
     isVolumeMode: Boolean = false
 ) {
     NavigationBar(modifier = modifier) {
-        val visibleTabs = NavTab.entries.filter { it != NavTab.VOLUME }
-        visibleTabs.forEach { tab ->
+        NavTab.entries.forEach { tab ->
             val labelStr = if (tab == NavTab.HISTORY && isVolumeMode) "Volume" else tab.label
             val iconVec = if (tab == NavTab.HISTORY && isVolumeMode) Icons.Default.ShowChart else tab.icon
             NavigationBarItem(

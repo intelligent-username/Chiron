@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.*
 import com.chiron.app.BuildConfig
+import androidx.compose.ui.graphics.Color
 
 object SpotifyManager {
 
@@ -27,6 +28,9 @@ object SpotifyManager {
 
     private val _albumArt = MutableStateFlow<android.graphics.Bitmap?>(null)
     val albumArt: StateFlow<android.graphics.Bitmap?> = _albumArt
+
+    private val _dominantColor = MutableStateFlow<Color?>(null)
+    val dominantColor: StateFlow<Color?> = _dominantColor
 
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
@@ -64,7 +68,7 @@ object SpotifyManager {
                 Log.d("SpotifyManager", "Auth successful, token received. Connecting remote...")
                 _needsAuthFlow.value = false
                 // After explicit user auth, allow an interactive connect to complete any remaining handshake.
-                connect(context, token = response.accessToken, interactive = true)
+                connect(context, interactive = true)
             }
             AuthorizationResponse.Type.ERROR -> {
                 Log.e("SpotifyManager", "Auth error: ${response.error}")
@@ -79,11 +83,11 @@ object SpotifyManager {
         }
     }
 
-    fun connect(context: Context, token: String? = null, interactive: Boolean = false) {
+    fun connect(context: Context, interactive: Boolean = false) {
         // Stop any previous hang
         timeoutJob?.cancel()
 
-        if (_isConnected.value) return
+        if (_isConnected.value || _isConnecting.value) return
 
         // A pending auth request means the user must go through the Spotify login flow.
         // Silent background reconnects must not clobber that state — bail out.
@@ -184,9 +188,19 @@ object SpotifyManager {
             if (imageUri != null) {
                 appRemote?.imagesApi?.getImage(imageUri)?.setResultCallback { bitmap ->
                     _albumArt.value = bitmap
+                    // Extract average color for theming
+                    if (bitmap != null) {
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 1, 1, true)
+                        val colorInt = scaled.getPixel(0, 0)
+                        scaled.recycle()
+                        _dominantColor.value = Color(colorInt)
+                    } else {
+                        _dominantColor.value = null
+                    }
                 }
             } else {
                 _albumArt.value = null
+                _dominantColor.value = null
             }
         }
     }

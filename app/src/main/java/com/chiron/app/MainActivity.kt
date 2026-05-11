@@ -28,8 +28,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val matchTheme by ServiceLocator.userSettingsRepository.matchThemeWithMediaFlow.collectAsState(initial = false)
-            val dominantColor by SpotifyManager.dominantColor.collectAsState()
-            val targetColor = if (matchTheme) (dominantColor ?: Color.Transparent) else Color.Transparent
+            val mediaDominantColor by SpotifyManager.dominantColor.collectAsState(initial = null)
+            val targetColor = if (matchTheme) (mediaDominantColor ?: Color.Transparent) else Color.Transparent
 
             // Smoothly animate the color so theme shifts aren't jarring
             val animatedColor by animateColorAsState(
@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                 animationSpec = tween(durationMillis = 800),
                 label = "mediaColor"
             )
-            val mediaColor = if (matchTheme && dominantColor != null) animatedColor else null
+            val mediaColor = if (matchTheme && mediaDominantColor != null) animatedColor else null
 
             ChironTheme(mediaColor = mediaColor) {
                 val historyViewModel: HistoryViewModel = viewModel(factory = ServiceLocator.historyViewModelFactory)

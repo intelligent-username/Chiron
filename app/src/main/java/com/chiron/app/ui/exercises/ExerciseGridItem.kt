@@ -21,27 +21,8 @@ fun ExerciseGridItem(
     onUnarchive: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var showUnarchiveConfirm by remember { mutableStateOf(false) }
-
-    if (showUnarchiveConfirm) {
-        AlertDialog(
-            onDismissRequest = { showUnarchiveConfirm = false },
-            title = { Text("Unarchive Exercise") },
-            text = { Text("Restore \"${exercise.name}\" to active exercises?") },
-            confirmButton = {
-                TextButton(
-                    onClick = { onUnarchive?.invoke(); showUnarchiveConfirm = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                ) { Text("Unarchive") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUnarchiveConfirm = false }) { Text("Cancel") }
-            }
-        )
-    }
-
     Card(
-        onClick = if (showArchived) ({ showUnarchiveConfirm = true }) else onClick,
+        onClick = onClick,
         modifier = modifier.fillMaxWidth().aspectRatio(0.8f),
         colors = CardDefaults.cardColors(
             containerColor = if (showArchived)
@@ -74,9 +55,9 @@ fun ExerciseGridItem(
             if (showArchived) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Tap to unarchive",
+                    text = "Archived",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     fontSize = 9.sp,
                     textAlign = TextAlign.Center
                 )

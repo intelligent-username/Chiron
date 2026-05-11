@@ -57,10 +57,6 @@ fun ExercisesScreen(
                 }
             )
 
-            if (state.showArchived) {
-                Text(text = "Tap an archived card to unarchive", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.CenterHorizontally))
-                Spacer(Modifier.height(4.dp))
-            }
 
             Spacer(Modifier.height(12.dp))
 

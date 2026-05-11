@@ -299,7 +299,6 @@ fun ChironApp(
                             }
                         }
                         NavTab.TIMER -> TimerScreenHost(viewModel = timerViewModel)
-                        NavTab.VOLUME -> { /* Removed: Now merged into HISTORY tab */ }
                     }
                 }
 

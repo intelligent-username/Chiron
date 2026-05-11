@@ -75,7 +75,7 @@ fun ExerciseDetailScreen(
                                 Icon(
                                     Icons.Default.Archive,
                                     "Archive",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -85,7 +85,7 @@ fun ExerciseDetailScreen(
                                 Icon(
                                     Icons.Default.Unarchive,
                                     "Unarchive",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -108,9 +108,12 @@ fun ExerciseDetailScreen(
                             ))
                             onClose()
                         },
-                        enabled = nameState.trim().isNotBlank()
+                        enabled = nameState.trim().isNotBlank(),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
                     ) {
-                        Text("Save")
+                        Text("Save", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                     }
                 }
             )
