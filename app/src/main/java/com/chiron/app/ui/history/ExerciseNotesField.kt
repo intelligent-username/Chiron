@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import kotlinx.coroutines.launch
@@ -56,9 +57,10 @@ fun ExerciseNotesField(
             value = value,
             onValueChange = {},
             enabled = false,
-            placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall) },
+            placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Cursive), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
             textStyle = MaterialTheme.typography.bodySmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                fontFamily = FontFamily.Cursive,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             ),
             modifier = modifier.fillMaxWidth(),
             minLines = 1,
@@ -66,7 +68,7 @@ fun ExerciseNotesField(
             colors = OutlinedTextFieldDefaults.colors(
                 disabledContainerColor = Color.Transparent,
                 disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         )
     } else {
@@ -80,8 +82,11 @@ fun ExerciseNotesField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall) },
-            textStyle = MaterialTheme.typography.bodySmall,
+            placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Cursive), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            textStyle = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Cursive,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
                 capitalization = KeyboardCapitalization.Sentences

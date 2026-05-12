@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.rememberScrollState
@@ -163,7 +164,11 @@ fun ExerciseDetailScreen(
             OutlinedTextField(
                 value = descState,
                 onValueChange = { descState = it },
-                label = { Text("Description (optional)") },
+                label = { Text("Description (optional)", fontFamily = FontFamily.Cursive) },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Cursive,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 6,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
