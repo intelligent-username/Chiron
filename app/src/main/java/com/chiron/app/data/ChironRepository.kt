@@ -85,7 +85,7 @@ class ChironRepository(
 
     private val prRepository = PrRepository(exercisePrDao, setEntryDao, exercise1rmEstimateDao)
 
-    private val exerciseRepository = ExerciseRepository(exerciseDao)
+    private val exerciseRepository = ExerciseRepository(exerciseDao, setEntryDao)
 
     private val sessionPreviewRepository = SessionPreviewRepository(
         exerciseDao, exerciseEntryDao, setEntryDao, workoutSessionDao
@@ -95,6 +95,7 @@ class ChironRepository(
         setEntryDao = setEntryDao,
         exerciseEntryDao = exerciseEntryDao,
         workoutSessionDao = workoutSessionDao,
+        exerciseDao = exerciseDao,
         onSyncGlobalPrBucket = { exerciseId, reps -> prRepository.syncGlobalPrBucket(exerciseId, reps) }
     )
 
@@ -136,6 +137,11 @@ class ChironRepository(
     suspend fun insertExercise(exercise: Exercise): Long =
         exerciseRepository.insertExercise(exercise)
 
+    /**
+     * Updates an exercise. If the tracking configuration (isWeightBased, isRepBased,
+     * isTimeBased, isDistanceBased) has changed AND historical sets exist, throws
+     * [IllegalStateException] with the exact immutability error message.
+     */
     suspend fun updateExercise(exercise: Exercise) =
         exerciseRepository.updateExercise(exercise)
 
@@ -181,12 +187,11 @@ class ChironRepository(
     }
 
     suspend fun getLastSessionSupersetPreview(
-        currentEntryId: Long,
-        allCurrentEntries: List<ExerciseEntry>,
+        exerciseId: Long,
         currentWorkoutId: Long
     ): LastSessionSupersetPreview? {
         val preview = sessionPreviewRepository.getLastSessionSupersetPreview(
-            currentEntryId, allCurrentEntries, currentWorkoutId
+            exerciseId, currentWorkoutId
         ) ?: return null
         return LastSessionSupersetPreview(
             dateLabel = preview.dateLabel,

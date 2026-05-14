@@ -67,6 +67,7 @@ fun WorkoutEditor(
         .collectAsState(initial = emptyList<ExerciseEntry>())
     val uiState by viewModel.uiState.collectAsState()
     val displayInKg = uiState.displayInKg
+    val distanceUnit = uiState.distanceUnit
 
     // ── Dialog visibility ──────────────────────────────────────────────────────
     var showAddExerciseDialog by remember { mutableStateOf(false) }
@@ -79,7 +80,9 @@ fun WorkoutEditor(
     var didAddExerciseInDialog by remember { mutableStateOf(false) }
 
     // ── Set editing ────────────────────────────────────────────────────────────
-    var editingSetEntry by remember { mutableStateOf<Pair<Long, Int>?>(null) }
+    // Triple: (exerciseEntryId, setIndex, exerciseId)
+    var editingSetEntry by remember { mutableStateOf<Triple<Long, Int, Long>?>(null) }
+    var editingExercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
 
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -202,11 +205,13 @@ fun WorkoutEditor(
                         entries = group,
                         viewModel = viewModel,
                         displayInKg = displayInKg,
+                        distanceUnit = distanceUnit,
                         allEntries = entries,
                         workoutId = workout.id,
                         supersetNumber = supersetNumbersByStartId[group.first().id] ?: 1,
                         onSetClick = { entryId, setIndex ->
-                            editingSetEntry = Pair(entryId, setIndex)
+                            val exerciseId = entries.find { it.id == entryId }?.exerciseId ?: return@SupersetCard
+                            editingSetEntry = Triple(entryId, setIndex, exerciseId)
                         },
                         onAddSet = { entryId ->
                             scope.launch { viewModel.addSet(entryId) }
@@ -233,10 +238,11 @@ fun WorkoutEditor(
                         entry = group[0],
                         viewModel = viewModel,
                         displayInKg = displayInKg,
+                        distanceUnit = distanceUnit,
                         allEntries = entries,
                         workoutId = workout.id,
                         onSetClick = { setIndex ->
-                            editingSetEntry = Pair(group[0].id, setIndex)
+                            editingSetEntry = Triple(group[0].id, setIndex, group[0].exerciseId)
                         },
                         onAddSet = {
                             scope.launch { viewModel.addSet(group[0].id) }
@@ -331,13 +337,19 @@ fun WorkoutEditor(
         )
     }
 
-    editingSetEntry?.let { (entryId, setIndex) ->
+    editingSetEntry?.let { (entryId, setIndex, exerciseId) ->
+        LaunchedEffect(exerciseId) {
+            editingExercise = viewModel.getExerciseById(exerciseId)
+        }
         val sets by viewModel.getSetsForEntry(entryId).collectAsState(initial = emptyList<SetEntry>())
         val set = sets.getOrNull(setIndex - 1)
-        if (set != null) {
+        val exercise = editingExercise
+        if (set != null && exercise != null) {
             EditSetDialog(
                 set = set,
+                exercise = exercise,
                 displayInKg = displayInKg,
+                distanceUnit = distanceUnit,
                 onSave = { updatedSet ->
                     scope.launch {
                         viewModel.updateSetAndCheckPr(updatedSet)

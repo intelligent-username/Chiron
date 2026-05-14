@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -253,7 +254,11 @@ fun WorkoutEditorHeader(
         TextField(
             value = editableNotes,
             onValueChange = onNotesChange,
-            placeholder = { Text("Add notes...", style = MaterialTheme.typography.bodyMedium) },
+            placeholder = { Text("Add notes...", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.SansSerif), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.SansSerif,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             colors = transparentTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),

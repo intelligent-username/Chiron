@@ -63,6 +63,16 @@ interface ExerciseEntryDao {
     """)
     suspend fun getMostRecentEntryForExercise(exerciseId: Long, currentWorkoutId: Long, currentWorkoutDateUtc: Long): ExerciseEntry?
 
+    /** Fetch all entries in a specific workout that share the same superset group_id. */
+    @Query("""
+        SELECT * FROM exercise_entry
+        WHERE workout_id = :workoutId
+          AND group_id = :groupId
+          AND archived = 0
+        ORDER BY slot_index ASC
+    """)
+    suspend fun getEntriesByGroupInWorkout(workoutId: Long, groupId: Long): List<ExerciseEntry>
+
     @Transaction
     suspend fun deleteAndReindex(workoutId: Long, entryId: Long) {
         delete(entryId)

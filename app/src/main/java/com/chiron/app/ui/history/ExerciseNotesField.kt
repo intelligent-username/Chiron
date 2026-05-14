@@ -1,6 +1,8 @@
 package com.chiron.app.ui.history
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -12,8 +14,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -25,11 +25,11 @@ import kotlinx.coroutines.launch
  *
  * In preview mode the field is read-only and styled accordingly.
  *
- * @param value         Current draft value.
+ * @param value Current draft value.
  * @param onValueChange Called on each keystroke (update draft state externally).
- * @param committed     The last persisted value, used to decide whether to save.
- * @param onCommit      Called with the trimmed value when it differs from [committed].
- * @param isReadOnly    When `true`, renders as disabled (preview mode).
+ * @param committed The last persisted value, used to decide whether to save.
+ * @param onCommit Called with the trimmed value when it differs from [committed].
+ * @param isReadOnly When `true`, renders as disabled (preview mode).
  * @param focusRequester Optional [FocusRequester] to attach when the field is interactive.
  */
 @Composable
@@ -44,6 +44,7 @@ fun ExerciseNotesField(
 ) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val notesFontFamily = FontFamily.SansSerif
 
     fun maybeSave() {
         val normalized = value.trim()
@@ -57,9 +58,15 @@ fun ExerciseNotesField(
             value = value,
             onValueChange = {},
             enabled = false,
-            placeholder = { Text("No notes", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Cursive), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            placeholder = {
+                Text(
+                    "No notes",
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = notesFontFamily),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            },
             textStyle = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Cursive,
+                fontFamily = notesFontFamily,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             ),
             modifier = modifier.fillMaxWidth(),
@@ -82,9 +89,15 @@ fun ExerciseNotesField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text("Notes", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Cursive), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            placeholder = {
+                Text(
+                    "Notes",
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = notesFontFamily),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            },
             textStyle = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Cursive,
+                fontFamily = notesFontFamily,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             keyboardOptions = KeyboardOptions(

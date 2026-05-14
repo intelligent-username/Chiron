@@ -248,6 +248,10 @@ class DataTransferRepository(
                     val iDesc = cursor.getColumnIndex("description")
                     val iIcon = cursor.getColumnIndex("icon_name")
                     val iArchived = cursor.getColumnIndex("archived")
+                    val iIsWeight = cursor.getColumnIndex("is_weight_based")
+                    val iIsRep = cursor.getColumnIndex("is_rep_based")
+                    val iIsTime = cursor.getColumnIndex("is_time_based")
+                    val iIsDist = cursor.getColumnIndex("is_distance_based")
                     while (cursor.moveToNext()) {
                         val importedId = cursor.getLong(iId)
                         val name = cursor.getString(iName) ?: continue
@@ -261,7 +265,11 @@ class DataTransferRepository(
                                     imageUri = if (iImageUri >= 0 && !cursor.isNull(iImageUri)) cursor.getString(iImageUri) else null,
                                     description = if (iDesc >= 0 && !cursor.isNull(iDesc)) cursor.getString(iDesc) else null,
                                     iconName = if (iIcon >= 0 && !cursor.isNull(iIcon)) cursor.getString(iIcon) else "default",
-                                    archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0
+                                    archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0,
+                                    isWeightBased = if (iIsWeight >= 0) cursor.getInt(iIsWeight) else 1,
+                                    isRepBased = if (iIsRep >= 0) cursor.getInt(iIsRep) else 1,
+                                    isTimeBased = if (iIsTime >= 0) cursor.getInt(iIsTime) else 0,
+                                    isDistanceBased = if (iIsDist >= 0) cursor.getInt(iIsDist) else 0
                                 )
                             )
                             exerciseIdMap[importedId] = newId
@@ -356,6 +364,8 @@ class DataTransferRepository(
                 val iSetIndex = cursor.getColumnIndex("set_index")
                 val iWeight = cursor.getColumnIndex("weight_lbs")
                 val iReps = cursor.getColumnIndex("reps")
+                val iDuration = cursor.getColumnIndex("duration_seconds")
+                val iDistance = cursor.getColumnIndex("distance_meters")
                 val iIsFailed = cursor.getColumnIndex("is_failed")
                 val iTempo = cursor.getColumnIndex("tempo")
                 val iNotes = cursor.getColumnIndex("notes")
@@ -368,6 +378,8 @@ class DataTransferRepository(
                             setIndex = cursor.getInt(iSetIndex),
                             weightLbs = if (iWeight >= 0 && !cursor.isNull(iWeight)) cursor.getDouble(iWeight) else null,
                             reps = if (iReps >= 0 && !cursor.isNull(iReps)) cursor.getInt(iReps) else null,
+                            durationSeconds = if (iDuration >= 0 && !cursor.isNull(iDuration)) cursor.getInt(iDuration) else null,
+                            distanceMeters = if (iDistance >= 0 && !cursor.isNull(iDistance)) cursor.getDouble(iDistance) else null,
                             isFailed = if (iIsFailed >= 0) cursor.getInt(iIsFailed) else 0,
                             tempo = if (iTempo >= 0 && !cursor.isNull(iTempo)) cursor.getString(iTempo) else null,
                             notes = if (iNotes >= 0 && !cursor.isNull(iNotes)) cursor.getString(iNotes) else null,

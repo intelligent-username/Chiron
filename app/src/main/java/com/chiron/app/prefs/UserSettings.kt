@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,7 @@ class UserSettingsRepository(private val context: Context) {
         private val CUSTOM_LOCATIONS = stringSetPreferencesKey("custom_locations")
         private val SPOTIFY_ENABLED = booleanPreferencesKey("spotify_enabled")
         private val MATCH_THEME_WITH_MEDIA = booleanPreferencesKey("match_theme_with_media")
+        private val DISTANCE_UNIT = stringPreferencesKey("distance_unit")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -64,6 +66,16 @@ class UserSettingsRepository(private val context: Context) {
             prefs[MATCH_THEME_WITH_MEDIA] = value
         }
     }
+
+    val distanceUnitFlow: Flow<DistanceUnit> = context.dataStore.data.map { prefs ->
+        DistanceUnit.fromString(prefs[DISTANCE_UNIT])
+    }
+
+    suspend fun setDistanceUnit(unit: DistanceUnit) {
+        context.dataStore.edit { prefs ->
+            prefs[DISTANCE_UNIT] = unit.key
+        }
+    }
 }
 
 /**
@@ -73,5 +85,17 @@ data class UserSettings(
     val displayInKg: Boolean = false,
     val customLocations: List<String> = emptyList(),
     val spotifyEnabled: Boolean = false,
-    val matchThemeWithMedia: Boolean = false
+    val matchThemeWithMedia: Boolean = false,
+    val distanceUnit: DistanceUnit = DistanceUnit.METERS
 )
+
+/** Canonical unit for distance display. DB always stores meters. */
+enum class DistanceUnit(val key: String, val displayLabel: String) {
+    METERS("meters", "Meters"),
+    FEET("feet", "Feet");
+
+    companion object {
+        fun fromString(value: String?): DistanceUnit =
+            values().firstOrNull { it.key == value } ?: METERS
+    }
+}

@@ -223,4 +223,24 @@ object SpotifyManager {
     fun seekTo(positionMs: Long) {
         appRemote?.playerApi?.seekTo(positionMs)
     }
+
+    /** Seek relative to the current playback position. No-ops if state/track is unavailable. */
+    fun seekBy(deltaMs: Long) {
+        val state = _playerState.value ?: return
+        val track = state.track ?: return
+
+        val durationMs = track.duration.coerceAtLeast(0L)
+        val currentMs = state.playbackPosition.coerceAtLeast(0L)
+        val newMs = (currentMs + deltaMs).coerceIn(0L, durationMs)
+
+        seekTo(newMs)
+    }
+
+    fun seekBack10s() {
+        seekBy(-10_000L)
+    }
+
+    fun seekForward10s() {
+        seekBy(10_000L)
+    }
 }

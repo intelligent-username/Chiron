@@ -32,6 +32,7 @@ fun SettingsScreen(
     val displayInKg by repository.displayInKgFlow.collectAsState(initial = false)
     val spotifyEnabled by repository.spotifyEnabledFlow.collectAsState(initial = false)
     val matchThemeWithMedia by repository.matchThemeWithMediaFlow.collectAsState(initial = false)
+    val distanceUnit by repository.distanceUnitFlow.collectAsState(initial = com.chiron.app.prefs.DistanceUnit.METERS)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -121,7 +122,47 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Spotify Mini-Player
+            // Distance unit setting
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        scope.launch {
+                            val next = if (distanceUnit == com.chiron.app.prefs.DistanceUnit.METERS)
+                                com.chiron.app.prefs.DistanceUnit.FEET
+                            else
+                                com.chiron.app.prefs.DistanceUnit.METERS
+                            repository.setDistanceUnit(next)
+                        }
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Distance Unit",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = distanceUnit.displayLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = distanceUnit == com.chiron.app.prefs.DistanceUnit.FEET,
+                    onCheckedChange = { checked ->
+                        scope.launch {
+                            repository.setDistanceUnit(
+                                if (checked) com.chiron.app.prefs.DistanceUnit.FEET
+                                else com.chiron.app.prefs.DistanceUnit.METERS
+                            )
+                        }
+                    }
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

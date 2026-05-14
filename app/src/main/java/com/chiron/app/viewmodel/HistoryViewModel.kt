@@ -25,7 +25,8 @@ data class HistoryUiState(
     val showArchivedWorkouts: Boolean = false,
     val isEditorOpen: Boolean = false,
     val editingWorkoutId: Long? = null,
-    val displayInKg: Boolean = false
+    val displayInKg: Boolean = false,
+    val distanceUnit: com.chiron.app.prefs.DistanceUnit = com.chiron.app.prefs.DistanceUnit.METERS
 )
 
 class HistoryViewModel(
@@ -45,6 +46,7 @@ class HistoryViewModel(
         }}
         viewModelScope.launch { repository.archivedWorkoutsFlow.collect { w -> _uiState.update { it.copy(archivedWorkouts = w) } } }
         viewModelScope.launch { settingsRepository.displayInKgFlow.collect { v -> _uiState.update { it.copy(displayInKg = v) } } }
+        viewModelScope.launch { settingsRepository.distanceUnitFlow.collect { v -> _uiState.update { it.copy(distanceUnit = v) } } }
     }
 
     // ── Workout operations ────────────────────────────────────────────────────
@@ -112,7 +114,7 @@ class HistoryViewModel(
     suspend fun getExerciseById(exerciseId: Long): com.chiron.app.data.entities.Exercise? = repository.getExerciseById(exerciseId)
     suspend fun getAllExercises(): List<com.chiron.app.data.entities.Exercise> = repository.getAllExercises()
     suspend fun getLastSessionPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionPreview? = repository.getLastSessionPreview(exerciseId, currentWorkoutId)
-    suspend fun getLastSessionSupersetPreview(currentEntryId: Long, allCurrentEntries: List<ExerciseEntry>, currentWorkoutId: Long): ChironRepository.LastSessionSupersetPreview? = repository.getLastSessionSupersetPreview(currentEntryId, allCurrentEntries, currentWorkoutId)
+    suspend fun getLastSessionSupersetPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionSupersetPreview? = repository.getLastSessionSupersetPreview(exerciseId, currentWorkoutId)
 
     // ── Set operations ────────────────────────────────────────────────────────
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> = repository.getSetsForEntry(entryId)

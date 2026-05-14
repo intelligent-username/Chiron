@@ -4,7 +4,6 @@ import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
-import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.SetEntry
 
 /**
@@ -53,42 +52,38 @@ class SessionPreviewRepository(
         return LastSessionPreview(dateLabel = dateLabel, sets = sets, notes = entry.notes)
     }
 
+    /**
+     * Returns a superset preview if the exercise was last performed as part of a superset.
+     * Completely independent of the current session's grouping state — it looks at what
+     * the *previous* session looked like for this exercise.
+     */
     suspend fun getLastSessionSupersetPreview(
-        currentEntryId: Long,
-        allCurrentEntries: List<ExerciseEntry>,
+        exerciseId: Long,
         currentWorkoutId: Long
     ): LastSessionSupersetPreview? {
-        val currentEntry = allCurrentEntries.firstOrNull { it.id == currentEntryId } ?: return null
-
-        if (currentEntry.groupId == null || currentEntry.sequenceType == "NONE") return null
-
-        val supersetGroupId = currentEntry.groupId
-        val supersetEntries = allCurrentEntries
-            .filter { it.groupId == supersetGroupId }
-            .sortedBy { it.slotIndex }
-
-        if (supersetEntries.isEmpty()) return null
-
         val currentWorkout = workoutSessionDao.getById(currentWorkoutId) ?: return null
+
+        // Find the most recent past entry for this exercise
+        val prevEntry = exerciseEntryDao.getMostRecentEntryForExercise(
+            exerciseId, currentWorkoutId, currentWorkout.dateUtc
+        ) ?: return null
+
+        // If the past entry wasn't in a superset, there's nothing to show
+        val groupId = prevEntry.groupId ?: return null
+        if (prevEntry.sequenceType == "NONE") return null
+
+        // Fetch all entries in that past workout that shared the same superset group
+        val supersetEntries = exerciseEntryDao.getEntriesByGroupInWorkout(prevEntry.workoutId, groupId)
+        if (supersetEntries.size < 2) return null
+
+        val workout = workoutSessionDao.getById(prevEntry.workoutId) ?: return null
+        val dateLabel = formatWorkoutDateLabel(workout.dateIso)
+
         val exercises = mutableListOf<SupersetExercisePreview>()
-        var dateLabel = ""
-        var notes: String? = null
-
         for (entry in supersetEntries) {
-            val prevEntry = exerciseEntryDao.getMostRecentEntryForExercise(
-                entry.exerciseId, currentWorkoutId, currentWorkout.dateUtc
-            ) ?: continue
-            val sets = setEntryDao.getSetsForEntrySync(prevEntry.id)
+            val sets = setEntryDao.getSetsForEntrySync(entry.id)
             if (sets.isEmpty()) continue
-
             val exercise = exerciseDao.getById(entry.exerciseId) ?: continue
-
-            if (dateLabel.isEmpty()) {
-                val workout = workoutSessionDao.getById(prevEntry.workoutId) ?: continue
-                dateLabel = formatWorkoutDateLabel(workout.dateIso)
-                notes = prevEntry.notes
-            }
-
             exercises.add(
                 SupersetExercisePreview(
                     exerciseId = entry.exerciseId,
@@ -99,15 +94,13 @@ class SessionPreviewRepository(
             )
         }
 
-        return if (exercises.size > 1) {
+        return if (exercises.size >= 2) {
             LastSessionSupersetPreview(
                 dateLabel = dateLabel,
                 exercises = exercises,
-                notes = notes
+                notes = prevEntry.notes
             )
-        } else {
-            null
-        }
+        } else null
     }
 
     private fun formatWorkoutDateLabel(dateIso: String): String {

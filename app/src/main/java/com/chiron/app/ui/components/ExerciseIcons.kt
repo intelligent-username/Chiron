@@ -18,7 +18,10 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("hammer-curl",            "hammer-curl.svg"),
     ExerciseIcon("preacher-curl",          "preacher-curl.svg"),
     ExerciseIcon("overhand-cable-curl",    "overhand-cable-curl.svg"),
+    ExerciseIcon("bayesian-curl",          "bayesian-curl.svg"),
+
     ExerciseIcon("finger-curl",            "finger-curl.svg"),
+    ExerciseIcon("finger-curl2",           "finger-curl2.svg"),
 
     ExerciseIcon("deadlift",               "deadlift.svg"),
     ExerciseIcon("zercher-deadlift",       "zercher-deadlift.svg"),
@@ -39,6 +42,7 @@ val AVAILABLE_ICONS = listOf(
 
     ExerciseIcon("machine",                "machine.svg"),
     ExerciseIcon("pulldown",               "pulldown.svg"),
+    ExerciseIcon("pullover",               "pullover.svg"),
     ExerciseIcon("pushdown",               "pushdown.svg"),
     ExerciseIcon("overhead-extension",     "overhead-extension.svg"),
 
@@ -52,8 +56,10 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("ring-pullup",            "ring-pullup.svg"),
     ExerciseIcon("push-up",                "push-up.svg"),
     ExerciseIcon("dip",                    "dip.svg"),
+
     ExerciseIcon("ring-dip",               "ring-dip.svg"),
     ExerciseIcon("rings",                  "rings.svg"),
+    ExerciseIcon("rto-hold",               "rto-hold.svg"),
 
     ExerciseIcon("treadmill",              "treadmill.svg"),
     ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
@@ -78,6 +84,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("barbell-row",            "barbell-row.svg"),
 
     ExerciseIcon("itrot",                  "internal-rotation.svg"),
+    ExerciseIcon("face-pulls",             "facepulls.svg"),
     ExerciseIcon("neck-curl",              "neck-curl.svg"),
     ExerciseIcon("lateral-neck",           "lateral-neck.svg"),
 

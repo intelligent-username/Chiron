@@ -154,6 +154,19 @@ interface SetEntryDao {
         ORDER BY w.date_utc ASC
     """)
     suspend fun getVolumeSummaryByDayForExercise(exerciseId: Long): List<DailyVolume>
+
+    /**
+     * Returns true if any set_entry row exists for the given exercise (via exercise_entry join).
+     * Used to enforce tracking-config immutability.
+     */
+    @Query("""
+        SELECT COUNT(*) > 0
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE e.exercise_id = :exerciseId
+        LIMIT 1
+    """)
+    suspend fun hasHistoryForExercise(exerciseId: Long): Boolean
 }
 
 data class DailyVolume(

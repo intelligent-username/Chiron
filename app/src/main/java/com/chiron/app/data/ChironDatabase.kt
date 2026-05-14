@@ -31,7 +31,7 @@ import com.chiron.app.data.entities.Exercise1rmEstimate
         ExercisePr::class,
         Exercise1rmEstimate::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -152,6 +152,41 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Helper: check whether a column already exists (idempotent adds)
+                fun hasColumn(table: String, column: String): Boolean {
+                    var exists = false
+                    db.query("PRAGMA table_info($table)").use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        while (c.moveToNext()) {
+                            if (nameIdx >= 0 && c.getString(nameIdx) == column) {
+                                exists = true
+                                break
+                            }
+                        }
+                    }
+                    return exists
+                }
+
+                // Exercise: 4 tracking config flags (NOT NULL + DEFAULT to backfill existing rows)
+                if (!hasColumn("exercise", "is_weight_based"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN is_weight_based INTEGER NOT NULL DEFAULT 1")
+                if (!hasColumn("exercise", "is_rep_based"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN is_rep_based INTEGER NOT NULL DEFAULT 1")
+                if (!hasColumn("exercise", "is_time_based"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN is_time_based INTEGER NOT NULL DEFAULT 0")
+                if (!hasColumn("exercise", "is_distance_based"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN is_distance_based INTEGER NOT NULL DEFAULT 0")
+
+                // SetEntry: 2 new nullable metric columns
+                if (!hasColumn("set_entry", "duration_seconds"))
+                    db.execSQL("ALTER TABLE set_entry ADD COLUMN duration_seconds INTEGER DEFAULT NULL")
+                if (!hasColumn("set_entry", "distance_meters"))
+                    db.execSQL("ALTER TABLE set_entry ADD COLUMN distance_meters REAL DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -159,7 +194,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

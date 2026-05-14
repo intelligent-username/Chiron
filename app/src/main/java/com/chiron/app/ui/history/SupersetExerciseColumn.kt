@@ -48,6 +48,7 @@ fun SupersetExerciseColumn(
     entry: ExerciseEntry,
     viewModel: HistoryViewModel,
     displayInKg: Boolean,
+    distanceUnit: com.chiron.app.prefs.DistanceUnit,
     workoutId: Long,
     modifier: Modifier = Modifier,
     onSetClick: (Int) -> Unit,
@@ -112,22 +113,35 @@ fun SupersetExerciseColumn(
             if (isPreviewingLastSession && lastSessionPreview != null) {
                 lastSessionPreview!!.sets.forEach { set ->
                     SetPill(
-                        weightLbs = set.weightLbs,
-                        reps = set.reps,
+                        set = set,
                         displayInKg = displayInKg,
+                        distanceUnit = distanceUnit,
                         isPr = set.isPr == 1,
                         onClick = {}
                     )
                 }
             } else {
                 sets.forEachIndexed { index, set ->
-                    SetPill(
-                        weightLbs = set.weightLbs,
-                        reps = set.reps,
-                        displayInKg = displayInKg,
-                        isPr = set.isPr == 1,
-                        onClick = { onSetClick(index + 1) }
-                    )
+                    if (exercise != null) {
+                        SetPill(
+                            set = set,
+                            exercise = exercise!!,
+                            displayInKg = displayInKg,
+                            distanceUnit = distanceUnit,
+                            isPr = set.isPr == 1,
+                            onClick = { onSetClick(index + 1) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        SetPill(
+                            set = set,
+                            displayInKg = displayInKg,
+                            distanceUnit = distanceUnit,
+                            isPr = set.isPr == 1,
+                            onClick = { onSetClick(index + 1) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 OutlinedButton(

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -24,6 +25,7 @@ import com.chiron.app.data.entities.Exercise
 import com.chiron.app.ui.components.IconPickerDropdown
 import com.chiron.app.viewmodel.VolumeViewModel
 import com.chiron.app.ui.volume.VolumeContent
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +33,7 @@ fun ExerciseDetailScreen(
     exercise: Exercise?,
     volumeViewModel: VolumeViewModel,
     displayInKg: Boolean,
-    onSave: (Exercise) -> Unit,
+    onSave: suspend (Exercise) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
     onUnarchive: ((Long) -> Unit)? = null,
     onDeletePermanently: ((Long) -> Unit)? = null,
@@ -49,6 +51,15 @@ fun ExerciseDetailScreen(
     var iconState by remember { mutableStateOf(exercise.iconName ?: "default") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showPermanentDeleteConfirmation by remember { mutableStateOf(false) }
+    var showImmutabilityError by remember { mutableStateOf(false) }
+
+    // Tracking config state — mirrors the exercise's current values
+    var weightEnabled by remember(exercise.id) { mutableStateOf(exercise.isWeightBased == 1) }
+    var distanceEnabled by remember(exercise.id) { mutableStateOf(exercise.isDistanceBased == 1) }
+    var useReps by remember(exercise.id) { mutableStateOf(exercise.isTimeBased != 1) }
+
+    // Whether this exercise is eligible for PR / volume tracking (weight + reps)
+    val isPrEligible = exercise.isWeightBased == 1 && exercise.isRepBased == 1
 
     Scaffold(
         modifier = modifier,
@@ -61,7 +72,8 @@ fun ExerciseDetailScreen(
                     }
                 },
                 actions = {
-                    if (onOpenPrForExercise != null) {
+                    // PR trophy — only for weight+reps exercises
+                    if (onOpenPrForExercise != null && isPrEligible) {
                         IconButton(onClick = { onOpenPrForExercise(exercise.id) }) {
                             Icon(
                                 Icons.Default.EmojiEvents,
@@ -100,14 +112,26 @@ fun ExerciseDetailScreen(
                             }
                         }
                     }
+                    val scope = rememberCoroutineScope()
                     TextButton(
                         onClick = {
-                            onSave(exercise.copy(
+                            val newExercise = exercise.copy(
                                 name = nameState.trim(),
                                 description = descState.trim().ifBlank { null },
-                                iconName = iconState
-                            ))
-                            onClose()
+                                iconName = iconState,
+                                isWeightBased = if (weightEnabled) 1 else 0,
+                                isRepBased = if (useReps) 1 else 0,
+                                isTimeBased = if (!useReps) 1 else 0,
+                                isDistanceBased = if (distanceEnabled) 1 else 0
+                            )
+                            scope.launch {
+                                try {
+                                    onSave(newExercise)
+                                    onClose()
+                                } catch (e: IllegalStateException) {
+                                    showImmutabilityError = true
+                                }
+                            }
                         },
                         enabled = nameState.trim().isNotBlank(),
                         colors = ButtonDefaults.textButtonColors(
@@ -164,9 +188,9 @@ fun ExerciseDetailScreen(
             OutlinedTextField(
                 value = descState,
                 onValueChange = { descState = it },
-                label = { Text("Description (optional)", fontFamily = FontFamily.Cursive) },
+                label = { Text("Description (optional)", fontFamily = FontFamily.SansSerif) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Cursive,
+                    fontFamily = FontFamily.SansSerif,
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 modifier = Modifier.fillMaxWidth(),
@@ -174,18 +198,94 @@ fun ExerciseDetailScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Volume Trend", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            
-            VolumeContent(
-                state = volumeState,
-                displayInKg = displayInKg,
-                onModeChange = volumeViewModel::setMode,
-                onWeekCountChange = volumeViewModel::setWeekCount,
-                onPrevWeek = volumeViewModel::goToPreviousWeek,
-                onNextWeek = volumeViewModel::goToNextWeek,
-                onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps
+            // ── Tracking section ──────────────────────────────────────────────
+            Text(
+                "Tracking",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
+
+            if (showImmutabilityError) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "This exercise already contains historical entries. Changing its tracking " +
+                            "configuration would create incompatible historical data, so this change " +
+                            "cannot be applied.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Track Weight", style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = weightEnabled, onCheckedChange = { weightEnabled = it })
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Track Distance", style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = distanceEnabled, onCheckedChange = { distanceEnabled = it })
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Count by", style = MaterialTheme.typography.bodyMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Reps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (useReps) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = !useReps,
+                        onCheckedChange = { useReps = !it },
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    Text(
+                        "Time",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (!useReps) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // ── Volume Trend — only for weight+reps ───────────────────────────
+            if (isPrEligible) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Volume Trend",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                VolumeContent(
+                    state = volumeState,
+                    displayInKg = displayInKg,
+                    onModeChange = volumeViewModel::setMode,
+                    onWeekCountChange = volumeViewModel::setWeekCount,
+                    onPrevWeek = volumeViewModel::goToPreviousWeek,
+                    onNextWeek = volumeViewModel::goToNextWeek,
+                    onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps
+                )
+            }
         }
 
         // Archive confirmation dialog

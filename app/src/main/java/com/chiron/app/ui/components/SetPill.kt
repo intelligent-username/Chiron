@@ -13,39 +13,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.chiron.app.data.entities.Exercise
+import com.chiron.app.data.entities.SetEntry
+import com.chiron.app.prefs.DistanceUnit
 import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.util.UnitConversion
 
+/**
+ * Primary SetPill overload: accepts a pre-built display string.
+ * All other overloads delegate here.
+ */
 @Composable
 fun SetPill(
-    weightLbs: Double?,
-    reps: Int?,
-    displayInKg: Boolean,
+    displayText: String,
     isPr: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val weightText = if (weightLbs != null) {
-        if (displayInKg) {
-            val kg = UnitConversion.lbsToDisplayKg(weightLbs)
-            "${formatNumber(kg)}kgs"
-        } else {
-            "${formatNumber(weightLbs)}lbs"
-        }
-    } else "—"
-
-    val repsText = reps?.toString() ?: "—"
-    val displayText = "$weightText × $repsText"
-
     val shape = RoundedCornerShape(16.dp)
     val backgroundColor = if (isPr) {
         PrGold.copy(alpha = 0.2f)
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
-
     val borderColor = if (isPr) PrGold else MaterialTheme.colorScheme.outline
-    
+
     // Responsive font size: shrink if text is long to fit on one line
     val baseStyle = MaterialTheme.typography.labelLarge
     val responsiveFontSize = when {
@@ -74,7 +66,96 @@ fun SetPill(
     }
 }
 
+/**
+ * Config-aware overload: builds the display string from set + exercise config + prefs.
+ */
+@Composable
+fun SetPill(
+    set: SetEntry,
+    exercise: Exercise,
+    displayInKg: Boolean,
+    distanceUnit: DistanceUnit,
+    isPr: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SetPill(
+        displayText = UnitConversion.formatSet(set, exercise, displayInKg, distanceUnit),
+        isPr = isPr,
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+/**
+ * Legacy weight+reps overload: kept for backward compatibility.
+ * All existing call sites (ExerciseEntryCard, SupersetExerciseColumn, etc.) continue to compile.
+ */
+@Composable
+fun SetPill(
+    weightLbs: Double?,
+    reps: Int?,
+    displayInKg: Boolean,
+    isPr: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val weightText = if (weightLbs != null) {
+        if (displayInKg) {
+            val kg = UnitConversion.lbsToDisplayKg(weightLbs)
+            "${formatNumber(kg)}kgs"
+        } else {
+            "${formatNumber(weightLbs)}lbs"
+        }
+    } else "—"
+
+    val repsText = reps?.toString() ?: "—"
+    val displayText = "$weightText × $repsText"
+
+    SetPill(
+        displayText = displayText,
+        isPr = isPr,
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
 private fun formatNumber(value: Double): String {
     val formatted = String.format("%.2f", value)
     return formatted.trimEnd('0').trimEnd('.')
+}
+
+/**
+ * Fallback overload when Exercise is not available (e.g. preview mode).
+ * Infers the display format from the non-null fields of SetEntry.
+ */
+@Composable
+fun SetPill(
+    set: SetEntry,
+    displayInKg: Boolean,
+    distanceUnit: DistanceUnit,
+    isPr: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val weightText = set.weightLbs?.let {
+        if (displayInKg) "${UnitConversion.formatNumber(UnitConversion.lbsToDisplayKg(it))}kgs"
+        else "${UnitConversion.formatNumber(it)}lbs"
+    }
+    val repsText = set.reps?.toString()
+    val timeText = set.durationSeconds?.let { UnitConversion.formatDuration(it) }
+    val distText = set.distanceMeters?.let {
+        if (distanceUnit == DistanceUnit.FEET) "${UnitConversion.formatNumber(UnitConversion.metersToFeet(it))}ft"
+        else "${UnitConversion.formatNumber(it)}m"
+    }
+
+    val parts = listOfNotNull(weightText, repsText, timeText, distText)
+    val displayText = if (parts.isEmpty()) "—" else parts.joinToString(" × ")
+
+    SetPill(
+        displayText = displayText,
+        isPr = isPr,
+        onClick = onClick,
+        modifier = modifier
+    )
 }

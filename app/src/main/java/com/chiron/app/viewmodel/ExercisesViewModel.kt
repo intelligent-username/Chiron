@@ -99,12 +99,17 @@ class ExercisesViewModel(
         _uiState.update { it.copy(isDetailOpen = false, selectedExerciseId = null) }
     }
 
-    fun createExercise(name: String, description: String? = null, iconName: String? = null) {
+    fun createExercise(name: String, description: String? = null, iconName: String? = null,
+                        config: com.chiron.app.ui.exercises.TrackingConfig = com.chiron.app.ui.exercises.TrackingConfig()) {
         viewModelScope.launch {
             val exercise = Exercise(
                 name = name.trim(),
                 description = description?.trim(),
-                iconName = iconName
+                iconName = iconName,
+                isWeightBased = if (config.isWeightBased) 1 else 0,
+                isRepBased = if (config.isRepBased) 1 else 0,
+                isTimeBased = if (config.isTimeBased) 1 else 0,
+                isDistanceBased = if (config.isDistanceBased) 1 else 0
             )
             repository.insertExercise(exercise)
         }
@@ -114,6 +119,10 @@ class ExercisesViewModel(
         viewModelScope.launch {
             repository.updateExercise(exercise)
         }
+    }
+
+    suspend fun updateExerciseSuspend(exercise: Exercise) {
+        repository.updateExercise(exercise)
     }
 
     fun renameExercise(exerciseId: Long, newName: String) {

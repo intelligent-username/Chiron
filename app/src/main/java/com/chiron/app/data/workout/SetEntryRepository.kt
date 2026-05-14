@@ -1,9 +1,9 @@
 package com.chiron.app.data.workout
 
+import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.WorkoutSessionDao
-import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.SetEntry
 import kotlinx.coroutines.flow.Flow
 
@@ -12,11 +12,15 @@ import kotlinx.coroutines.flow.Flow
  *
  * PR *bucket* sync (global best-per-reps in `exercise_pr`) is delegated to [PrRepository]
  * via the [onSyncGlobalPrBucket] callback to avoid circular dependencies.
+ *
+ * PR evaluation is gated: only exercises with `isWeightBased == 1 && isRepBased == 1`
+ * are eligible for PR tracking.
  */
 class SetEntryRepository(
     private val setEntryDao: SetEntryDao,
     private val exerciseEntryDao: ExerciseEntryDao,
     private val workoutSessionDao: WorkoutSessionDao,
+    private val exerciseDao: ExerciseDao,
     private val onSyncGlobalPrBucket: suspend (exerciseId: Long, reps: Int) -> Unit
 ) {
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> =
@@ -36,32 +40,59 @@ class SetEntryRepository(
      * Update one set and evaluate its historical PR flag relative to what existed
      * up to the workout day for the same exercise + reps.
      *
+     * PR evaluation is skipped for exercises that are not weight+reps configured.
      * Does **not** rebuild or rewrite other sets' `is_pr` flags.
      */
     suspend fun updateSetAndEvaluateHistoricalPr(set: SetEntry) {
         val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
         setEntryDao.updateSet(set)
 
-        val isNewlyCompleted = oldSet != null && oldSet.weightLbs == null && oldSet.reps == null && (set.weightLbs != null || set.reps != null)
+        // Config-driven placeholder detection: a set is newly completed if all
+        // enabled-metric columns transitioned from null → non-null for any metric.
+        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
+        val exercise = exerciseDao.getById(exerciseId)
+
+        val wasPlaceholder = if (oldSet != null && exercise != null) {
+            val wasWeightNull = exercise.isWeightBased != 1 || oldSet.weightLbs == null
+            val wasRepsNull = exercise.isRepBased != 1 || oldSet.reps == null
+            val wasTimeNull = exercise.isTimeBased != 1 || oldSet.durationSeconds == null
+            val wasDistNull = exercise.isDistanceBased != 1 || oldSet.distanceMeters == null
+            wasWeightNull && wasRepsNull && wasTimeNull && wasDistNull
+        } else false
+
+        val isNowCompleted = wasPlaceholder && (
+            set.weightLbs != null || set.reps != null ||
+            set.durationSeconds != null || set.distanceMeters != null
+        )
 
         // Only infer and update the workout's end time if a set is newly created or newly completed.
-        // This prevents overwriting manual date/time edits when merely updating an existing set's reps.
         val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
 
-        if (oldSet == null || isNewlyCompleted) {
+        if (oldSet == null || isNowCompleted) {
             if (workoutId != null) {
                 val workout = workoutSessionDao.getById(workoutId)
                 if (workout != null) {
-                    // Only auto-infer if the set timestamp is within 12 hours of the workout start.
-                    // This prevents modern set additions from corrupting old historical records.
-                    val isWithinSessionWindow = set.timestampUtc >= workout.dateUtc && 
+                    val isWithinSessionWindow = set.timestampUtc >= workout.dateUtc &&
                                                (set.timestampUtc - workout.dateUtc) < 12 * 3600 * 1000L
-                    
                     if (isWithinSessionWindow && (workout.endTimeUtc == null || set.timestampUtc > (workout.endTimeUtc ?: 0L))) {
                         workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = set.timestampUtc))
                     }
                 }
             }
+        }
+
+        // ── PR evaluation ──────────────────────────────────────────────────────
+        // Only weight+reps exercises are eligible for PR tracking.
+        val isPrEligible = exercise != null &&
+            exercise.isWeightBased == 1 &&
+            exercise.isRepBased == 1
+
+        if (!isPrEligible) {
+            // Ensure is_pr = 0 for non-eligible exercises
+            if (set.isPr != 0) {
+                setEntryDao.updateSet(set.copy(isPr = 0))
+            }
+            return
         }
 
         val reps = set.reps
@@ -75,7 +106,6 @@ class SetEntryRepository(
             return
         }
 
-        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
         val workout = workoutId?.let { workoutSessionDao.getById(it) } ?: return
 
         val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
@@ -120,7 +150,7 @@ class SetEntryRepository(
         setEntryDao.getLastSetForExercise(exerciseId)
 
     /** Returns total volume (weight * reps) grouped by workout day. */
-    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = 
+    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) =
         if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExercise(exerciseId)
         else setEntryDao.getVolumeSummaryByDay()
 }

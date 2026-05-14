@@ -90,7 +90,10 @@ fun ExercisesScreen(
         if (showCreateDialog) {
             CreateExerciseDialog(
                 onDismiss = { showCreateDialog = false },
-                onCreate = { name, icon -> viewModel.createExercise(name, iconName = icon); showCreateDialog = false }
+                onCreate = { name, icon, config ->
+                    viewModel.createExercise(name, iconName = icon, config = config)
+                    showCreateDialog = false
+                }
             )
         }
     }

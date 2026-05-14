@@ -217,7 +217,13 @@ fun ChironApp(
                                     prTargetExerciseId = null
                                 }
                             } else {
-                                // User switched tabs: preserve memory
+                                // User switched tabs: close any overlays so the new tab is unobscured
+                                isPrScreenOpen = false
+                                prTargetExerciseId = null
+                                prOpenedFromHistory = false
+                                isExerciseDetailOpen = false
+                                activeExerciseId = null
+                                exerciseDetailOpenedFromHistory = false
                                 selectedTab = tab
                             }
                         }
@@ -276,7 +282,7 @@ fun ChironApp(
                                     exercise = exercise,
                                     volumeViewModel = volumeViewModel,
                                     displayInKg = historyState.displayInKg,
-                                    onSave = { exercisesViewModel.updateExercise(it) },
+                                    onSave = { exercisesViewModel.updateExerciseSuspend(it) },
                                     onDelete = { exercisesViewModel.archiveExercise(it) },
                                     onUnarchive = { exercisesViewModel.unarchiveExercise(it) },
                                     onDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },

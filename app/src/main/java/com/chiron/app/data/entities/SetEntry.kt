@@ -37,6 +37,14 @@ data class SetEntry(
     @ColumnInfo(name = "reps")
     val reps: Int? = null,
 
+    /** Duration in seconds (stored canonical). Non-null when is_time_based == 1. */
+    @ColumnInfo(name = "duration_seconds")
+    val durationSeconds: Int? = null,
+
+    /** Distance in meters (stored canonical). Non-null when is_distance_based == 1. */
+    @ColumnInfo(name = "distance_meters")
+    val distanceMeters: Double? = null,
+
     @ColumnInfo(name = "is_failed", defaultValue = "0")
     val isFailed: Int = 0,
 

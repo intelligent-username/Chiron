@@ -63,6 +63,7 @@ fun ExerciseEntryCard(
     entry: ExerciseEntry,
     viewModel: HistoryViewModel,
     displayInKg: Boolean,
+    distanceUnit: com.chiron.app.prefs.DistanceUnit,
     allEntries: List<ExerciseEntry>,
     onSetClick: (Int) -> Unit,
     onAddSet: () -> Unit,
@@ -88,16 +89,15 @@ fun ExerciseEntryCard(
         exercise = viewModel.getExerciseById(entry.exerciseId)
     }
 
-    LaunchedEffect(entry.exerciseId, entry.id, workoutId, allEntries.size) {
-        val isSupersetExercise = entry.groupId != null && entry.sequenceType != "NONE"
-        if (isSupersetExercise) {
-            lastSessionSupersetPreview =
-                viewModel.getLastSessionSupersetPreview(entry.id, allEntries, workoutId)
-            if (lastSessionSupersetPreview == null) {
-                lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
-            }
-        } else {
+    LaunchedEffect(entry.exerciseId, workoutId) {
+        // Always try superset preview first — if the exercise was last done in a superset,
+        // this will return the full superset context. Otherwise it returns null and we
+        // fall back to the plain solo preview.
+        lastSessionSupersetPreview = viewModel.getLastSessionSupersetPreview(entry.exerciseId, workoutId)
+        if (lastSessionSupersetPreview == null) {
             lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+        } else {
+            lastSessionPreview = null // clear stale solo data if superset is available
         }
     }
 
@@ -185,9 +185,9 @@ fun ExerciseEntryCard(
                                         ) {
                                             ep.sets.forEach { set ->
                                                 SetPill(
-                                                    weightLbs = set.weightLbs,
-                                                    reps = set.reps,
+                                                    set = set,
                                                     displayInKg = displayInKg,
+                                                    distanceUnit = distanceUnit,
                                                     isPr = set.isPr == 1,
                                                     onClick = {}
                                                 )
@@ -214,9 +214,9 @@ fun ExerciseEntryCard(
                             ) {
                                 lastSessionPreview!!.sets.forEach { set ->
                                     SetPill(
-                                        weightLbs = set.weightLbs,
-                                        reps = set.reps,
+                                        set = set,
                                         displayInKg = displayInKg,
+                                        distanceUnit = distanceUnit,
                                         isPr = set.isPr == 1,
                                         onClick = {}
                                     )
@@ -239,13 +239,24 @@ fun ExerciseEntryCard(
                                 modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
                             ) {
                                 sets.forEachIndexed { index, set ->
-                                    SetPill(
-                                        weightLbs = set.weightLbs,
-                                        reps = set.reps,
-                                        displayInKg = displayInKg,
-                                        isPr = set.isPr == 1,
-                                        onClick = { onSetClick(index + 1) }
-                                    )
+                                    if (exercise != null) {
+                                        SetPill(
+                                            set = set,
+                                            exercise = exercise!!,
+                                            displayInKg = displayInKg,
+                                            distanceUnit = distanceUnit,
+                                            isPr = set.isPr == 1,
+                                            onClick = { onSetClick(index + 1) }
+                                        )
+                                    } else {
+                                        SetPill(
+                                            set = set,
+                                            displayInKg = displayInKg,
+                                            distanceUnit = distanceUnit,
+                                            isPr = set.isPr == 1,
+                                            onClick = { onSetClick(index + 1) }
+                                        )
+                                    }
                                 }
                                 OutlinedButton(
                                     onClick = onAddSet,
