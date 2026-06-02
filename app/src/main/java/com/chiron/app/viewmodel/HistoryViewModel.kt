@@ -21,13 +21,21 @@ data class HistoryUiState(
     val workouts: List<WorkoutSession> = emptyList(),
     val archivedWorkouts: List<WorkoutSession> = emptyList(),
     val dayTags: List<String> = emptyList(),
+    val locationTags: List<String> = emptyList(),
     val selectedDayTag: String? = null,
+    val selectedLocationTag: String? = null,
     val showArchivedWorkouts: Boolean = false,
     val isEditorOpen: Boolean = false,
     val editingWorkoutId: Long? = null,
     val displayInKg: Boolean = false,
     val distanceUnit: com.chiron.app.prefs.DistanceUnit = com.chiron.app.prefs.DistanceUnit.METERS
 )
+
+sealed class DeletedItem {
+    data class Set(val entryId: Long, val set: SetEntry) : DeletedItem()
+    data class ExerciseEntries(val workoutId: Long, val entries: List<Pair<ExerciseEntry, List<SetEntry>>>) : DeletedItem()
+    data class WorkoutSessionWithEntries(val workout: WorkoutSession, val entries: List<ExerciseEntry>, val sets: Map<Long, List<SetEntry>>) : DeletedItem()
+}
 
 class HistoryViewModel(
     private val repository: ChironRepository,
@@ -39,8 +47,74 @@ class HistoryViewModel(
     private var debounceJob: Job? = null
     private val debounceDelayMs = 750L
 
+    private val _lastDeleted = MutableStateFlow<DeletedItem?>(null)
+    val lastDeleted: StateFlow<DeletedItem?> = _lastDeleted.asStateFlow()
+
+    fun clearLastDeleted() {
+        _lastDeleted.value = null
+    }
+
+    fun undoLastDeleted() {
+        val item = _lastDeleted.value ?: return
+        viewModelScope.launch {
+            when (item) {
+                is DeletedItem.Set -> {
+                    repository.insertSetAndEvaluateHistoricalPr(item.set.copy(id = 0L))
+                }
+                is DeletedItem.ExerciseEntries -> {
+                    val oldToNewEntryId = mutableMapOf<Long, Long>()
+                    for ((entry, sets) in item.entries) {
+                        val newEntryId = repository.insertExerciseEntry(
+                            entry.copy(id = 0L, groupId = null)
+                        )
+                        oldToNewEntryId[entry.id] = newEntryId
+                        for (set in sets) {
+                            repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                        }
+                    }
+                    // Restore superset group mappings if any
+                    for ((entry, _) in item.entries) {
+                        val oldGroupId = entry.groupId ?: continue
+                        val newEntryId = oldToNewEntryId[entry.id] ?: continue
+                        val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
+                        val currentEntry = repository.getEntriesForWorkout(item.workoutId).first().find { it.id == newEntryId } ?: continue
+                        repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                    }
+                }
+                is DeletedItem.WorkoutSessionWithEntries -> {
+                    val newWorkoutId = repository.insertWorkout(item.workout.copy(id = 0L))
+                    val oldToNewEntryId = mutableMapOf<Long, Long>()
+                    for (entry in item.entries) {
+                        val newEntryId = repository.insertExerciseEntry(
+                            entry.copy(id = 0L, workoutId = newWorkoutId, groupId = null)
+                        )
+                        oldToNewEntryId[entry.id] = newEntryId
+                        val sets = item.sets[entry.id] ?: emptyList()
+                        for (set in sets) {
+                            repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                        }
+                    }
+                    // Restore superset group mappings if any
+                    for (entry in item.entries) {
+                        val oldGroupId = entry.groupId ?: continue
+                        val newEntryId = oldToNewEntryId[entry.id] ?: continue
+                        val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
+                        val currentEntry = repository.getEntriesForWorkout(newWorkoutId).first().find { it.id == newEntryId } ?: continue
+                        repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                    }
+                }
+            }
+            _lastDeleted.value = null
+        }
+    }
+
     init {
-        viewModelScope.launch { repository.workoutsFlow.collect { w -> _uiState.update { it.copy(workouts = w) } } }
+        viewModelScope.launch {
+            repository.workoutsFlow.collect { w ->
+                val locations = w.map { it.locationTag }.filter { it.isNotBlank() }.distinct().sorted()
+                _uiState.update { it.copy(workouts = w, locationTags = locations) }
+            }
+        }
         viewModelScope.launch { repository.dayTagsFlow.collect { tags ->
             _uiState.update { it.copy(dayTags = tags.map { t -> t.ifBlank { "Untitled Workout" } }.distinct().sorted()) }
         }}
@@ -51,7 +125,8 @@ class HistoryViewModel(
 
     // ── Workout operations ────────────────────────────────────────────────────
     fun filterByDayTag(dayTag: String?) = _uiState.update { it.copy(selectedDayTag = dayTag) }
-    fun setShowArchivedWorkouts(show: Boolean) = _uiState.update { it.copy(showArchivedWorkouts = show, selectedDayTag = null) }
+    fun filterByLocationTag(locationTag: String?) = _uiState.update { it.copy(selectedLocationTag = locationTag) }
+    fun setShowArchivedWorkouts(show: Boolean) = _uiState.update { it.copy(showArchivedWorkouts = show, selectedDayTag = null, selectedLocationTag = null) }
     fun openEditor(workoutId: Long?) = _uiState.update { it.copy(isEditorOpen = true, editingWorkoutId = workoutId) }
     fun closeEditor() { forceSync(); _uiState.update { it.copy(isEditorOpen = false, editingWorkoutId = null) } }
 
@@ -91,7 +166,21 @@ class HistoryViewModel(
     }
     fun archiveWorkout(workoutId: Long) { viewModelScope.launch { repository.archiveWorkout(workoutId) } }
     fun unarchiveWorkout(workoutId: Long) { viewModelScope.launch { repository.unarchiveWorkout(workoutId) } }
-    fun permanentlyDeleteWorkout(workoutId: Long) { viewModelScope.launch { repository.permanentlyDeleteWorkout(workoutId) } }
+    fun permanentlyDeleteWorkout(workoutId: Long) {
+        viewModelScope.launch {
+            val baseWorkouts = _uiState.value.workouts + _uiState.value.archivedWorkouts
+            val workoutToDelete = baseWorkouts.find { it.id == workoutId }
+            if (workoutToDelete != null) {
+                val entries = repository.getEntriesForWorkout(workoutId).first()
+                val setsMap = mutableMapOf<Long, List<SetEntry>>()
+                for (entry in entries) {
+                    setsMap[entry.id] = repository.getSetsForEntry(entry.id).first()
+                }
+                repository.permanentlyDeleteWorkout(workoutId)
+                _lastDeleted.value = DeletedItem.WorkoutSessionWithEntries(workoutToDelete, entries, setsMap)
+            }
+        }
+    }
     fun duplicateWorkout(workoutId: Long, onDuplicated: (Long) -> Unit = {}) {
         viewModelScope.launch { val newId = repository.duplicateWorkout(workoutId); if (newId > 0) onDuplicated(newId) }
     }
@@ -109,7 +198,32 @@ class HistoryViewModel(
         repository.insertExerciseEntry(ExerciseEntry(workoutId = workoutId, exerciseId = exerciseId, slotIndex = repository.getNextSlotIndex(workoutId), sequenceType = SequenceType.NONE.name))
 
     fun updateExerciseEntry(entry: ExerciseEntry) { viewModelScope.launch { runCatching { repository.updateExerciseEntry(entry) } } }
-    fun deleteExerciseEntry(workoutId: Long, entryId: Long) { viewModelScope.launch { repository.deleteExerciseEntry(workoutId, entryId) } }
+    fun deleteExerciseEntry(workoutId: Long, entryId: Long) {
+        viewModelScope.launch {
+            val entries = repository.getEntriesForWorkout(workoutId).first()
+            val entryToDelete = entries.find { it.id == entryId }
+            if (entryToDelete != null) {
+                val sets = repository.getSetsForEntry(entryId).first()
+                repository.deleteExerciseEntry(workoutId, entryId)
+                _lastDeleted.value = DeletedItem.ExerciseEntries(workoutId, listOf(entryToDelete to sets))
+            }
+        }
+    }
+    fun deleteExerciseEntries(workoutId: Long, entryIds: List<Long>) {
+        viewModelScope.launch {
+            val entries = repository.getEntriesForWorkout(workoutId).first()
+            val toDelete = entries.filter { it.id in entryIds }
+            val pairs = mutableListOf<Pair<ExerciseEntry, List<SetEntry>>>()
+            for (entry in toDelete) {
+                val sets = repository.getSetsForEntry(entry.id).first()
+                pairs.add(entry to sets)
+                repository.deleteExerciseEntry(workoutId, entry.id)
+            }
+            if (pairs.isNotEmpty()) {
+                _lastDeleted.value = DeletedItem.ExerciseEntries(workoutId, pairs)
+            }
+        }
+    }
     suspend fun getExerciseName(exerciseId: Long): String? = repository.getExerciseById(exerciseId)?.name
     suspend fun getExerciseById(exerciseId: Long): com.chiron.app.data.entities.Exercise? = repository.getExerciseById(exerciseId)
     suspend fun getAllExercises(): List<com.chiron.app.data.entities.Exercise> = repository.getAllExercises()
@@ -130,7 +244,16 @@ class HistoryViewModel(
         debounceJob = viewModelScope.launch { delay(debounceDelayMs); runCatching { repository.updateSet(set) } }
     }
 
-    fun deleteSet(entryId: Long, setId: Long) { viewModelScope.launch { repository.deleteSet(entryId, setId) } }
+    fun deleteSet(entryId: Long, setId: Long) {
+        viewModelScope.launch {
+            val sets = repository.getSetsForEntry(entryId).first()
+            val setToDelete = sets.find { it.id == setId }
+            if (setToDelete != null) {
+                repository.deleteSet(entryId, setId)
+                _lastDeleted.value = DeletedItem.Set(entryId, setToDelete)
+            }
+        }
+    }
     suspend fun getAutofillSuggestion(exerciseId: Long): SetEntry? = repository.getLastSetForExercise(exerciseId)
     fun updateSetAndCheckPr(set: SetEntry) { viewModelScope.launch { runCatching { repository.updateSetAndEvaluateHistoricalPr(set) } } }
     suspend fun getAllPrsForExercise(exerciseId: Long) = repository.getAllPrsForExercise(exerciseId)

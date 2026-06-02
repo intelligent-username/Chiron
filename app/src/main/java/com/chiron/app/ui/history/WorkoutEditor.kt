@@ -218,9 +218,7 @@ fun WorkoutEditor(
                         },
                         onDeleteSuperset = {
                             scope.launch {
-                                group.forEach { entry ->
-                                    viewModel.deleteExerciseEntry(workout.id, entry.id)
-                                }
+                                viewModel.deleteExerciseEntries(workout.id, group.map { it.id })
                             }
                         },
                         onOpenPrForExercise = onOpenPrForExercise,
@@ -271,6 +269,11 @@ fun WorkoutEditor(
         ) {
             Icon(Icons.Default.Add, "Add Exercise")
         }
+
+        com.chiron.app.ui.components.UndoSnackbar(
+            viewModel = viewModel,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────────

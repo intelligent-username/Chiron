@@ -49,11 +49,12 @@ fun SetPill(
 
     Box(
         modifier = modifier
+            .height(32.dp)
             .clip(shape)
             .background(backgroundColor)
             .border(1.dp, borderColor, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(

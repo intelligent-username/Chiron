@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
@@ -101,7 +102,7 @@ fun WorkoutEditorHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         // Row 1: Workout name + action buttons
         Row(
@@ -135,7 +136,9 @@ fun WorkoutEditorHeader(
                         )
                     },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(x = (-16).dp) // offset M3 TextField's built-in start padding
                 )
 
                 DropdownMenu(
@@ -261,7 +264,9 @@ fun WorkoutEditorHeader(
             ),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             colors = transparentTextFieldColors(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(x = (-16).dp),
             minLines = 1,
             maxLines = 3
         )

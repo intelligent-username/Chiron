@@ -23,6 +23,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
 import kotlin.math.sin
 import kotlin.math.PI
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -305,32 +309,48 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                         )
                     }
 
-                    // Timestamp row — always shown when duration > 0, but for podcasts only
-                    if (isPodcast) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = formatMs(localPosition),
-                                color = Color(0xFF888888),
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "-${formatMs(duration - localPosition)}",
-                                color = Color(0xFF888888),
-                                fontSize = 11.sp
-                            )
-                        }
+                    // Timestamp row — always shown when duration > 0, showing current and total runtime
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = formatMs(localPosition),
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = formatMs(duration),
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
                 }
 
-                // Playback controls
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Playback controls row: Shuffle, Prev/Rewind, Play/Pause, Next/Forward, Repeat
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    // 1. Shuffle
+                    val isShuffling = state.playbackOptions.isShuffling
+                    val shuffleTint = if (isShuffling) Color(0xFF1DB954) else Color(0xFFB3B3B3)
+                    IconButton(
+                        onClick = { SpotifyManager.toggleShuffle() },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        ShuffleIcon(
+                            tint = shuffleTint,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // 2. Skip Previous or Replay 10s
                     if (isPodcast) {
                         IconButton(onClick = { SpotifyManager.seekBack10s() }) {
                             Icon(
@@ -350,7 +370,8 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // 3. Play / Pause
                     IconButton(
                         onClick = { SpotifyManager.togglePlayPause() },
                         modifier = Modifier.size(64.dp)
@@ -362,7 +383,8 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             modifier = Modifier.size(52.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // 4. Skip Next or Forward 10s
                     if (isPodcast) {
                         IconButton(onClick = { SpotifyManager.seekForward10s() }) {
                             Icon(
@@ -381,6 +403,20 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                                 modifier = Modifier.size(36.dp)
                             )
                         }
+                    }
+
+                    // 5. Repeat
+                    val repeatMode = state.playbackOptions.repeatMode
+                    val repeatTint = if (repeatMode != 0) Color(0xFF1DB954) else Color(0xFFB3B3B3)
+                    IconButton(
+                        onClick = { SpotifyManager.toggleRepeat() },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        RepeatIcon(
+                            tint = repeatTint,
+                            repeatOne = repeatMode == 1,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
 
@@ -512,6 +548,7 @@ fun WaveSliderBackground(
         ), label = "wavePhase"
     )
 
+
     val targetAmplitude = if (isPaused) 1.5f else 8f
     val amplitude by animateFloatAsState(
         targetValue = targetAmplitude,
@@ -524,35 +561,175 @@ fun WaveSliderBackground(
         val midY = height / 2f
         val progressX = (width * progress).coerceIn(0f, width)
 
-        drawLine(
-            color = inactiveColor,
-            start = androidx.compose.ui.geometry.Offset(progressX, midY),
-            end = androidx.compose.ui.geometry.Offset(width, midY),
-            strokeWidth = 2.dp.toPx(),
-            cap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
+        // 1. Right side: Flat unplayed line using inactiveColor
+        if (progressX < width) {
+            drawLine(
+                color = inactiveColor,
+                start = androidx.compose.ui.geometry.Offset(progressX, midY),
+                end = androidx.compose.ui.geometry.Offset(width, midY),
+                strokeWidth = 2.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        }
 
+        // 2. Left side: Sine wave starting at progressX and propagating leftward to 0f using activeColor
         if (progressX > 0f) {
-            val path = Path()
-            path.moveTo(0f, midY)
-            val waveLength = 120f
             val step = 4f
-            var x = 0f
-            while (x <= progressX) {
-                val normalizedX = x / waveLength
-                val yOffset = amplitude * sin(normalizedX * 2 * PI.toFloat() - phase) * (x / progressX).coerceAtMost(1f)
-                path.lineTo(x, midY + yOffset)
-                x += step
+
+            // ───────────────── B. DRAW PRIMARY (PROGRESS) WAVE ─────────────────
+            val primaryPath = Path()
+            primaryPath.moveTo(progressX, midY)
+            val primaryWaveLength = 120f
+            var xPrimary = progressX
+            while (xPrimary >= 0f) {
+                val dx = progressX - xPrimary
+                val normalizedX = dx / primaryWaveLength
+                // Primary wave decays faster (640dp decay - twice as slow)
+                val startRamp = (dx / 30f).coerceAtMost(1f)
+                val fade = (1f - (dx / 640f)).coerceIn(0f, 1f)
+                val damp = startRamp * fade
+                val yOffset = amplitude * sin(normalizedX * 2 * PI.toFloat() + phase) * damp
+                primaryPath.lineTo(xPrimary, midY + yOffset)
+                xPrimary -= step
             }
-            if (x < progressX) {
-                val yOffset = amplitude * sin((progressX / waveLength) * 2 * PI.toFloat() - phase)
-                path.lineTo(progressX, midY + yOffset)
+            if (xPrimary > -step) {
+                val dx = progressX
+                val startRamp = (dx / 30f).coerceAtMost(1f)
+                val fade = (1f - (dx / 640f)).coerceIn(0f, 1f)
+                val damp = startRamp * fade
+                val yOffset = amplitude * sin((dx / primaryWaveLength) * 2 * PI.toFloat() + phase) * damp
+                primaryPath.lineTo(0f, midY + yOffset)
             }
             drawPath(
-                path = path,
+                path = primaryPath,
                 color = activeColor,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
             )
         }
     }
 }
+
+@Composable
+fun ShuffleIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val path = Path().apply {
+            // Arrow 1: top-left to bottom-right
+            moveTo(0.15f * w, 0.25f * h)
+            lineTo(0.35f * w, 0.25f * h)
+            cubicTo(0.45f * w, 0.25f * h, 0.55f * w, 0.75f * h, 0.65f * w, 0.75f * h)
+            lineTo(0.85f * w, 0.75f * h)
+            
+            // Arrow 2: bottom-left to top-right
+            moveTo(0.15f * w, 0.75f * h)
+            lineTo(0.35f * w, 0.75f * h)
+            cubicTo(0.45f * w, 0.75f * h, 0.55f * w, 0.25f * h, 0.65f * w, 0.25f * h)
+            lineTo(0.85f * w, 0.25f * h)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        )
+        // Arrow head 1
+        val arrowHead1 = Path().apply {
+            moveTo(0.75f * w, 0.65f * h)
+            lineTo(0.85f * w, 0.75f * h)
+            lineTo(0.75f * w, 0.85f * h)
+        }
+        drawPath(
+            path = arrowHead1,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        // Arrow head 2
+        val arrowHead2 = Path().apply {
+            moveTo(0.75f * w, 0.15f * h)
+            lineTo(0.85f * w, 0.25f * h)
+            lineTo(0.75f * w, 0.35f * h)
+        }
+        drawPath(
+            path = arrowHead2,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
+
+@Composable
+fun RepeatIcon(
+    tint: Color,
+    repeatOne: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        
+        // Loop paths (top arrow going right, bottom arrow going left)
+        val path = Path().apply {
+            // Top arrow
+            moveTo(0.2f * w, 0.4f * h)
+            lineTo(0.2f * w, 0.3f * h)
+            cubicTo(0.2f * w, 0.2f * h, 0.8f * w, 0.2f * h, 0.8f * w, 0.3f * h)
+            lineTo(0.8f * w, 0.4f * h)
+            
+            // Bottom arrow
+            moveTo(0.8f * w, 0.6f * h)
+            lineTo(0.8f * w, 0.7f * h)
+            cubicTo(0.8f * w, 0.8f * h, 0.2f * w, 0.8f * h, 0.2f * w, 0.7f * h)
+            lineTo(0.2f * w, 0.6f * h)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        )
+        
+        // Arrow heads
+        val arrowHead1 = Path().apply {
+            moveTo(0.7f * w, 0.35f * h)
+            lineTo(0.8f * w, 0.4f * h)
+            lineTo(0.7f * w, 0.45f * h)
+        }
+        drawPath(
+            path = arrowHead1,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        
+        val arrowHead2 = Path().apply {
+            moveTo(0.3f * w, 0.55f * h)
+            lineTo(0.2f * w, 0.6f * h)
+            lineTo(0.3f * w, 0.65f * h)
+        }
+        drawPath(
+            path = arrowHead2,
+            color = tint,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        
+        if (repeatOne) {
+            // Draw a tiny "1" in the center
+            drawLine(
+                color = tint,
+                start = Offset(0.5f * w, 0.42f * h),
+                end = Offset(0.5f * w, 0.58f * h),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = tint,
+                start = Offset(0.45f * w, 0.46f * h),
+                end = Offset(0.5f * w, 0.42f * h),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+

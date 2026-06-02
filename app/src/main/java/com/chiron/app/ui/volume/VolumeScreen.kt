@@ -5,6 +5,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -66,13 +69,7 @@ fun VolumeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                androidx.compose.ui.graphics.lerp(
-                    MaterialTheme.colorScheme.background,
-                    Color(0xFF2979FF),
-                    0.03f
-                )
-            )
+            .background(Color(0xFF0D1117))
     ) {
         if (state.isLoading) {
             CircularProgressIndicator(
@@ -123,6 +120,7 @@ fun VolumeContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -143,10 +141,15 @@ fun VolumeContent(
             Checkbox(
                 checked = state.abridgeGaps,
                 onCheckedChange = { onToggleAbridgeGaps() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = Color(0xFF8B949E),
+                    checkmarkColor = Color.Black
+                ),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Abridge Gaps", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.8f))
+            Text("Abridge Gaps", fontSize = 14.sp, color = Color(0xFF8B949E))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -154,15 +157,16 @@ fun VolumeContent(
         // ── Graph card ────────────────────────────────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp)
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF30363D))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Total Volume in top right
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "${totalVolume.formatVolume(displayInKg)} $unit",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         modifier = Modifier.align(Alignment.TopEnd)
@@ -219,7 +223,7 @@ fun VolumeContent(
         
         Spacer(modifier = Modifier.height(16.dp))
         VolumeStatsSection(stats = state.stats, displayInKg = displayInKg)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(120.dp))
     }
 }
 
@@ -234,7 +238,8 @@ private fun ModeSelector(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(Color(0xFF161B22))
+            .border(1.dp, Color(0xFF30363D), RoundedCornerShape(12.dp)),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         VolumeMode.entries.forEach { mode ->
@@ -244,14 +249,14 @@ private fun ModeSelector(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
+                    .background(if (isSelected) Color(0xFF21262D) else Color.Transparent)
                     .clickable { onSelect(mode) }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = label,
-                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
+                    color = if (isSelected) Color.White else Color(0xFF8B949E),
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 14.sp
                 )
@@ -322,7 +327,7 @@ private fun VolumeLineGraph(
             gridLevels.forEach { ratio ->
                 val y = padTop + graphH * (1f - ratio)
                 drawLine(
-                    color = Color.White.copy(alpha = 0.05f),
+                    color = Color(0xFF30363D).copy(alpha = 0.4f),
                     start = Offset(padLeft, y),
                     end = Offset(w - padRight, y),
                     strokeWidth = 1f
@@ -331,7 +336,7 @@ private fun VolumeLineGraph(
                 val labelVal = maxVol * ratio
                 val v = if (displayInKg) labelVal * 0.453592 else labelVal
                 val labelStr = if (v >= 1000) "%.1fk".format(v / 1000) else "%.0f".format(v)
-                val measuredText = textMeasurer.measure(labelStr, TextStyle(color = textColor, fontSize = 10.sp))
+                val measuredText = textMeasurer.measure(labelStr, TextStyle(color = Color(0xFF8B949E), fontSize = 10.sp))
                 drawText(
                     textLayoutResult = measuredText,
                     topLeft = Offset(padLeft - measuredText.size.width - 16f, y - measuredText.size.height / 2f)
@@ -402,7 +407,7 @@ private fun VolumeLineGraph(
                 
                 // Draw X-axis label
                 if (point.label.isNotEmpty()) {
-                    val measuredText = textMeasurer.measure(point.label, TextStyle(color = textColor, fontSize = 10.sp))
+                    val measuredText = textMeasurer.measure(point.label, TextStyle(color = Color(0xFF8B949E), fontSize = 10.sp))
                     drawText(
                         textLayoutResult = measuredText,
                         topLeft = Offset(x - measuredText.size.width / 2f, h - padBottom + 12f)
@@ -434,7 +439,7 @@ private fun VolumeLineGraph(
                     
                     val textLayoutResult = textMeasurer.measure(
                         text = tooltipText,
-                        style = TextStyle(color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     )
                     
                     val tw = textLayoutResult.size.width.toFloat()
@@ -448,10 +453,18 @@ private fun VolumeLineGraph(
                     val ty = padTop - 20f
                     
                     drawRoundRect(
-                        color = Color.White,
+                        color = Color(0xFF21262D),
                         topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
                         size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                    )
+                    
+                    drawRoundRect(
+                        color = Color(0xFF30363D),
+                        topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
+                        size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+                        style = Stroke(width = 1f)
                     )
                     
                     drawText(
@@ -475,7 +488,9 @@ private fun WeekNavigator(
     onNext: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -486,15 +501,15 @@ private fun WeekNavigator(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Previous week",
-                tint = if (canGoPrev) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                tint = if (canGoPrev) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
             )
         }
 
         Text(
             text = weekLabel,
-            color = MaterialTheme.colorScheme.onBackground.copy(0.8f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f)
         )
@@ -506,7 +521,7 @@ private fun WeekNavigator(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = "Next week",
-                tint = if (canGoNext) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                tint = if (canGoNext) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
             )
         }
     }
@@ -515,31 +530,38 @@ private fun WeekNavigator(
 @Composable
 private fun VolumeStatsSection(stats: VolumeStats, displayInKg: Boolean) {
     val unit = if (displayInKg) "kg" else "lbs"
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF30363D))
     ) {
-        StatRow("This week", "${stats.thisWeek.formatVolume(displayInKg)} $unit")
-        StatRow("Last week", "${stats.lastWeek.formatVolume(displayInKg)} $unit")
-        StatRow("Rolling weekly avg", "${stats.rollingWeeklyAvg.formatVolume(displayInKg)} $unit")
-        
-        val sign = if (stats.rollingVolChange > 0) "+" else ""
-        StatRow("Rolling vol change", "$sign${stats.rollingVolChange.formatVolume(displayInKg)} $unit")
-        
-        StatRow("Highest ever weekly", "${stats.highestEver.formatVolume(displayInKg)} $unit")
-        StatRow("Lowest ever weekly", "${stats.lowestEver.formatVolume(displayInKg)} $unit")
-        StatRow("All time total", "${stats.allTimeTotal.formatVolume(displayInKg)} $unit")
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            StatRow("This week", "${stats.thisWeek.formatVolume(displayInKg)} $unit")
+            StatRow("Last week", "${stats.lastWeek.formatVolume(displayInKg)} $unit")
+            StatRow("Rolling weekly avg", "${stats.rollingWeeklyAvg.formatVolume(displayInKg)} $unit")
+            
+            val sign = if (stats.rollingVolChange > 0) "+" else ""
+            StatRow("Rolling vol change", "$sign${stats.rollingVolChange.formatVolume(displayInKg)} $unit")
+            
+            StatRow("Highest ever weekly", "${stats.highestEver.formatVolume(displayInKg)} $unit")
+            StatRow("Lowest ever weekly", "${stats.lowestEver.formatVolume(displayInKg)} $unit")
+            StatRow("All time total", "${stats.allTimeTotal.formatVolume(displayInKg)} $unit")
+        }
     }
 }
 
 @Composable
 private fun StatRow(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f), fontSize = 14.sp)
+        Text(label, color = Color(0xFF8B949E), fontSize = 14.sp)
         Text(value, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }

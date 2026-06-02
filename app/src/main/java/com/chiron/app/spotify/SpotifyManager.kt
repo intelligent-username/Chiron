@@ -46,6 +46,7 @@ object SpotifyManager {
 
     private var timeoutJob: kotlinx.coroutines.Job? = null
     private var sleepJob: kotlinx.coroutines.Job? = null
+    private var lastLoadedImageUri: com.spotify.protocol.types.ImageUri? = null
     private val managerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
 
     fun getAuthIntent(activity: Activity): android.content.Intent {
@@ -186,19 +187,23 @@ object SpotifyManager {
             
             val imageUri = state.track?.imageUri
             if (imageUri != null) {
-                appRemote?.imagesApi?.getImage(imageUri)?.setResultCallback { bitmap ->
-                    _albumArt.value = bitmap
-                    // Extract average color for theming
-                    if (bitmap != null) {
-                        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 1, 1, true)
-                        val colorInt = scaled.getPixel(0, 0)
-                        scaled.recycle()
-                        _dominantColor.value = Color(colorInt)
-                    } else {
-                        _dominantColor.value = null
+                if (imageUri != lastLoadedImageUri) {
+                    lastLoadedImageUri = imageUri
+                    appRemote?.imagesApi?.getImage(imageUri, com.spotify.protocol.types.Image.Dimension.MEDIUM)?.setResultCallback { bitmap ->
+                        _albumArt.value = bitmap
+                        // Extract average color for theming
+                        if (bitmap != null) {
+                            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 1, 1, true)
+                            val colorInt = scaled.getPixel(0, 0)
+                            scaled.recycle()
+                            _dominantColor.value = Color(colorInt)
+                        } else {
+                            _dominantColor.value = null
+                        }
                     }
                 }
             } else {
+                lastLoadedImageUri = null
                 _albumArt.value = null
                 _dominantColor.value = null
             }
@@ -242,5 +247,22 @@ object SpotifyManager {
 
     fun seekForward10s() {
         seekBy(10_000L)
+    }
+
+    fun toggleShuffle() {
+        val state = _playerState.value ?: return
+        val currentShuffle = state.playbackOptions.isShuffling
+        appRemote?.playerApi?.setShuffle(!currentShuffle)
+    }
+
+    fun toggleRepeat() {
+        val state = _playerState.value ?: return
+        // Cycle: 0 (Off) -> 2 (All) -> 1 (One) -> 0 (Off)
+        val nextRepeat = when (state.playbackOptions.repeatMode) {
+            0 -> 2
+            2 -> 1
+            else -> 0
+        }
+        appRemote?.playerApi?.setRepeat(nextRepeat)
     }
 }

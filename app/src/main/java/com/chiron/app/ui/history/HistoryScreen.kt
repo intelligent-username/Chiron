@@ -46,9 +46,45 @@ fun HistoryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 0.dp, bottom = 4.dp)) {
-                FilterChip(selected = !state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(false) }, label = { Text("Active") })
-                FilterChip(selected = state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(true) }, label = { Text("Archived") })
+            // Row 1: Active/Archived (left) + Location filter (right, scrollable)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 0.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Active / Archived pills — left side
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(false) }, label = { Text("Active") })
+                    FilterChip(selected = state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(true) }, label = { Text("Archived") })
+                }
+
+                if (!state.showArchivedWorkouts && state.locationTags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(24.dp))
+
+                    LazyRow(
+                        modifier = Modifier
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(end = 0.dp),
+                        reverseLayout = false
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = state.selectedLocationTag == null,
+                                onClick = { viewModel.filterByLocationTag(null) },
+                                label = { Text("All") }
+                            )
+                        }
+                        items(state.locationTags) { loc ->
+                            FilterChip(
+                                selected = state.selectedLocationTag == loc,
+                                onClick = { viewModel.filterByLocationTag(loc) },
+                                label = { Text(loc) }
+                            )
+                        }
+                    }
+                }
             }
 
             if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
@@ -61,10 +97,13 @@ fun HistoryScreen(
             }
 
             val baseWorkouts = if (state.showArchivedWorkouts) state.archivedWorkouts else state.workouts
-            val filteredWorkouts = if (!state.showArchivedWorkouts && state.selectedDayTag != null) {
-                state.workouts.filter {
-                    if (state.selectedDayTag == "Untitled Workout") it.dayTag == "Untitled Workout" || it.dayTag.isBlank()
-                    else it.dayTag == state.selectedDayTag
+            val filteredWorkouts = if (!state.showArchivedWorkouts) {
+                baseWorkouts.filter { workout ->
+                    val dayMatch = state.selectedDayTag == null ||
+                        (state.selectedDayTag == "Untitled Workout" && (workout.dayTag == "Untitled Workout" || workout.dayTag.isBlank())) ||
+                        workout.dayTag == state.selectedDayTag
+                    val locMatch = state.selectedLocationTag == null || workout.locationTag == state.selectedLocationTag
+                    dayMatch && locMatch
                 }
             } else baseWorkouts
 
@@ -108,6 +147,11 @@ fun HistoryScreen(
                 existingDayTags = state.dayTags
             )
         }
+
+        com.chiron.app.ui.components.UndoSnackbar(
+            viewModel = viewModel,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     val workout = workoutToDelete
