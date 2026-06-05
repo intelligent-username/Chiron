@@ -68,25 +68,30 @@ internal fun PrDetailPanel(
         } else {
             if (category == PrCategory.DISTANCE_WEIGHT && exercise.isRepBased == 1) {
                 // Distance & Weight with Reps (e.g. box jumps)
+                // Round to nearest hundredth of a metre to avoid floating-point duplicates
+                fun Double.roundToHundredth() = kotlin.math.round(this * 100) / 100.0
+
                 val distances = remember(prs) {
-                    prs.map { it.bucket / 100000.0 }.distinct().sorted()
+                    prs.map { (it.bucket / 100000.0).roundToHundredth() }
+                        .filter { it > 0.0 }
+                        .distinct()
+                        .sorted()
                 }
                 var selectedDistance by remember(distances) {
                     mutableStateOf(distances.firstOrNull() ?: 0.0)
                 }
 
-                if (distances.isNotEmpty()) {
-                    DistanceSelectorBar(
-                        distances = distances,
-                        selectedDistance = selectedDistance,
-                        onDistanceSelected = { selectedDistance = it },
-                        distanceUnit = distanceUnit
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                }
+                // Always show the bar — even with a single distance it labels the column
+                DistanceSelectorBar(
+                    distances = distances,
+                    selectedDistance = selectedDistance,
+                    onDistanceSelected = { selectedDistance = it },
+                    distanceUnit = distanceUnit
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                 val filteredPrs = remember(prs, selectedDistance) {
-                    prs.filter { Math.abs((it.bucket / 100000.0) - selectedDistance) < 0.001 }
+                    prs.filter { (it.bucket / 100000.0).roundToHundredth() == selectedDistance }
                 }
 
                 LazyColumn(

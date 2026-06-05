@@ -115,6 +115,7 @@ class PrRepository(
                     val bestPerDistReps = mutableMapOf<Double, SetEntry>()
                     for (set in allSets) {
                         val distance = set.distanceMeters ?: continue
+                        if (distance <= 0.0) continue  // skip sets with no real distance recorded
                         val reps = set.reps ?: continue
                         val weight = set.weightLbs ?: continue
                         if (set.isFailed != 0) continue

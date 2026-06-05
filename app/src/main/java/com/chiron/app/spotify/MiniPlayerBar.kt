@@ -38,10 +38,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import androidx.compose.runtime.saveable.rememberSaveable
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -70,56 +66,24 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
 
     val context = LocalContext.current
 
-    // Network state for gating auto-connect retries.
-    var isOnline by rememberSaveable { mutableStateOf(true) }
-
-    DisposableEffect(context) {
-        val cm = context.getSystemService(ConnectivityManager::class.java)
-        if (cm == null) {
-            isOnline = true
-            onDispose { }
-        } else {
-            fun updateOnline() {
-                val network = cm.activeNetwork
-                val caps = cm.getNetworkCapabilities(network)
-                isOnline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            }
-            updateOnline()
-            val callback = object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) = updateOnline()
-                override fun onLost(network: Network) = updateOnline()
-                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) = updateOnline()
-            }
-            val request = NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-            cm.registerNetworkCallback(request, callback)
-            onDispose {
-                runCatching { cm.unregisterNetworkCallback(callback) }
-            }
-        }
-    }
-
     val authLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         SpotifyManager.handleAuthResponse(result.resultCode, result.data, context)
     }
 
-    // Attempt a silent connect on mount/network-recovery, but never while auth is pending.
-    LaunchedEffect(Unit, isOnline) {
-        if (isOnline && !isConnected && !isConnecting && !needsAuthFlow) {
+    // Attempt a silent connect on mount, but never while auth is pending.
+    LaunchedEffect(Unit) {
+        if (!isConnected && !isConnecting && !needsAuthFlow) {
             SpotifyManager.connect(context)
         }
     }
 
     val track = if (isConnected) playerState?.track else null
 
-    val idleText = remember(isOnline, needsAuthFlow, connectionError, isConnecting, isConnected, track) {
+    val idleText = remember(needsAuthFlow, connectionError, isConnecting, isConnected, track) {
         buildAnnotatedString {
             when {
-                !isOnline -> append("Spotify: Offline (controls need internet to connect)")
                 needsAuthFlow -> append("Spotify: Needs Authorization (Tap to login)")
                 connectionError != null -> { append("Spotify: "); append(connectionError); append(" (Tap to retry)") }
                 isConnecting -> append("Connecting to Spotify…")
