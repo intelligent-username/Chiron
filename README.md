@@ -2,40 +2,80 @@
 
 ![Cover Image](imgs/Cover.png)
 
-Chiron is a high-speed, customizable, and feature-rich workout tracker designed to get rid of all the bloat, recommendations, lack of customization, and/or tracking that's found in virutally every single other app. It's designed to my taste, so it has every faeture that I will need. Download the version for your device from the [releases tab](https://github.com/intelligent-username/Chiron/releases).
+Chiron is a high-speed, customizable, and feature-rich workout tracker designed to get rid of all the bloat, recommendations, lack of customization, and tracking that's found in virtually every other app. It is designed to be clean, fast, offline-first, and highly tailored to standard and complex training metrics.
 
-## Features
+Download the version for your device from the [releases tab](https://github.com/intelligent-username/Chiron/releases).
 
-- Pre-made exercises
-- Create custom exercises
-- Workouts composed of exercise, each exercise is composed of sets: (weight, reps) tuples.
-- Functional Supersets
-- Create and Save custom reusable names and locations.
-  - Ordered by recency.
-  - Filter by names
-  - Filter by locations
-- Timer and stopwatch with presets.
-- Duplicate workouts
-- View 'previous' performance of an exercise to see what numbers you have to beat.
-- Automatically tracks personal records
-- Import and Export data
-- Spotify integration with equally clean UI :D
+---
 
-## Compilation
+## The Three Core Tabs
+
+![Screenshots](imgs/demos.webp)
+
+Chiron is organized into three central tabs to streamline your training workflow:
+
+### 1. History Tab (Workout Tracking & Logs)
+
+The central hub for logging workouts in real-time and reviewing past sessions:
+
+*   **Session Editor:** Compose workouts dynamically, containing individual exercises, sets, reps, weight, distance, and duration.
+*   **Supersets:** Link consecutive exercises into functional supersets with an integrated grouping UI.
+*   **Performance Comparison:** Quickly view your "Previous" performance directly within each card to see exactly what targets you need to match or beat.
+*   **Workout Management:** Easily duplicate past workouts to repeat previous routines.
+*   **Dynamic Metadata:** Log names and locations, automatically sorted by recency and searchable via autocomplete/filters.
+
+### 2. Exercises Tab (Exercise Directory & Personal Records)
+
+A clean, modern directory for managing exercises and checking peak strength achievements:
+
+*   **Categorical PR Tracking:** Supports polymorphic calculations for all exercise types:
+    *   *Weight & Reps:* Highest weight achieved per repetition count with 1RM estimations.
+    *   *Time & Weight:* Longest duration held for a given weight.
+    *   *Distance & Weight (Rep-Based):* Tracks weight achieved for specific distance/repetition buckets.
+    *   *Distance & Weight (Non-Rep):* Tracks longest distance achieved per weight.
+    *   *Distance & Time:* Fastest duration achieved for a given distance.
+*   **Interactive PR Details:** High-fidelity detail panel featuring a horizontal sliding pill selector to filter PR metrics by distance category (e.g., box jump heights).
+*   **Modern Creator:** Clean, card-based interface for building custom exercises with toggle options and segmented selectors.
+*   **Directory Management:** Quick filters, search, and archiving/unarchiving of unused exercises.
+
+### 3. Utilities Tab (Timer & Stopwatch)
+Dedicated pacing tools to keep your workouts on schedule:
+*   **Timer & Stopwatch:** Multi-mode timers featuring customizable preset sheets.
+*   **Metronome:** Integrated metronome tool for pacing tempo training and cadence.
+
+---
+
+## Special Features
+
+*   **Offline Spotify Mini-Player:** A floating mini-player bar that communicates locally with the on-device Spotify app via IPC. Features interactive controls, gesture expansion, a custom animated wave seek slider, and offline support for Spotify Premium users.
+
+*   **Advanced Volume Statistics:** In-app volume estimation calculated using category-specific SQL equations:
+    *   *Distance + Reps + Weight:* $\text{Weight} \times \text{Reps} \times (\text{Distance} \times 2.0)$
+    *   *Distance + Weight:* $\text{Weight} \times \frac{\text{Distance}}{5.0}$
+    *   *Time + Weight:* $\text{Weight} \times \frac{\text{Duration}}{3.0}$
+
+*   **Import / Export:** Clean database backup and recovery utilities to export or restore all workout metrics and history.
+*   **Unit Preferences:** Seamless conversions between Metric (Kg, Meters) and Imperial (Lbs, Feet/Inches).
+
+
+---
+
+## <img src="imgs/logo.png" width="16" height="16" style="border-radius: 50%"> Compilation
+
 
 First, make sure you have [JDK](https://www.oracle.com/java/technologies/downloads/) and [Gradle](https://docs.gradle.org/current/userguide/installation.html) installed.
 
-Run
+Run:
 
 ```bash
 .\gradlew.bat assembleDebug
 ```
 
-To assemble a debug version of the app. This isn't the best for serious production & distribution, but it's decent and fast.
+This will assemble a debug version of the app, which is a less optimized in terms of Android performance but it's easier for the developer to test the app with.
 
-All the releases so far have been debug versions.
+All the most recent releases have been official release builds.
 
-Run
+Run:
 
 ```bash
 .\gradlew.bat assembleRelease
@@ -51,81 +91,7 @@ To develop on your own, I recommend [Android Studio](https://developer.android.c
 
 Download your respective installer to download the app. Then, you can run it like any other app. For Spotify integration, you'll need to log in with your Spotify account on the Spotify app first (this is a feature required by Spotify itself).
 
-## Modifying the App
-
-To modify the app, you'll need to use Android Studio or XCode depending on if you want to twaek an Android or iOS version of the app. Clone this repository and make whatever changes you want.
-
-## Upcoming Changes🚧
-
-Basically all features are done. Just need to fix bugs.
-
-Idea: calorie tracker to centralize tracking needs, and do analyses like "on days where you eat lots of carbs you break a PR". But this seems uncessary.
-
-Problem: for official released, the Android version is signed only once and pretty easily, whereas the iOS version needs to be re-signed every 7 days, which is why iOS support will likely be delayed for a long time.
-
-Steps:
-
-  1. Add the following modules to create cross-platform compatibility:
-
-      ```md
-        - `shared/`
-          - `src/commonMain/`   <- universal stuff (both logic and UI)
-          - `src/androidMain/`  <- Android-specific code
-          - `src/iosMain/`      <- iOS-specific code
-        - `androidApp/`
-        - `iosApp/`
-      ```
-
-      Once this step is done, need to ensure support for the miniplayer.
-
-  2. Create a GitHub Action to automatically build and release both Android and iOS versions of the app on push.
-
-<!--   
-
-These are the files that I might want to refactor:
-
-   436 ./app/src/main/java/com/chiron/app/data/transfer/DataTransferRepository.kt
-   388 ./app/src/main/java/com/chiron/app/ui/history/ExerciseEntryCard.kt
-   345 ./app/src/main/java/com/chiron/app/data/ChironRepository.kt
-   324 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditor.kt
-   285 ./app/src/main/java/com/chiron/app/ui/history/WorkoutEditorHeader.kt
-   282 ./app/src/main/java/com/chiron/app/ui/history/SupersetCard.kt
-   265 ./app/src/main/java/com/chiron/app/ui/settings/SettingsScreen.kt
-   259 ./app/src/main/java/com/chiron/app/spotify/MiniPlayerBar.kt
-   239 ./app/src/main/java/com/chiron/app/ui/timer/TimerScreen.kt
-
-Command:
-
-```bash
-find . -type f -name "*.kt" -exec wc -l {} + | sort -nr | head -n 10
-```
-
-9153 Lines total btw
-
- -->
-
-<!-- 
-Some notes for future multi-platform support
-Using Kotlin Multiplateform
-
-- The 'back button' stuff (especially when searching in the 'Exercises' tab) should be checked
-- Spotify SDK calling logic will diverge basically just in name
-- Playback checker for miniplayer logic
-
- -->
-
- <!-- 
- Misc To-Do
- 
- Minor behavioral conflict when previewing last performance of the last exercise in a workuot (so the bottom one). Sometimes stuck and need to re-press to unpress, sometimes just works. IDK why
- 
- Better UI?
-
- Loading Screen?
-
- Add a demo recording.
- 
-  -->
+---
 
 ## License
 
