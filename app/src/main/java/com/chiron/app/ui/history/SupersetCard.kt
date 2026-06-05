@@ -238,26 +238,41 @@ fun SupersetCard(
                 },
                 numExercisesInSuperset = numExercisesInSuperset,
                 onDecrement = {
-                    if (numExercisesInSuperset > 2) {
+                    if (numExercisesInSuperset > 1) {
                         val newCount = numExercisesInSuperset - 1
                         numExercisesInSuperset = newCount
                         scope.launch {
                             val groupId = startEntry.groupId ?: startEntry.id
                             val sorted = entries.sortedBy { it.slotIndex }
+
+                            // Remove extra exercises beyond new count
                             if (sorted.size > newCount) {
                                 sorted.drop(newCount).forEach { e ->
                                     viewModel.deleteExerciseEntry(workoutId, e.id)
                                 }
                             }
-                            sorted.take(newCount).forEachIndexed { i, e ->
-                                val type = when {
-                                    i == 0 -> "SUPERSET_START"
-                                    i == newCount - 1 -> "SUPERSET_END"
-                                    else -> "SUPERSET_MIDDLE"
-                                }
+
+                            if (newCount == 1) {
+                                // Collapse superset back to single exercise
+                                val remaining = sorted.firstOrNull() ?: return@launch
                                 viewModel.updateExerciseEntry(
-                                    e.copy(sequenceType = type, groupId = groupId, numExercisesInSuperset = newCount)
+                                    remaining.copy(
+                                        sequenceType = "NONE",
+                                        groupId = null,
+                                        numExercisesInSuperset = 1
+                                    )
                                 )
+                            } else {
+                                sorted.take(newCount).forEachIndexed { i, e ->
+                                    val type = when {
+                                        i == 0 -> "SUPERSET_START"
+                                        i == newCount - 1 -> "SUPERSET_END"
+                                        else -> "SUPERSET_MIDDLE"
+                                    }
+                                    viewModel.updateExerciseEntry(
+                                        e.copy(sequenceType = type, groupId = groupId, numExercisesInSuperset = newCount)
+                                    )
+                                }
                             }
                         }
                     }
