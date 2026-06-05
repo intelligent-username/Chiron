@@ -151,6 +151,7 @@ interface SetEntryDao {
         SELECT w.date_utc AS dateUtc,
                COALESCE(SUM(s.weight_lbs * (
                    CASE
+                       WHEN ex.is_distance_based = 1 AND ex.is_rep_based = 1 AND s.distance_meters IS NOT NULL AND s.reps IS NOT NULL THEN s.reps * (s.distance_meters * 2.0)
                        WHEN ex.is_distance_based = 1 AND s.distance_meters IS NOT NULL THEN s.distance_meters / 5.0
                        WHEN ex.is_time_based = 1 AND s.duration_seconds IS NOT NULL THEN s.duration_seconds / 3.0
                        WHEN s.reps IS NOT NULL THEN s.reps
@@ -173,6 +174,7 @@ interface SetEntryDao {
         SELECT w.date_utc AS dateUtc,
                COALESCE(SUM(s.weight_lbs * (
                    CASE
+                       WHEN ex.is_distance_based = 1 AND ex.is_rep_based = 1 AND s.distance_meters IS NOT NULL AND s.reps IS NOT NULL THEN s.reps * (s.distance_meters * 2.0)
                        WHEN ex.is_distance_based = 1 AND s.distance_meters IS NOT NULL THEN s.distance_meters / 5.0
                        WHEN ex.is_time_based = 1 AND s.duration_seconds IS NOT NULL THEN s.duration_seconds / 3.0
                        WHEN s.reps IS NOT NULL THEN s.reps

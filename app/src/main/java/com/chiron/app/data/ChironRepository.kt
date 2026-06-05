@@ -83,7 +83,7 @@ class ChironRepository(
 
     // ─── Sub-repository construction ──────────────────────────────────────────
 
-    private val prRepository = PrRepository(exercisePrDao, setEntryDao, exercise1rmEstimateDao)
+    private val prRepository = PrRepository(exercisePrDao, setEntryDao, exercise1rmEstimateDao, exerciseDao)
 
     private val exerciseRepository = ExerciseRepository(exerciseDao, setEntryDao)
 

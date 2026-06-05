@@ -1,12 +1,17 @@
 package com.chiron.app.ui.exercises
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -71,58 +76,47 @@ fun CreateExerciseDialog(
 
                 // Tracking config section
                 Text(
-                    "Tracking",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Tracking Options",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // Weight toggle
+                // Row of two modern toggle cards: Weight and Distance
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Track Weight", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = weightEnabled, onCheckedChange = { weightEnabled = it })
+                    // Weight Card
+                    ModernToggleCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Weight",
+                        checked = weightEnabled,
+                        onCheckedChange = { weightEnabled = it }
+                    )
+
+                    // Distance Card
+                    ModernToggleCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Distance",
+                        checked = distanceEnabled,
+                        onCheckedChange = { distanceEnabled = it }
+                    )
                 }
 
-                // Distance toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Track Distance", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = distanceEnabled, onCheckedChange = { distanceEnabled = it })
-                }
-
-                // Reps vs Time (segmented two-state)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Count by", style = MaterialTheme.typography.bodyMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Reps",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (useReps) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Switch(
-                            checked = !useReps,
-                            onCheckedChange = { useReps = !it },
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-                        Text(
-                            "Time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (!useReps) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                // Reps vs Time Segmented Selector
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Primary Metric",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    ModernSegmentedSelector(
+                        selectedOption = if (useReps) "Reps" else "Time",
+                        options = listOf("Reps", "Time"),
+                        onOptionSelected = { useReps = (it == "Reps") }
+                    )
                 }
 
                 HorizontalDivider()
@@ -146,4 +140,100 @@ fun CreateExerciseDialog(
             TextButton(onClick = { reset(); onDismiss() }) { Text("Cancel") }
         }
     )
+}
+
+@Composable
+fun ModernToggleCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val backgroundColor = if (checked) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+    val borderColor = if (checked) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+    }
+    val textColor = if (checked) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (checked) "Enabled" else "Disabled",
+                style = MaterialTheme.typography.bodySmall,
+                color = textColor.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+fun ModernSegmentedSelector(
+    selectedOption: String,
+    options: List<String>,
+    onOptionSelected: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+            .padding(4.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = option == selectedOption
+            val backgroundColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                Color.Transparent
+            }
+            val textColor = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(backgroundColor)
+                    .clickable { onOptionSelected(option) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = option,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+            }
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.chiron.app.data.pr
 
 import com.chiron.app.data.dao.ExercisePrDao
 import com.chiron.app.data.dao.SetEntryDao
+import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.dao.Exercise1rmEstimateDao
@@ -17,7 +18,8 @@ import kotlinx.coroutines.flow.Flow
 class PrRepository(
     private val exercisePrDao: ExercisePrDao,
     private val setEntryDao: SetEntryDao,
-    private val exercise1rmEstimateDao: Exercise1rmEstimateDao
+    private val exercise1rmEstimateDao: Exercise1rmEstimateDao,
+    private val exerciseDao: ExerciseDao
 ) {
     /** Get all current global PRs for an exercise, ordered by rep count. */
     suspend fun getAllPrsForExercise(exerciseId: Long): List<ExercisePr> =
@@ -37,75 +39,168 @@ class PrRepository(
 
     /**
      * Sync the global PR bucket for a single (exerciseId, reps) pairing.
-     * Upserts the current best set, or deletes the row if no qualifying set exists.
+     * Delegates to rebuildPrsForExercise to maintain all PR categories consistently.
      */
     suspend fun syncGlobalPrBucket(exerciseId: Long, reps: Int) {
-        val bestSet = setEntryDao.getBestSetForExerciseAndReps(exerciseId, reps)
-        if (bestSet == null || bestSet.weightLbs == null) {
-            exercisePrDao.deleteForExerciseAndReps(exerciseId, reps)
-            sync1rmEstimate(exerciseId)
-            return
-        }
-
-        exercisePrDao.upsert(
-            ExercisePr(
-                exerciseId = exerciseId,
-                reps = reps,
-                weightLbs = bestSet.weightLbs,
-                setId = bestSet.id,
-                timestampUtc = bestSet.timestampUtc
-            )
-        )
-
-        sync1rmEstimate(exerciseId)
+        rebuildPrsForExercise(exerciseId)
     }
 
     /**
      * Full PR rebuild for one exercise. Safe to call after deletions or bulk fixes.
-     *
-     * 1. Clears all `is_pr` flags on every set belonging to this exercise.
-     * 2. Deletes all rows in `exercise_pr` for this exercise.
-     * 3. Re-scans all non-failed sets with both weight and reps filled in.
-     * 4. For each rep count, finds the single heaviest set and marks it
-     *    `is_pr = 1`, then upserts it into `exercise_pr`.
+     * Support all PR categories (WEIGHT_REPS, TIME_WEIGHT, DISTANCE_WEIGHT, DISTANCE_TIME).
      */
     suspend fun rebuildPrsForExercise(exerciseId: Long) {
+        val exercise = exerciseDao.getById(exerciseId) ?: return
+        val category = exercise.prCategory()
+
         setEntryDao.clearPrFlagsForExercise(exerciseId)
         exercisePrDao.clearAllForExercise(exerciseId)
 
-        val allSets = setEntryDao.getAllSetsForExercise(exerciseId)
+        val allSets = setEntryDao.getAllSetsForExerciseAny(exerciseId)
 
-        val bestPerReps = mutableMapOf<Int, SetEntry>()
-        for (set in allSets) {
-            val reps = set.reps ?: continue
-            val weight = set.weightLbs ?: continue
-            if (set.isFailed != 0) continue
-            val current = bestPerReps[reps]
-            if (current == null || weight > current.weightLbs!!) {
-                bestPerReps[reps] = set
+        when (category) {
+            PrCategory.WEIGHT_REPS -> {
+                val bestPerReps = mutableMapOf<Int, SetEntry>()
+                for (set in allSets) {
+                    val reps = set.reps ?: continue
+                    val weight = set.weightLbs ?: continue
+                    if (set.isFailed != 0) continue
+                    val current = bestPerReps[reps]
+                    if (current == null || weight > current.weightLbs!!) {
+                        bestPerReps[reps] = set
+                    }
+                }
+
+                for ((_, set) in bestPerReps) {
+                    setEntryDao.updateSet(set.copy(isPr = 1))
+                    exercisePrDao.upsert(
+                        ExercisePr(
+                            exerciseId = exerciseId,
+                            reps = set.reps!!,
+                            weightLbs = set.weightLbs!!,
+                            setId = set.id,
+                            timestampUtc = set.timestampUtc
+                        )
+                    )
+                }
             }
-        }
-
-        for ((_, set) in bestPerReps) {
-            setEntryDao.updateSet(set.copy(isPr = 1))
-            exercisePrDao.upsert(
-                ExercisePr(
-                    exerciseId = exerciseId,
-                    reps = set.reps!!,
-                    weightLbs = set.weightLbs!!,
-                    setId = set.id,
-                    timestampUtc = set.timestampUtc
-                )
-            )
+            PrCategory.TIME_WEIGHT -> {
+                // bucket = weight (lbs), record = duration (seconds) (higher is better)
+                val bestPerWeight = mutableMapOf<Double, SetEntry>()
+                for (set in allSets) {
+                    val weight = set.weightLbs ?: continue
+                    val duration = set.durationSeconds ?: continue
+                    if (set.isFailed != 0) continue
+                    val current = bestPerWeight[weight]
+                    if (current == null || duration > (current.durationSeconds ?: 0)) {
+                        bestPerWeight[weight] = set
+                    }
+                }
+                for ((weight, set) in bestPerWeight) {
+                    exercisePrDao.upsert(
+                        ExercisePr(
+                            exerciseId = exerciseId,
+                            bucket = weight,
+                            record = set.durationSeconds!!.toDouble(),
+                            setId = set.id,
+                            timestampUtc = set.timestampUtc
+                        )
+                    )
+                }
+            }
+            PrCategory.DISTANCE_WEIGHT -> {
+                // If isRepBased == 1 (e.g. box jumps):
+                // bucket = distance * 100000 + reps, record = weight (lbs) (higher is better)
+                if (exercise.isRepBased == 1) {
+                    val bestPerDistReps = mutableMapOf<Double, SetEntry>()
+                    for (set in allSets) {
+                        val distance = set.distanceMeters ?: continue
+                        val reps = set.reps ?: continue
+                        val weight = set.weightLbs ?: continue
+                        if (set.isFailed != 0) continue
+                        val key = distance * 100000.0 + reps.toDouble()
+                        val current = bestPerDistReps[key]
+                        if (current == null || weight > (current.weightLbs ?: 0.0)) {
+                            bestPerDistReps[key] = set
+                        }
+                    }
+                    for ((key, set) in bestPerDistReps) {
+                        exercisePrDao.upsert(
+                            ExercisePr(
+                                exerciseId = exerciseId,
+                                bucket = key,
+                                record = set.weightLbs!!,
+                                setId = set.id,
+                                timestampUtc = set.timestampUtc
+                            )
+                        )
+                    }
+                } else {
+                    // If isRepBased == 0:
+                    // bucket = weight (lbs), record = distance (meters) (higher is better)
+                    val bestPerWeight = mutableMapOf<Double, SetEntry>()
+                    for (set in allSets) {
+                        val weight = set.weightLbs ?: continue
+                        val distance = set.distanceMeters ?: continue
+                        if (set.isFailed != 0) continue
+                        val current = bestPerWeight[weight]
+                        if (current == null || distance > (current.distanceMeters ?: 0.0)) {
+                            bestPerWeight[weight] = set
+                        }
+                    }
+                    for ((weight, set) in bestPerWeight) {
+                        exercisePrDao.upsert(
+                            ExercisePr(
+                                exerciseId = exerciseId,
+                                bucket = weight,
+                                record = set.distanceMeters!!,
+                                setId = set.id,
+                                timestampUtc = set.timestampUtc
+                            )
+                        )
+                    }
+                }
+            }
+            PrCategory.DISTANCE_TIME -> {
+                // bucket = distance (meters), record = duration (seconds) (lower is better)
+                val bestPerDistance = mutableMapOf<Double, SetEntry>()
+                for (set in allSets) {
+                    val distance = set.distanceMeters ?: continue
+                    val duration = set.durationSeconds ?: continue
+                    if (set.isFailed != 0) continue
+                    val current = bestPerDistance[distance]
+                    if (current == null || duration < (current.durationSeconds ?: Int.MAX_VALUE)) {
+                        bestPerDistance[distance] = set
+                    }
+                }
+                for ((distance, set) in bestPerDistance) {
+                    exercisePrDao.upsert(
+                        ExercisePr(
+                            exerciseId = exerciseId,
+                            bucket = distance,
+                            record = set.durationSeconds!!.toDouble(),
+                            setId = set.id,
+                            timestampUtc = set.timestampUtc
+                        )
+                    )
+                }
+            }
+            PrCategory.NONE -> {}
         }
 
         sync1rmEstimate(exerciseId)
     }
 
     private suspend fun sync1rmEstimate(exerciseId: Long) {
+        val exercise = exerciseDao.getById(exerciseId)
+        if (exercise == null || exercise.prCategory() != PrCategory.WEIGHT_REPS) {
+            exercise1rmEstimateDao.deleteForExercise(exerciseId)
+            return
+        }
+
         val prs = exercisePrDao.getAllForExercise(exerciseId)
         // 1. Initial filter for relevant rep range
-        val initialValid = prs.filter { it.reps in 1..12 }
+        val initialValid = prs.filter { it.repsInt in 1..12 }
 
         if (initialValid.isEmpty()) {
             exercise1rmEstimateDao.deleteForExercise(exerciseId)
@@ -127,7 +222,7 @@ class PrRepository(
         val components = mutableListOf<Pair<Double, Double>>()
 
         for (pr in monotonicPrs) {
-            val r = pr.reps
+            val r = pr.repsInt
             val w = pr.weightLbs
             // 3. Epley Estimate (mHatI)
             val mHatI = if (r == 1) w else w * (1.0 + r / 30.0)

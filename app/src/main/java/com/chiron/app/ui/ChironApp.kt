@@ -312,6 +312,7 @@ fun ChironApp(
                     PrScreen(
                         viewModel = exercisesViewModel,
                         displayInKg = historyState.displayInKg,
+                        distanceUnit = historyState.distanceUnit,
                         initialExerciseId = prTargetExerciseId,
                         onClose = {
                             isPrScreenOpen = false

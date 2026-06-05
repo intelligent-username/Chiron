@@ -283,7 +283,8 @@ fun ExerciseDetailScreen(
                     onWeekCountChange = volumeViewModel::setWeekCount,
                     onPrevWeek = volumeViewModel::goToPreviousWeek,
                     onNextWeek = volumeViewModel::goToNextWeek,
-                    onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps
+                    onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps,
+                    scrollable = false
                 )
             }
         }

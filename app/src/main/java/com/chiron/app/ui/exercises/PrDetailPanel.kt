@@ -1,8 +1,10 @@
 package com.chiron.app.ui.exercises
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,19 +23,26 @@ import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.ui.theme.PrGoldDark
 import com.chiron.app.util.UnitConversion
 import com.chiron.app.viewmodel.ExercisesViewModel
+import com.chiron.app.prefs.DistanceUnit
+import com.chiron.app.data.pr.PrCategory
+import com.chiron.app.data.pr.prCategory
 
 @Composable
 internal fun PrDetailPanel(
     exercise: Exercise,
     viewModel: ExercisesViewModel,
-    displayInKg: Boolean
+    displayInKg: Boolean,
+    distanceUnit: DistanceUnit
 ) {
     val prs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
     val estimate by viewModel.get1rmEstimateForExerciseFlow(exercise.id).collectAsState(initial = null)
+    val category = exercise.prCategory()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ExerciseAsyncIcon(
@@ -57,35 +66,148 @@ internal fun PrDetailPanel(
                 )
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                estimate?.let { est ->
-                    item {
-                        Estimate1rmRow(estimate = est, displayInKg = displayInKg)
+            if (category == PrCategory.DISTANCE_WEIGHT && exercise.isRepBased == 1) {
+                // Distance & Weight with Reps (e.g. box jumps)
+                val distances = remember(prs) {
+                    prs.map { it.bucket / 100000.0 }.distinct().sorted()
+                }
+                var selectedDistance by remember(distances) {
+                    mutableStateOf(distances.firstOrNull() ?: 0.0)
+                }
+
+                if (distances.isNotEmpty()) {
+                    DistanceSelectorBar(
+                        distances = distances,
+                        selectedDistance = selectedDistance,
+                        onDistanceSelected = { selectedDistance = it },
+                        distanceUnit = distanceUnit
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                }
+
+                val filteredPrs = remember(prs, selectedDistance) {
+                    prs.filter { Math.abs((it.bucket / 100000.0) - selectedDistance) < 0.001 }
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filteredPrs) { pr ->
+                        val reps = (pr.bucket % 100000).toInt()
+                        val title = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
+                        val value = UnitConversion.formatWeight(pr.record, displayInKg)
+                        PrRow(title = title, value = value, timestampUtc = pr.timestampUtc)
                     }
                 }
-                items(prs) { pr -> PrRow(pr = pr, displayInKg = displayInKg) }
+            } else {
+                // Other categories
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (category == PrCategory.WEIGHT_REPS) {
+                        estimate?.let { est ->
+                            item {
+                                Estimate1rmRow(estimate = est, displayInKg = displayInKg)
+                            }
+                        }
+                    }
+
+                    items(prs) { pr ->
+                        val (title, value) = when (category) {
+                            PrCategory.WEIGHT_REPS -> {
+                                val reps = pr.repsInt
+                                val label = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
+                                label to UnitConversion.formatWeight(pr.weightLbs, displayInKg)
+                            }
+                            PrCategory.TIME_WEIGHT -> {
+                                val weight = pr.bucket
+                                val label = "Duration for ${UnitConversion.formatWeight(weight, displayInKg)}"
+                                val durationVal = UnitConversion.formatDuration(pr.record.toInt())
+                                label to durationVal
+                            }
+                            PrCategory.DISTANCE_WEIGHT -> {
+                                // Since rep-based was handled above, here it is non-rep based (bucket = weight, record = distance)
+                                val weight = pr.bucket
+                                val label = "Distance for ${UnitConversion.formatWeight(weight, displayInKg)}"
+                                val distVal = UnitConversion.formatDistance(pr.record, distanceUnit)
+                                label to distVal
+                            }
+                            PrCategory.DISTANCE_TIME -> {
+                                // bucket = distance, record = duration
+                                val distance = pr.bucket
+                                val label = "Best Time for ${UnitConversion.formatDistance(distance, distanceUnit)}"
+                                val durationVal = UnitConversion.formatDuration(pr.record.toInt())
+                                label to durationVal
+                            }
+                            PrCategory.NONE -> "" to ""
+                        }
+                        if (title.isNotEmpty()) {
+                            PrRow(title = title, value = value, timestampUtc = pr.timestampUtc)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-internal fun PrRow(pr: ExercisePr, displayInKg: Boolean) {
-    val weightText = if (displayInKg) {
-        "${formatPrWeight(UnitConversion.lbsToDisplayKg(pr.weightLbs))} kg"
-    } else {
-        "${formatPrWeight(pr.weightLbs)} lbs"
+fun DistanceSelectorBar(
+    distances: List<Double>,
+    selectedDistance: Double,
+    onDistanceSelected: (Double) -> Unit,
+    distanceUnit: DistanceUnit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(end = 16.dp)
+    ) {
+        items(distances) { dist ->
+            val isSelected = dist == selectedDistance
+            val backgroundColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            }
+            val textColor = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(backgroundColor)
+                    .clickable { onDistanceSelected(dist) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = UnitConversion.formatDistance(dist, distanceUnit),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = textColor,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
     }
+}
 
-    val repLabel = if (pr.reps == 1) "1 Rep Max" else "${pr.reps} Rep Max"
-
-    val dateLabel = remember(pr.timestampUtc) {
+@Composable
+internal fun PrRow(
+    title: String,
+    value: String,
+    timestampUtc: Long
+) {
+    val dateLabel = remember(timestampUtc) {
         try {
-            val date = java.time.Instant.ofEpochMilli(pr.timestampUtc)
+            val date = java.time.Instant.ofEpochMilli(timestampUtc)
                 .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
             val dow = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
             val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
@@ -103,7 +225,7 @@ internal fun PrRow(pr: ExercisePr, displayInKg: Boolean) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = repLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (dateLabel.isNotEmpty()) {
                 Text(
                     text = dateLabel,
@@ -114,7 +236,7 @@ internal fun PrRow(pr: ExercisePr, displayInKg: Boolean) {
         }
         Spacer(Modifier.width(24.dp))
         Text(
-            text = weightText,
+            text = value,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = PrGoldDark
@@ -122,16 +244,9 @@ internal fun PrRow(pr: ExercisePr, displayInKg: Boolean) {
     }
 }
 
-internal fun formatPrWeight(value: Double): String =
-    String.format("%.2f", value).trimEnd('0').trimEnd('.')
-
 @Composable
 internal fun Estimate1rmRow(estimate: Exercise1rmEstimate, displayInKg: Boolean) {
-    val weightText = if (displayInKg) {
-        "${formatPrWeight(UnitConversion.lbsToDisplayKg(estimate.estimateLbs))} kg"
-    } else {
-        "${formatPrWeight(estimate.estimateLbs)} lbs"
-    }
+    val weightText = UnitConversion.formatWeight(estimate.estimateLbs, displayInKg)
 
     Column(
         modifier = Modifier

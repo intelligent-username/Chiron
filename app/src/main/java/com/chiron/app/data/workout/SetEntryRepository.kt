@@ -92,6 +92,7 @@ class SetEntryRepository(
             if (set.isPr != 0) {
                 setEntryDao.updateSet(set.copy(isPr = 0))
             }
+            onSyncGlobalPrBucket(exerciseId, 0)
             return
         }
 

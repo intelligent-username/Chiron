@@ -20,6 +20,10 @@ import androidx.room.Ignore
  *
  * One row per (exercise_id, bucket). Historical per-set PRs are tracked by
  * SetEntry.isPr (weight+reps only).
+ *
+ * For WEIGHT_REPS exercises use the convenience accessors:
+ *   [repsInt] = bucket.toInt()
+ *   [weightLbs] = record
  */
 @Entity(
     tableName = "exercise_pr",
@@ -63,6 +67,10 @@ data class ExercisePr(
     @ColumnInfo(name = "timestamp_utc")
     val timestampUtc: Long
 ) {
+    /**
+     * Convenience constructor for WEIGHT_REPS PRs — maps reps→bucket, weightLbs→record.
+     * Annotated @Ignore so Room only uses the primary constructor for reading.
+     */
     @Ignore
     constructor(
         exerciseId: Long,
@@ -78,11 +86,8 @@ data class ExercisePr(
         timestampUtc = timestampUtc
     )
 
-    @get:Ignore
-    val reps: Int
-        get() = bucket.toInt()
-
-    @get:Ignore
-    val weightLbs: Double
-        get() = record
+    // Non-annotated helpers — plain Kotlin properties, not visible to Room at all
+    // because they have no backing fields or @ColumnInfo annotations.
+    val repsInt: Int get() = bucket.toInt()
+    val weightLbs: Double get() = record
 }

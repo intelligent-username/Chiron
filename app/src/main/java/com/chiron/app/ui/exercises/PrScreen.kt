@@ -37,6 +37,7 @@ import com.chiron.app.viewmodel.ExercisesViewModel
 fun PrScreen(
     viewModel: ExercisesViewModel,
     displayInKg: Boolean,
+    distanceUnit: com.chiron.app.prefs.DistanceUnit,
     initialExerciseId: Long? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -111,7 +112,12 @@ fun PrScreen(
                         )
                     }
                 } else {
-                    PrDetailPanel(exercise = exercise, viewModel = viewModel, displayInKg = displayInKg)
+                    PrDetailPanel(
+                        exercise = exercise,
+                        viewModel = viewModel,
+                        displayInKg = displayInKg,
+                        distanceUnit = distanceUnit
+                    )
                 }
             }
         }

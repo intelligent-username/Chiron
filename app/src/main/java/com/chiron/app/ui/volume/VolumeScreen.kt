@@ -98,7 +98,8 @@ fun VolumeContent(
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
-    onToggleAbridgeGaps: () -> Unit
+    onToggleAbridgeGaps: () -> Unit,
+    scrollable: Boolean = true
 ) {
     val unit = if (displayInKg) "kg" else "lbs"
     val weekLabel = remember(state.currentWeekStart, state.mode, state.weekCount) {
@@ -120,7 +121,7 @@ fun VolumeContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
-            .verticalScroll(rememberScrollState())
+            .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
