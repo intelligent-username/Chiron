@@ -100,6 +100,18 @@ interface SetEntryDao {
     """)
     suspend fun getAllSetsForExercise(exerciseId: Long): List<SetEntry>
 
+    /**
+     * Get every set for an exercise with no metric filtering (used by category-aware
+     * PR rebuilds for time/distance exercises that don't populate reps/weight).
+     */
+    @Query("""
+        SELECT s.* FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE e.exercise_id = :exerciseId
+        ORDER BY s.timestamp_utc DESC
+    """)
+    suspend fun getAllSetsForExerciseAny(exerciseId: Long): List<SetEntry>
+
     @Transaction
     suspend fun deleteAndReindex(entryId: Long, setId: Long) {
         delete(setId)
@@ -122,17 +134,34 @@ interface SetEntryDao {
     suspend fun clearPrFlagsForExercise(exerciseId: Long)
 
     /**
-     * Returns total volume (weight * reps) grouped by workout day.
-     * Only counts non-failed sets that have both weight and reps filled in.
-     * Result ordered by date ascending.
+     * Returns total volume grouped by workout day.
+     *
+     * Volume per set = weight × rep-equivalent, where rep-equivalent is:
+     *   - distance-based exercises: distance_meters / 5  (5 m ≈ 1 rep)
+     *   - time-based exercises:     duration_seconds / 3  (3 s ≈ 1 rep)
+     *   - otherwise:                reps
+     *
+     * Only weighted, non-failed sets contribute — sets without a weight entry
+     * produce 0 volume (bodyweight volume is handled separately, later).
+     *
+     * SUM() is wrapped in COALESCE so an all-NULL group can never map a SQL NULL
+     * onto the non-null [DailyVolume.volumeLbs] field (which previously crashed Room).
      */
     @Query("""
-        SELECT w.date_utc AS dateUtc, SUM(s.weight_lbs * s.reps) AS volumeLbs
+        SELECT w.date_utc AS dateUtc,
+               COALESCE(SUM(s.weight_lbs * (
+                   CASE
+                       WHEN ex.is_distance_based = 1 AND s.distance_meters IS NOT NULL THEN s.distance_meters / 5.0
+                       WHEN ex.is_time_based = 1 AND s.duration_seconds IS NOT NULL THEN s.duration_seconds / 3.0
+                       WHEN s.reps IS NOT NULL THEN s.reps
+                       ELSE NULL
+                   END
+               )), 0) AS volumeLbs
         FROM set_entry s
         INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
         INNER JOIN workout_session w ON e.workout_id = w.id
         WHERE s.weight_lbs IS NOT NULL
-          AND s.reps IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
         GROUP BY w.id
@@ -141,12 +170,20 @@ interface SetEntryDao {
     suspend fun getVolumeSummaryByDay(): List<DailyVolume>
 
     @Query("""
-        SELECT w.date_utc AS dateUtc, SUM(s.weight_lbs * s.reps) AS volumeLbs
+        SELECT w.date_utc AS dateUtc,
+               COALESCE(SUM(s.weight_lbs * (
+                   CASE
+                       WHEN ex.is_distance_based = 1 AND s.distance_meters IS NOT NULL THEN s.distance_meters / 5.0
+                       WHEN ex.is_time_based = 1 AND s.duration_seconds IS NOT NULL THEN s.duration_seconds / 3.0
+                       WHEN s.reps IS NOT NULL THEN s.reps
+                       ELSE NULL
+                   END
+               )), 0) AS volumeLbs
         FROM set_entry s
         INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
         INNER JOIN workout_session w ON e.workout_id = w.id
         WHERE s.weight_lbs IS NOT NULL
-          AND s.reps IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
           AND e.exercise_id = :exerciseId

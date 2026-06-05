@@ -4,15 +4,26 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.Ignore
 
 /**
- * Stores the current global PR (best weight) for a given (exercise, rep count) pair.
- * One row per (exercise_id, reps). Updated whenever a new PR is set.
- * Historical per-set PRs are tracked by SetEntry.isPr.
+ * Stores the current global PR for a given (exercise, bucket) pair.
+ *
+ * The meaning of [bucket] and [record] depends on the exercise's PR category:
+ *
+ *  | Category         | bucket            | record (best)        | better |
+ *  |------------------|-------------------|----------------------|--------|
+ *  | WEIGHT_REPS      | rep count         | weight (lbs)         | higher |
+ *  | TIME_WEIGHT      | weight (lbs)      | duration (seconds)   | higher |
+ *  | DISTANCE_WEIGHT  | weight (lbs)      | distance (meters)    | higher |
+ *  | DISTANCE_TIME    | distance (meters) | duration (seconds)   | lower  |
+ *
+ * One row per (exercise_id, bucket). Historical per-set PRs are tracked by
+ * SetEntry.isPr (weight+reps only).
  */
 @Entity(
     tableName = "exercise_pr",
-    primaryKeys = ["exercise_id", "reps"],
+    primaryKeys = ["exercise_id", "bucket"],
     foreignKeys = [
         ForeignKey(
             entity = Exercise::class,
@@ -36,12 +47,13 @@ data class ExercisePr(
     @ColumnInfo(name = "exercise_id")
     val exerciseId: Long,
 
-    @ColumnInfo(name = "reps")
-    val reps: Int,
+    /** Partition key for this PR (reps / weight / distance — see class docs). */
+    @ColumnInfo(name = "bucket")
+    val bucket: Double,
 
-    /** Best weight recorded for this (exercise, reps) pair, in lbs. */
-    @ColumnInfo(name = "weight_lbs")
-    val weightLbs: Double,
+    /** Best value recorded for this bucket (weight / duration / distance — see class docs). */
+    @ColumnInfo(name = "record")
+    val record: Double,
 
     /** The set_entry.id that currently holds this PR. */
     @ColumnInfo(name = "set_id")
@@ -50,4 +62,27 @@ data class ExercisePr(
     /** UTC timestamp of when this PR was set. */
     @ColumnInfo(name = "timestamp_utc")
     val timestampUtc: Long
-)
+) {
+    @Ignore
+    constructor(
+        exerciseId: Long,
+        reps: Int,
+        weightLbs: Double,
+        setId: Long,
+        timestampUtc: Long
+    ) : this(
+        exerciseId = exerciseId,
+        bucket = reps.toDouble(),
+        record = weightLbs,
+        setId = setId,
+        timestampUtc = timestampUtc
+    )
+
+    @get:Ignore
+    val reps: Int
+        get() = bucket.toInt()
+
+    @get:Ignore
+    val weightLbs: Double
+        get() = record
+}

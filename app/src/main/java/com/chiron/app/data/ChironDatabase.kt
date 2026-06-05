@@ -31,7 +31,7 @@ import com.chiron.app.data.entities.Exercise1rmEstimate
         ExercisePr::class,
         Exercise1rmEstimate::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -152,8 +152,7 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        private val MIGRATION_9_10 = object : Migration(9, 10) {            override fun migrate(db: SupportSQLiteDatabase) {
                 // Helper: check whether a column already exists (idempotent adds)
                 fun hasColumn(table: String, column: String): Boolean {
                     var exists = false
@@ -184,6 +183,37 @@ abstract class ChironDatabase : RoomDatabase() {
                     db.execSQL("ALTER TABLE set_entry ADD COLUMN duration_seconds INTEGER DEFAULT NULL")
                 if (!hasColumn("set_entry", "distance_meters"))
                     db.execSQL("ALTER TABLE set_entry ADD COLUMN distance_meters REAL DEFAULT NULL")
+            }
+        }
+
+        // Generalize exercise_pr from (exercise_id, reps, weight_lbs) to a
+        // category-agnostic (exercise_id, bucket, record) shape so PRs can be
+        // tracked for time/distance exercises too. Existing rows are all
+        // weight+reps, so reps→bucket and weight_lbs→record is a faithful copy.
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_pr_new` (
+                        `exercise_id` INTEGER NOT NULL,
+                        `bucket` REAL NOT NULL,
+                        `record` REAL NOT NULL,
+                        `set_id` INTEGER NOT NULL,
+                        `timestamp_utc` INTEGER NOT NULL,
+                        PRIMARY KEY(`exercise_id`, `bucket`),
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON DELETE CASCADE,
+                        FOREIGN KEY(`set_id`) REFERENCES `set_entry`(`id`) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO `exercise_pr_new` (`exercise_id`, `bucket`, `record`, `set_id`, `timestamp_utc`)
+                    SELECT `exercise_id`, CAST(`reps` AS REAL), `weight_lbs`, `set_id`, `timestamp_utc` FROM `exercise_pr`
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE `exercise_pr`")
+                db.execSQL("ALTER TABLE `exercise_pr_new` RENAME TO `exercise_pr`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_pr_exercise_id` ON `exercise_pr` (`exercise_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_pr_set_id` ON `exercise_pr` (`set_id`)")
             }
         }
 

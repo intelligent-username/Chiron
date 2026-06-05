@@ -15,15 +15,15 @@ interface ExercisePrDao {
     suspend fun upsert(pr: ExercisePr)
 
     /** Get the current global PR for a specific (exercise, reps) pair. */
-    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId AND reps = :reps")
+    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId AND bucket = :reps")
     suspend fun getForExerciseAndReps(exerciseId: Long, reps: Int): ExercisePr?
 
     /** Get ALL current PRs for an exercise, ordered by rep count ascending. */
-    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId ORDER BY reps ASC")
+    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId ORDER BY bucket ASC")
     suspend fun getAllForExercise(exerciseId: Long): List<ExercisePr>
 
     /** Observe ALL current PRs for an exercise as a Flow (for reactive UI). */
-    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId ORDER BY reps ASC")
+    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId ORDER BY bucket ASC")
     fun getAllForExerciseFlow(exerciseId: Long): Flow<List<ExercisePr>>
 
     /** Get all exercises that have at least one PR recorded. */
@@ -31,7 +31,7 @@ interface ExercisePrDao {
     suspend fun getExerciseIdsWithPrs(): List<Long>
 
     /** Remove PR row for one (exercise, reps) bucket. */
-    @Query("DELETE FROM exercise_pr WHERE exercise_id = :exerciseId AND reps = :reps")
+    @Query("DELETE FROM exercise_pr WHERE exercise_id = :exerciseId AND bucket = :reps")
     suspend fun deleteForExerciseAndReps(exerciseId: Long, reps: Int)
 
     /** Wipe all PR rows for an exercise — used before a full rebuild. */
