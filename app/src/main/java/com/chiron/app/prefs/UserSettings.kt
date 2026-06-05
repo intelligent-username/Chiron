@@ -24,6 +24,7 @@ class UserSettingsRepository(private val context: Context) {
         private val SPOTIFY_ENABLED = booleanPreferencesKey("spotify_enabled")
         private val MATCH_THEME_WITH_MEDIA = booleanPreferencesKey("match_theme_with_media")
         private val DISTANCE_UNIT = stringPreferencesKey("distance_unit")
+        private val CURRENT_TAB = stringPreferencesKey("current_tab")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -74,6 +75,17 @@ class UserSettingsRepository(private val context: Context) {
     suspend fun setDistanceUnit(unit: DistanceUnit) {
         context.dataStore.edit { prefs ->
             prefs[DISTANCE_UNIT] = unit.key
+        }
+    }
+
+    // Persist last selected tab (string to stay flexible)
+    val currentTabFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[CURRENT_TAB] ?: "history"
+    }
+
+    suspend fun setCurrentTab(tab: String) {
+        context.dataStore.edit { prefs ->
+            prefs[CURRENT_TAB] = tab
         }
     }
 }

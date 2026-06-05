@@ -87,6 +87,14 @@ fun WorkoutEditor(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
+    // ── Finished workout logic ───────────────────────────────────────────────
+    val now = System.currentTimeMillis()
+    val isOldWorkout = remember(workout.endTimeUtc) {
+        workout.endTimeUtc != null && (now - workout.endTimeUtc) > 60 * 60 * 1000
+    }
+    var forceEditMode by remember { mutableStateOf(false) }
+    val isEditable = !isOldWorkout || forceEditMode
+
     // ── Header editable state ──────────────────────────────────────────────────
     var editableDayTag by remember { mutableStateOf(workout.dayTag) }
     var editableDateIso by remember { mutableStateOf(workout.dateIso) }
@@ -134,12 +142,16 @@ fun WorkoutEditor(
             item(span = { GridItemSpan(2) }) {
                 WorkoutEditorHeader(
                     workout = workout,
+                    isEditable = isEditable,
+                    onEnableEdit = { forceEditMode = true },
                     editableDayTag = editableDayTag,
                     onDayTagChange = { 
+                        if (!isEditable) return@WorkoutEditorHeader
                         editableDayTag = it 
                         viewModel.updateWorkout(workout.copy(dayTag = it, locationTag = editableLocation, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
                     },
                     onWorkoutTimeChange = { dateUtc, endTimeUtc, dateIso ->
+                        if (!isEditable) return@WorkoutEditorHeader
                         editableDateUtc = dateUtc
                         editableEndTimeUtc = endTimeUtc
                         editableDateIso = dateIso
@@ -156,6 +168,7 @@ fun WorkoutEditor(
                     },
                     editableLocation = editableLocation,
                     onLocationChange = { 
+                        if (!isEditable) return@WorkoutEditorHeader
                         editableLocation = it
                         viewModel.updateWorkout(workout.copy(locationTag = it, dayTag = editableDayTag, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
                     },
@@ -169,6 +182,7 @@ fun WorkoutEditor(
                     onShowDeleteDialog = { showDeleteConfirmation = true },
                     onShowDuplicateDialog = { showDuplicateConfirmation = true },
                     onDone = {
+                        if (!isEditable) return@WorkoutEditorHeader
                         viewModel.saveWorkoutImmediate(
                             workout.copy(
                                 dayTag = editableDayTag,
@@ -214,9 +228,11 @@ fun WorkoutEditor(
                             editingSetEntry = Triple(entryId, setIndex, exerciseId)
                         },
                         onAddSet = { entryId ->
+                            if (!isEditable) return@SupersetCard
                             scope.launch { viewModel.addSet(entryId) }
                         },
                         onDeleteSuperset = {
+                            if (!isEditable) return@SupersetCard
                             scope.launch {
                                 viewModel.deleteExerciseEntries(workout.id, group.map { it.id })
                             }
@@ -224,12 +240,14 @@ fun WorkoutEditor(
                         onOpenPrForExercise = onOpenPrForExercise,
                         onOpenExerciseDetail = onOpenExerciseDetail,
                         onRequestAddExercise = { fromIncrement ->
+                            if (!isEditable) return@SupersetCard
                             didAddExerciseInDialog = false
                             supersetParentEntryId = group.firstOrNull()?.id
                             pendingIncrementSupersetParentEntryId =
                                 if (fromIncrement) group.firstOrNull()?.id else null
                             showAddExerciseDialog = true
-                        }
+                        },
+                        isEditable = isEditable
                     )
                 } else {
                     ExerciseEntryCard(
@@ -243,9 +261,11 @@ fun WorkoutEditor(
                             editingSetEntry = Triple(group[0].id, setIndex, group[0].exerciseId)
                         },
                         onAddSet = {
+                            if (!isEditable) return@ExerciseEntryCard
                             scope.launch { viewModel.addSet(group[0].id) }
                         },
                         onDeleteEntry = {
+                            if (!isEditable) return@ExerciseEntryCard
                             scope.launch {
                                 viewModel.deleteExerciseEntry(workout.id, group[0].id)
                             }
@@ -253,16 +273,18 @@ fun WorkoutEditor(
                         onOpenPrForExercise = onOpenPrForExercise,
                         onOpenExerciseDetail = onOpenExerciseDetail,
                         onRequestAddExercise = {
+                            if (!isEditable) return@ExerciseEntryCard
                             supersetParentEntryId = group[0].id
                             showAddExerciseDialog = true
-                        }
+                        },
+                        isEditable = isEditable
                     )
                 }
             }
         }
 
         FloatingActionButton(
-            onClick = { showAddExerciseDialog = true },
+            onClick = { if (isEditable) showAddExerciseDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)

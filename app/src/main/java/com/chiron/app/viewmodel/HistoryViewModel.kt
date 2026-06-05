@@ -77,8 +77,8 @@ class HistoryViewModel(
                         val oldGroupId = entry.groupId ?: continue
                         val newEntryId = oldToNewEntryId[entry.id] ?: continue
                         val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
-                        val currentEntry = repository.getEntriesForWorkout(item.workoutId).first().find { it.id == newEntryId } ?: continue
-                        repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                        // Directly restore groupId without relying on async fetch
+                        repository.updateExerciseEntry(entry.copy(id = newEntryId, groupId = newGroupId))
                     }
                 }
                 is DeletedItem.WorkoutSessionWithEntries -> {
@@ -99,8 +99,8 @@ class HistoryViewModel(
                         val oldGroupId = entry.groupId ?: continue
                         val newEntryId = oldToNewEntryId[entry.id] ?: continue
                         val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
-                        val currentEntry = repository.getEntriesForWorkout(newWorkoutId).first().find { it.id == newEntryId } ?: continue
-                        repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                        // Directly restore groupId without relying on async fetch
+                        repository.updateExerciseEntry(entry.copy(id = newEntryId, workoutId = newWorkoutId, groupId = newGroupId))
                     }
                 }
             }

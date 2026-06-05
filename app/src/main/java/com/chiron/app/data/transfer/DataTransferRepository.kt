@@ -324,6 +324,8 @@ class DataTransferRepository(
                 val iArchived = cursor.getColumnIndex("archived")
                 val iNumSuperset = cursor.getColumnIndex("num_exercises_in_superset")
                 while (cursor.moveToNext()) {
+                    // Guard against malformed schemas
+                    if (iId < 0 || iWorkoutId < 0 || iExerciseId < 0 || iSlotIndex < 0) continue
                     val importedId = cursor.getLong(iId)
                     val localWorkoutId = workoutIdMap[cursor.getLong(iWorkoutId)] ?: continue
                     val localExerciseId = exerciseIdMap[cursor.getLong(iExerciseId)] ?: continue
@@ -371,6 +373,8 @@ class DataTransferRepository(
                 val iNotes = cursor.getColumnIndex("notes")
                 val iTs = cursor.getColumnIndex("timestamp_utc")
                 while (cursor.moveToNext()) {
+                    // Guard against malformed schemas
+                    if (iEntryId < 0 || iSetIndex < 0) continue
                     val localEntryId = entryIdMap[cursor.getLong(iEntryId)] ?: continue
                     setEntryDao.insertSet(
                         SetEntry(

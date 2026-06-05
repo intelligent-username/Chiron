@@ -54,7 +54,8 @@ fun SupersetExerciseColumn(
     onSetClick: (Int) -> Unit,
     onAddSet: () -> Unit,
     onOpenPrForExercise: (Long) -> Unit,
-    onOpenExerciseDetail: (Long) -> Unit
+    onOpenExerciseDetail: (Long) -> Unit,
+    isEditable: Boolean
 ) {
     val sets by viewModel.getSetsForEntry(entry.id)
         .collectAsState(initial = emptyList())
@@ -138,24 +139,26 @@ fun SupersetExerciseColumn(
                             displayInKg = displayInKg,
                             distanceUnit = distanceUnit,
                             isPr = set.isPr == 1,
-                            onClick = { onSetClick(index + 1) },
+                            onClick = { if (isEditable) onSetClick(index + 1) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
 
-                OutlinedButton(
-                    onClick = onAddSet,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                    modifier = Modifier
-                        .height(28.dp)
-                        .width(50.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
-                }
+                    if (isEditable) {
+                        OutlinedButton(
+                            onClick = onAddSet,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .width(50.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
+                        }
+                    }
             }
 
             if (hasHistory) {

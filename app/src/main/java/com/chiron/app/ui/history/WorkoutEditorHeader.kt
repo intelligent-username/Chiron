@@ -74,6 +74,8 @@ import java.time.ZoneId
 @Composable
 fun WorkoutEditorHeader(
     workout: WorkoutSession,
+    isEditable: Boolean,
+    onEnableEdit: () -> Unit,
     editableDayTag: String,
     onDayTagChange: (String) -> Unit,
     onWorkoutTimeChange: (Long, Long?, String) -> Unit,
@@ -120,9 +122,11 @@ fun WorkoutEditorHeader(
                 TextField(
                     value = editableDayTag,
                     onValueChange = {
+                        if (!isEditable) return@TextField
                         onDayTagChange(it)
                         expandedName = true
                     },
+                    readOnly = !isEditable,
                     textStyle = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     colors = transparentTextFieldColors(),
@@ -159,6 +163,7 @@ fun WorkoutEditorHeader(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isEditable) {
                 IconButton(onClick = onShowDuplicateDialog) {
                     Icon(
                         Icons.Outlined.ContentCopy,
@@ -175,6 +180,11 @@ fun WorkoutEditorHeader(
                 }
                 TextButton(onClick = onDone) {
                     Text("Done", style = MaterialTheme.typography.titleMedium)
+                }
+                } else {
+                    IconButton(onClick = onEnableEdit) {
+                        Icon(Icons.Default.ExpandMore, "Edit")
+                    }
                 }
             }
         }
@@ -193,7 +203,7 @@ fun WorkoutEditorHeader(
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { isTimeDialogOpen = true }
+                    .clickable(enabled = isEditable) { isTimeDialogOpen = true }
                     .padding(vertical = 8.dp)
             )
 
@@ -219,9 +229,11 @@ fun WorkoutEditorHeader(
                 TextField(
                     value = editableLocation,
                     onValueChange = {
+                        if (!isEditable) return@TextField
                         onLocationChange(it)
                         expandedLocation = true
                     },
+                    readOnly = !isEditable,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         textAlign = TextAlign.End,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -257,6 +269,7 @@ fun WorkoutEditorHeader(
         TextField(
             value = editableNotes,
             onValueChange = onNotesChange,
+            readOnly = !isEditable,
             placeholder = { Text("Add notes...", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.SansSerif), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.SansSerif,

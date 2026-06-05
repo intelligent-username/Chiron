@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -71,7 +75,8 @@ fun ExerciseEntryCard(
     onOpenPrForExercise: (Long) -> Unit,
     onOpenExerciseDetail: (Long) -> Unit,
     workoutId: Long,
-    onRequestAddExercise: () -> Unit
+    onRequestAddExercise: () -> Unit,
+    isEditable: Boolean
 ) {
     val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
@@ -246,7 +251,7 @@ fun ExerciseEntryCard(
                                             displayInKg = displayInKg,
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
-                                            onClick = { onSetClick(index + 1) }
+                                            onClick = { if (isEditable) onSetClick(index + 1) }
                                         )
                                     } else {
                                         SetPill(
@@ -254,19 +259,28 @@ fun ExerciseEntryCard(
                                             displayInKg = displayInKg,
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
-                                            onClick = { onSetClick(index + 1) }
+                                            onClick = { if (isEditable) onSetClick(index + 1) }
                                         )
                                     }
                                 }
-                                OutlinedButton(
-                                    onClick = onAddSet,
-                                    contentPadding = PaddingValues(horizontal = 12.dp),
-                                    modifier = Modifier.height(32.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Add, "Add", modifier = Modifier.size(16.dp))
+                                // Match SetPill size and shape exactly for consistency
+                                if (isEditable) {
+                                    Box(
+                                        modifier = Modifier
+                                            .height(32.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                                            .clickable(onClick = onAddSet)
+                                            .padding(horizontal = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            "Add",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -278,13 +292,15 @@ fun ExerciseEntryCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    IconButton(onClick = onDeleteEntry, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            Icons.Default.Close,
-                            "Remove",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
-                        )
+                    if (isEditable) {
+                        IconButton(onClick = onDeleteEntry, modifier = Modifier.size(40.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                "Remove",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                     if (hasHistory) {
                         LastSessionPreviewButton(
@@ -293,49 +309,58 @@ fun ExerciseEntryCard(
                             onPreviewActive = { isPreviewingLastSession = it }
                         )
                     }
-                }
-            }
+                }            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Notes section ──────────────────────────────────────────────────
-            if (isPreviewingLastSession && (lastSessionPreview != null || lastSessionSupersetPreview != null)) {
-                val previewNotes =
-                    (lastSessionSupersetPreview?.notes ?: lastSessionPreview?.notes) ?: ""
-                val dateLabel =
-                    lastSessionSupersetPreview?.dateLabel ?: lastSessionPreview?.dateLabel ?: ""
+                // ── Notes section ──────────────────────────────────────────────────
+                if (isPreviewingLastSession && (lastSessionPreview != null || lastSessionSupersetPreview != null)) {
+                    val previewNotes =
+                        (lastSessionSupersetPreview?.notes ?: lastSessionPreview?.notes) ?: ""
+                    val dateLabel =
+                        lastSessionSupersetPreview?.dateLabel ?: lastSessionPreview?.dateLabel ?: ""
 
-                ExerciseNotesField(
-                    value = previewNotes,
-                    onValueChange = {},
-                    committed = previewNotes,
-                    onCommit = {},
-                    isReadOnly = true
-                )
+                    ExerciseNotesField(
+                        value = previewNotes,
+                        onValueChange = {},
+                        committed = previewNotes,
+                        onCommit = {},
+                        isReadOnly = true
+                    )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            } else {
-                ExerciseNotesField(
-                    value = exerciseNotes,
-                    onValueChange = { exerciseNotes = it },
-                    committed = committedExerciseNotes,
-                    onCommit = { normalized ->
-                        committedExerciseNotes = normalized
-                        viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
+                    Text(
+                        text = dateLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                } else {
+                    if (isEditable) {
+                        ExerciseNotesField(
+                            value = exerciseNotes,
+                            onValueChange = { exerciseNotes = it },
+                            committed = committedExerciseNotes,
+                            onCommit = { normalized ->
+                                committedExerciseNotes = normalized
+                                viewModel.updateExerciseEntry(entry.copy(notes = normalized.ifBlank { null }))
+                            }
+                        )
+                    } else {
+                        ExerciseNotesField(
+                            value = exerciseNotes,
+                            onValueChange = {},
+                            committed = exerciseNotes,
+                            onCommit = {},
+                            isReadOnly = true
+                        )
                     }
-                )
-            }
+                }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // ── Superset controls (hidden during preview) ──────────────────────
-            if (!isPreviewingLastSession) {
+            if (isEditable && !isPreviewingLastSession) {
                 SupersetCounterRow(
                     isSupersetEnabled = isSupersetEnabled,
                     onSupersetToggle = { newValue ->
