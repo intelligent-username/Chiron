@@ -88,13 +88,13 @@ fun ExercisesScreen(
         }
 
         if (showCreateDialog) {
-            CreateExerciseDialog(
-                onDismiss = { showCreateDialog = false },
-                onCreate = { name, icon, config ->
-                    viewModel.createExercise(name, iconName = icon, config = config)
-                    showCreateDialog = false
-                }
-            )
+CreateExerciseDialog(
+    onDismiss = { showCreateDialog = false },
+    onCreate = { name, icon, description, config ->
+        viewModel.createExercise(name, iconName = icon, description = description, config = config)
+        showCreateDialog = false
+    }
+)
         }
     }
 }

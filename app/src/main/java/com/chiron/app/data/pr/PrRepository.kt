@@ -3,10 +3,11 @@ package com.chiron.app.data.pr
 import com.chiron.app.data.dao.ExercisePrDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.ExerciseDao
-import com.chiron.app.data.entities.ExercisePr
+import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.dao.Exercise1rmEstimateDao
 import com.chiron.app.data.entities.Exercise1rmEstimate
+import com.chiron.app.data.entities.ExercisePr
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -42,7 +43,36 @@ class PrRepository(
      * Delegates to rebuildPrsForExercise to maintain all PR categories consistently.
      */
     suspend fun syncGlobalPrBucket(exerciseId: Long, reps: Int) {
-        rebuildPrsForExercise(exerciseId)
+        val exercise = exerciseDao.getById(exerciseId) ?: return
+        when (exercise.prCategory()) {
+            PrCategory.WEIGHT_REPS -> {
+                // Incremental update for weight+reps PRs – preserve historic is_pr flags
+                val bestSet = setEntryDao.getBestSetForExerciseAndReps(exerciseId, reps)
+                if (bestSet != null) {
+                    // Ensure the best set has the PR flag (historical PRs stay untouched)
+                    if (bestSet.isPr == 0) {
+                        setEntryDao.updateSet(bestSet.copy(isPr = 1))
+                    }
+                    // Upsert the global PR record for this rep count
+                    exercisePrDao.upsert(
+                        ExercisePr(
+                            exerciseId = exerciseId,
+                            reps = bestSet.reps!!,
+                            weightLbs = bestSet.weightLbs!!,
+                            setId = bestSet.id,
+                            timestampUtc = bestSet.timestampUtc
+                        )
+                    )
+                } else {
+                    // No qualifying set – remove any existing PR entry for this rep count
+                    exercisePrDao.deleteForExerciseAndReps(exerciseId, reps)
+                }
+            }
+            else -> {
+                // For all other categories retain the full rebuild (necessary for time/distance PRs)
+                rebuildPrsForExercise(exerciseId)
+            }
+        }
     }
 
     /**
@@ -53,7 +83,10 @@ class PrRepository(
         val exercise = exerciseDao.getById(exerciseId) ?: return
         val category = exercise.prCategory()
 
-        setEntryDao.clearPrFlagsForExercise(exerciseId)
+        // Clear per‑set PR flags only for categories that use them. WEIGHT_REPS retains historic flags.
+        if (category != PrCategory.WEIGHT_REPS) {
+            setEntryDao.clearPrFlagsForExercise(exerciseId)
+        }
         exercisePrDao.clearAllForExercise(exerciseId)
 
         val allSets = setEntryDao.getAllSetsForExerciseAny(exerciseId)

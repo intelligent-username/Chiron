@@ -26,6 +26,7 @@ import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.prefs.DistanceUnit
 import com.chiron.app.data.pr.PrCategory
 import com.chiron.app.data.pr.prCategory
+import kotlin.math.roundToInt
 
 @Composable
 internal fun PrDetailPanel(
@@ -100,7 +101,12 @@ internal fun PrDetailPanel(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredPrs) { pr ->
-                        val reps = (pr.bucket % 100000).toInt()
+                        // Decode reps from the compound bucket key (distance * 100000 + reps).
+                        // Using `bucket % 100000` is wrong for distances < 1 m because the
+                        // distance component is itself < 100000 and the modulo is a no-op.
+                        // Instead: reconstruct the distance component, then subtract it.
+                        val distMeters = (pr.bucket / 100000.0).roundToHundredth()
+                        val reps = (pr.bucket - distMeters * 100000.0).roundToInt()
                         val title = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
                         val value = UnitConversion.formatWeight(pr.record, displayInKg)
                         PrRow(title = title, value = value, timestampUtc = pr.timestampUtc)

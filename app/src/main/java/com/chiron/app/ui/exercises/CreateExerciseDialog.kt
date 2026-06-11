@@ -31,10 +31,12 @@ data class TrackingConfig(
 @Composable
 fun CreateExerciseDialog(
     onDismiss: () -> Unit,
-    onCreate: (name: String, iconName: String?, config: TrackingConfig) -> Unit
+    onCreate: (name: String, iconName: String?, description: String?, config: TrackingConfig) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var selectedIcon by remember { mutableStateOf<String?>("default") }
+    // Optional description field (optional when creating exercise)
+    var description by remember { mutableStateOf("") }
 
     // Tracking config state
     var weightEnabled by remember { mutableStateOf(true) }
@@ -45,6 +47,7 @@ fun CreateExerciseDialog(
     fun reset() {
         name = ""
         selectedIcon = "default"
+        description = ""
         weightEnabled = true
         distanceEnabled = false
         useReps = true
@@ -74,13 +77,18 @@ fun CreateExerciseDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Tracking config section
-                Text(
-                    "Tracking Options",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                    // Optional description field (optional when creating exercise)
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Description (optional)") },
+                        singleLine = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                    )
+
 
                 // Row of two modern toggle cards: Weight and Distance
                 Row(
@@ -130,10 +138,10 @@ fun CreateExerciseDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                if (name.isNotBlank() && config.isValid) {
-                    onCreate(name, selectedIcon, config)
-                    reset()
-                }
+if (name.isNotBlank() && config.isValid) {
+                        onCreate(name, selectedIcon, description, config)
+                        reset()
+                    }
             }) { Text("Create") }
         },
         dismissButton = {
