@@ -71,14 +71,16 @@ fun HistoryScreen(
                         LocationChip(
                             label = "All",
                             selected = state.selectedDayTag == null,
-                            onClick = { viewModel.filterByDayTag(null) }
+                            onClick = { viewModel.filterByDayTag(null) },
+                            isLarge = true
                         )
                     }
                     items(state.dayTags) { tag ->
                         LocationChip(
                             label = tag,
                             selected = state.selectedDayTag == tag,
-                            onClick = { viewModel.filterByDayTag(tag) }
+                            onClick = { viewModel.filterByDayTag(tag) },
+                            isLarge = true
                         )
                     }
                 }
@@ -249,7 +251,8 @@ private fun LocationChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -265,12 +268,12 @@ private fun LocationChip(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = if (isLarge) 10.dp else 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            style = if (isLarge) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
             color = if (selected) MaterialTheme.colorScheme.onSurface else CoolGray,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
