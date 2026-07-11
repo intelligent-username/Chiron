@@ -233,16 +233,16 @@ class PrRepository(
         }
 
         val prs = exercisePrDao.getAllForExercise(exerciseId)
-        // 1. Initial filter for relevant rep range
-        val initialValid = prs.filter { it.repsInt in 1..12 }
+        // 1. Filter to rep range where Epley formula is most reliable.
+        val initialValid = prs.filter { it.repsInt in 1..8 }
 
         if (initialValid.isEmpty()) {
             exercise1rmEstimateDao.deleteForExercise(exerciseId)
             return
         }
 
-        // 2. Monotonicity Filter: Discard lower-rep PRs that have less weight than a higher-rep PR.
-        // Since 'initialValid' is ordered by reps ASC, we iterate backwards.
+        // 2. Monotonicity filter: discard lower-rep PRs with less weight than a higher-rep PR.
+        // PRs are ordered by reps ASC, so iterate backwards (high reps → low reps).
         val monotonicPrs = mutableListOf<ExercisePr>()
         var maxWeightSeen = 0.0
         for (i in initialValid.indices.reversed()) {
@@ -253,44 +253,17 @@ class PrRepository(
             }
         }
 
-        val components = mutableListOf<Pair<Double, Double>>()
-
+        // 3. Take the maximum Epley estimate across all remaining PRs.
+        // Epley: 1RM = w * (1 + r/30). For r=1, use raw weight (it's already the 1RM).
+        var finalEstimate = 0.0
         for (pr in monotonicPrs) {
-            val r = pr.repsInt
-            val w = pr.weightLbs
-            // 3. Epley Estimate (mHatI)
-            val mHatI = if (r == 1) w else w * (1.0 + r / 30.0)
-            val rDouble = r.toDouble()
-            // 4. Inverse square weighting (1/r^2)
-            val alpha = 1.0 / (rDouble * rDouble)
-            components.add(alpha to mHatI)
+            val mHat = if (pr.repsInt == 1) pr.weightLbs else pr.weightLbs * (1.0 + pr.repsInt / 30.0)
+            if (mHat > finalEstimate) finalEstimate = mHat
         }
 
-        if (components.isNotEmpty()) {
-            // 5. Envelope Filtering: Only keep estimates within 90% of the maximum implied 1RM.
-            val maxMHat = components.maxOf { it.second }
-            val envelopeThreshold = maxMHat * 0.90
-            val envelope = components.filter { (_, mHatI) -> mHatI >= envelopeThreshold }
-            val selected = if (envelope.isNotEmpty()) envelope else components
-            val selectedAlphaSum = selected.sumOf { it.first }
-
-            if (selectedAlphaSum <= 0.0) {
-                exercise1rmEstimateDao.deleteForExercise(exerciseId)
-                return
-            }
-
-            // 6. Normalized Weighted Average
-            var finalEstimate = 0.0
-            for ((alpha, mHatI) in selected) {
-                val alphaTilde = alpha / selectedAlphaSum
-                finalEstimate += alphaTilde * mHatI
-            }
-
+        if (finalEstimate > 0.0) {
             exercise1rmEstimateDao.upsert(
-                Exercise1rmEstimate(
-                    exerciseId = exerciseId,
-                    estimateLbs = finalEstimate
-                )
+                Exercise1rmEstimate(exerciseId = exerciseId, estimateLbs = finalEstimate)
             )
         } else {
             exercise1rmEstimateDao.deleteForExercise(exerciseId)

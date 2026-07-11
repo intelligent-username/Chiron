@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.data.entities.Exercise
+import com.chiron.app.util.Jaccard
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -31,19 +32,49 @@ class ExercisesViewModel(
     private val _uiState = MutableStateFlow(ExercisesUiState())
     val uiState: StateFlow<ExercisesUiState> = _uiState.asStateFlow()
 
-    private var searchJob: Job? = null
-    private var prSearchJob: Job? = null
-    private val searchDebounceMs = 300L
-
     init {
         viewModelScope.launch {
             repository.exercisesFlow.collect { exercises ->
-                _uiState.update { it.copy(exercises = exercises, isLoading = false) }
+                _uiState.update { state ->
+                    val results = if (state.searchQuery.isBlank()) {
+                        emptyList()
+                    } else {
+                        Jaccard.rankBySimilarity(state.searchQuery, exercises, { it.name }, limit = 100)
+                    }
+                    val prResults = if (state.prSearchQuery.isBlank()) {
+                        emptyList()
+                    } else {
+                        Jaccard.rankBySimilarity(state.prSearchQuery, exercises, { it.name }, limit = 100)
+                    }
+                    state.copy(
+                        exercises = exercises,
+                        searchResults = results,
+                        prSearchResults = prResults,
+                        isLoading = false
+                    )
+                }
             }
         }
         viewModelScope.launch {
             repository.archivedExercisesFlow.collect { archived ->
-                _uiState.update { it.copy(archivedExercises = archived, isLoading = false) }
+                _uiState.update { state ->
+                    val results = if (state.searchQuery.isBlank()) {
+                        emptyList()
+                    } else {
+                        Jaccard.rankBySimilarity(state.searchQuery, archived, { it.name }, limit = 100)
+                    }
+                    val prResults = if (state.prSearchQuery.isBlank()) {
+                        emptyList()
+                    } else {
+                        Jaccard.rankBySimilarity(state.prSearchQuery, archived, { it.name }, limit = 100)
+                    }
+                    state.copy(
+                        archivedExercises = archived,
+                        searchResults = results,
+                        prSearchResults = prResults,
+                        isLoading = false
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -52,18 +83,14 @@ class ExercisesViewModel(
     }
 
     fun updateSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            delay(searchDebounceMs)
-            if (query.isBlank()) {
-                _uiState.update { it.copy(searchResults = emptyList()) }
+        _uiState.update { state ->
+            val source = if (state.showArchived) state.archivedExercises else state.exercises
+            val results = if (query.isBlank()) {
+                emptyList()
             } else {
-                val archived = _uiState.value.showArchived
-                val results = repository.searchExercises(query, archived = archived)
-                _uiState.update { it.copy(searchResults = results) }
+                Jaccard.rankBySimilarity(query, source, { it.name }, limit = 100)
             }
+            state.copy(searchQuery = query, searchResults = results)
         }
     }
 
@@ -72,18 +99,14 @@ class ExercisesViewModel(
     }
 
     fun updatePrSearchQuery(query: String) {
-        _uiState.update { it.copy(prSearchQuery = query) }
-
-        prSearchJob?.cancel()
-        prSearchJob = viewModelScope.launch {
-            delay(searchDebounceMs)
-            if (query.isBlank()) {
-                _uiState.update { it.copy(prSearchResults = emptyList()) }
+        _uiState.update { state ->
+            val source = if (state.showArchived) state.archivedExercises else state.exercises
+            val results = if (query.isBlank()) {
+                emptyList()
             } else {
-                val archived = _uiState.value.showArchived
-                val results = repository.searchExercises(query, archived = archived)
-                _uiState.update { it.copy(prSearchResults = results) }
+                Jaccard.rankBySimilarity(query, source, { it.name }, limit = 100)
             }
+            state.copy(prSearchQuery = query, prSearchResults = results)
         }
     }
 
@@ -183,7 +206,25 @@ class ExercisesViewModel(
     }
 
     fun toggleShowArchived() {
-        _uiState.update { it.copy(showArchived = !it.showArchived) }
+        _uiState.update { state ->
+            val newShowArchived = !state.showArchived
+            val source = if (newShowArchived) state.archivedExercises else state.exercises
+            val results = if (state.searchQuery.isBlank()) {
+                emptyList()
+            } else {
+                Jaccard.rankBySimilarity(state.searchQuery, source, { it.name }, limit = 100)
+            }
+            val prResults = if (state.prSearchQuery.isBlank()) {
+                emptyList()
+            } else {
+                Jaccard.rankBySimilarity(state.prSearchQuery, source, { it.name }, limit = 100)
+            }
+            state.copy(
+                showArchived = newShowArchived,
+                searchResults = results,
+                prSearchResults = prResults
+            )
+        }
     }
 
     suspend fun getExerciseById(id: Long): Exercise? = repository.getExerciseById(id)

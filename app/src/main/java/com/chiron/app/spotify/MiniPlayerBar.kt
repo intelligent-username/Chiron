@@ -410,28 +410,43 @@ fun MiniPlayerBar(
         } else {
             // ── COMPACT / MINI VIEW ────────────────────────────────────────
 
-            // Simple linear progress bar in compact view
+            // Wave seek bar in compact view
             if (duration > 0) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(3.dp)
+                        .height(18.dp),
+                    contentAlignment = Alignment.CenterStart
                 ) {
-                    // Background track
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(resolvedInactiveColor.copy(alpha = 0.2f))
+                    WaveSliderBackground(
+                        progress = if (duration > 0) localPosition / duration else 0f,
+                        isPaused = state.isPaused,
+                        isCompact = true,
+                        activeColor = resolvedActiveColor,
+                        inactiveColor = resolvedInactiveColor,
+                        modifier = Modifier.fillMaxSize()
                     )
-                    // Progress fill
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(if (duration > 0) localPosition / duration else 0f)
-                            .background(resolvedActiveColor)
+                    Slider(
+                        value = localPosition,
+                        onValueChange = {
+                              isDragging = true
+                              localPosition = it
+                        },
+                        onValueChangeFinished = {
+                              isDragging = false
+                              lastSeekEventTime = System.currentTimeMillis()
+                              SpotifyManager.seekTo(localPosition.toLong())
+                        },
+                        valueRange = 0f..duration,
+                        colors = SliderDefaults.colors(
+                            thumbColor = resolvedActiveColor,
+                            activeTrackColor = Color.Transparent,
+                            inactiveTrackColor = Color.Transparent
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             Row(
@@ -512,7 +527,8 @@ fun WaveSliderBackground(
     isPaused: Boolean,
     modifier: Modifier = Modifier,
     activeColor: Color? = null,
-    inactiveColor: Color? = null
+    inactiveColor: Color? = null,
+    isCompact: Boolean = false
 ) {
     val resolvedActiveColor = activeColor ?: ElectricBlue
     val resolvedInactiveColor = inactiveColor ?: ThinOutline
@@ -527,7 +543,11 @@ fun WaveSliderBackground(
         ), label = "wavePhase"
     )
 
-    val targetAmplitude = if (isPaused) 1.5f else 8f
+    val targetAmplitude = if (isCompact) {
+        if (isPaused) 0.5f else 3f
+    } else {
+        if (isPaused) 1.5f else 8f
+    }
     val amplitude by animateFloatAsState(
         targetValue = targetAmplitude,
         animationSpec = tween(600), label = "waveAmplitude"
@@ -545,7 +565,7 @@ fun WaveSliderBackground(
                 color = resolvedInactiveColor,
                 start = androidx.compose.ui.geometry.Offset(progressX, midY),
                 end = androidx.compose.ui.geometry.Offset(width, midY),
-                strokeWidth = 2.dp.toPx(),
+                strokeWidth = (if (isCompact) 1.5.dp else 2.dp).toPx(),
                 cap = androidx.compose.ui.graphics.StrokeCap.Round
             )
         }
@@ -581,7 +601,7 @@ fun WaveSliderBackground(
             drawPath(
                 path = primaryPath,
                 color = resolvedActiveColor,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = (if (isCompact) 1.5.dp else 3.dp).toPx())
             )
         }
     }
