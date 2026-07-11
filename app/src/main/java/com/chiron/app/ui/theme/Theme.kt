@@ -85,15 +85,37 @@ fun ChironTheme(
         else -> LightColorScheme
     }
 
+    val adjustedBaseScheme = baseScheme.copy(
+        outline = if (darkTheme) androidx.compose.ui.graphics.Color(0xFF232A38) else baseScheme.outline.copy(alpha = 0.2f),
+        outlineVariant = if (darkTheme) androidx.compose.ui.graphics.Color(0xFF232A38) else baseScheme.outlineVariant.copy(alpha = 0.2f)
+    )
+
     val colorScheme = if (mediaColor != null) {
-        baseScheme.copy(
-            primary = androidx.compose.ui.graphics.lerp(baseScheme.primary, mediaColor, 0.6f),
-            background = androidx.compose.ui.graphics.lerp(baseScheme.background, mediaColor, 0.1f),
-            surface = androidx.compose.ui.graphics.lerp(baseScheme.surface, mediaColor, 0.1f),
-            surfaceVariant = androidx.compose.ui.graphics.lerp(baseScheme.surfaceVariant, mediaColor, 0.15f)
+        val darkMediaColor = mediaColor.copy(
+            red = mediaColor.red * 0.15f,
+            green = mediaColor.green * 0.15f,
+            blue = mediaColor.blue * 0.15f
+        )
+        val primaryMediaColor = mediaColor.copy(
+            red = mediaColor.red * 0.8f,
+            green = mediaColor.green * 0.8f,
+            blue = mediaColor.blue * 0.8f
+        )
+        val mediaOutlineColor = mediaColor.copy(
+            red = mediaColor.red * 0.22f,
+            green = mediaColor.green * 0.22f,
+            blue = mediaColor.blue * 0.22f
+        )
+        adjustedBaseScheme.copy(
+            primary = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.primary, primaryMediaColor, 0.6f),
+            background = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.background, darkMediaColor, 0.3f),
+            surface = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surface, darkMediaColor, 0.3f),
+            surfaceVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surfaceVariant, darkMediaColor, 0.4f),
+            outline = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outline, mediaOutlineColor, 0.4f),
+            outlineVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outlineVariant, mediaOutlineColor, 0.4f)
         )
     } else {
-        baseScheme
+        adjustedBaseScheme
     }
 
     val view = LocalView.current

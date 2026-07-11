@@ -205,7 +205,7 @@ fun ExerciseEntryCard(
 
                         isPreviewingLastSession && lastSessionPreview != null -> {
                             Text(
-                                exercise?.name ?: "Loading...",
+                                exercise?.name ?: "Loading…",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -231,7 +231,7 @@ fun ExerciseEntryCard(
 
                         else -> {
                             Text(
-                                exercise?.name ?: "Loading...",
+                                exercise?.name ?: "Loading…",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

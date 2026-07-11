@@ -2,6 +2,10 @@ package com.chiron.app.ui.timer
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,8 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.media.MediaPlayer
 import com.chiron.app.ui.components.WheelPicker
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
 import com.chiron.app.viewmodel.TimerTab
 import com.chiron.app.viewmodel.TimerViewModel
 
@@ -61,24 +70,53 @@ fun TimerScreen(
         modifier = modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        // Custom inline tab strip
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(SolidSlate)
+                .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
         ) {
-            SegmentedButton(
-                selected = state.activeTab == TimerTab.TIMER,
-                onClick = { viewModel.selectTab(TimerTab.TIMER) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
-            ) { Text("Timer") }
-            SegmentedButton(
-                selected = state.activeTab == TimerTab.STOPWATCH,
-                onClick = { viewModel.selectTab(TimerTab.STOPWATCH) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-            ) { Text("Stopwatch") }
-            SegmentedButton(
-                selected = state.activeTab == TimerTab.METRONOME,
-                onClick = { viewModel.selectTab(TimerTab.METRONOME) },
-                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-            ) { Text("Metronome") }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TimerTab.entries.forEach { tab ->
+                    val isSelected = state.activeTab == tab
+                    val label = when (tab) {
+                        TimerTab.TIMER -> "Timer"
+                        TimerTab.STOPWATCH -> "Stopwatch"
+                        TimerTab.METRONOME -> "Metronome"
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { viewModel.selectTab(tab) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) ElectricBlue else com.chiron.app.ui.theme.CoolGray
+                        )
+                        // Underline indicator
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 10.dp)
+                                .width(36.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(if (isSelected) ElectricBlue else Color.Transparent)
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.weight(1.5f))
@@ -92,7 +130,7 @@ fun TimerScreen(
                 TimerTab.STOPWATCH -> StopwatchContent(viewModel)
                 TimerTab.METRONOME -> MetronomeContent(
                     viewModel = viewModel,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -105,10 +143,8 @@ fun TimerScreen(
 fun CountdownContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
-    // Use Material 3 Theme colors for guaranteed contrast
-    val arcColor = MaterialTheme.colorScheme.primary
-    val arcTrackColor = MaterialTheme.colorScheme.surfaceVariant
-    
+    val arcTrackColor = com.chiron.app.ui.theme.ThinOutline
+    val progressColor = com.chiron.app.ui.theme.ElectricBlue
     val isIdle = !state.isCountdownRunning && state.countdownRemaining == state.countdownSeconds
 
     Column(
@@ -117,11 +153,11 @@ fun CountdownContent(viewModel: TimerViewModel) {
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(320.dp) // Adjusted size for smaller viewports
+            modifier = Modifier.size(320.dp)
         ) {
-            // ── The Circle: Always Visible ───────────────────────────────
+            // ── Thin progress arc ────────────────────────────────────────
             Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                val strokeWidth = 14.dp.toPx() // Slightly thicker stroke for the larger circle
+                val strokeWidth = 3.dp.toPx()
                 val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 
                 // Track
@@ -133,13 +169,13 @@ fun CountdownContent(viewModel: TimerViewModel) {
                     style = stroke
                 )
                 
-                // Progress - Full when idle, counting down when active
+                // Progress
                 val progress = if (state.countdownSeconds > 0) {
                     state.countdownRemaining.toFloat() / state.countdownSeconds.toFloat()
                 } else 1f
                 
                 drawArc(
-                    color = arcColor,
+                    color = progressColor,
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
@@ -192,9 +228,10 @@ fun CountdownContent(viewModel: TimerViewModel) {
                 Text(
                     text = TimerViewModel.formatCountdown(state.countdownRemaining),
                     style = MaterialTheme.typography.displayLarge.copy(
-                        fontSize = 80.sp, // Slightly larger font for larger circle
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontSize = 80.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = (-1).sp
                     )
                 )
             }
@@ -209,70 +246,79 @@ fun CountdownContent(viewModel: TimerViewModel) {
                 checked = state.isConstantCycling,
                 onCheckedChange = { viewModel.toggleConstantCycling() },
                 colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                    checkedColor = ElectricBlue,
+                    checkmarkColor = MaterialTheme.colorScheme.onSurface
                 )
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 "Constant Cycling", 
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = com.chiron.app.ui.theme.CoolGray
             )
         }
 
-        // ── High Contrast Buttons ────────────────────────────────────────
+        // ── Flat block buttons ───────────────────────────────────────────
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Reset - Now on the Left, equal weight
-            FilledTonalButton(
-                onClick = { viewModel.resetCountdown() },
+            // Reset
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp),
-                shape = RoundedCornerShape(24.dp)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SolidSlate)
+                    .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { viewModel.resetCountdown() }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Reset",
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Reset", style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reset", modifier = Modifier.size(20.dp), tint = com.chiron.app.ui.theme.CoolGray)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reset", style = MaterialTheme.typography.titleMedium, color = com.chiron.app.ui.theme.CoolGray)
+                }
             }
 
-            // Start / Pause - Now on the Right, equal weight
-            val buttonColor = if (state.isCountdownRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            val onButtonColor = if (state.isCountdownRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
-
-            Button(
-                onClick = {
-                    if (state.isCountdownRunning) viewModel.pauseCountdown() else viewModel.startCountdown()
-                },
+            // Start / Pause
+            val isRunning = state.isCountdownRunning
+            val btnColor = if (isRunning) com.chiron.app.ui.theme.Error else ElectricBlue
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = buttonColor,
-                    contentColor = onButtonColor
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(btnColor)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (isRunning) viewModel.pauseCountdown() else viewModel.startCountdown()
+                        }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (state.isCountdownRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (state.isCountdownRunning) "Pause" else "Start",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (isRunning) "Pause" else "Start",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }

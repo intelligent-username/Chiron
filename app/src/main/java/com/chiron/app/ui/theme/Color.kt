@@ -1,47 +1,57 @@
 package com.chiron.app.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Primary palette - gym-friendly dark theme optimized for visibility
-val Primary = Color(0xFF6750A4)
+// ── Default Static Constants (used for theme initialization) ─────────────────
+val DefaultDeepCharcoal = Color(0xFF090D14)
+val DefaultSolidSlate = Color(0xFF141923)
+val DefaultThinOutline = Color(0xFF232A38)
+val DefaultElectricBlue = Color(0xFF4F46E5) // Premium Indigo accent color (darkened for better contrast)
+val DefaultDeepGold = Color(0xFFF2C94C)
+val DefaultCoolGray = Color(0xFF9CA3AF) // Lightened gray for improved WCAG readability
+
+// ── Light Theme Palettes (kept for compilation/fallback) ─────────────────────
+val Primary = DefaultElectricBlue
 val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFEADDFF)
-val OnPrimaryContainer = Color(0xFF21005D)
+val PrimaryContainer = DefaultSolidSlate
+val OnPrimaryContainer = Color(0xFFFFFFFF)
 
 val Secondary = Color(0xFF625B71)
 val OnSecondary = Color(0xFFFFFFFF)
-val SecondaryContainer = Color(0xFFE8DEF8)
-val OnSecondaryContainer = Color(0xFF1D192B)
+val SecondaryContainer = DefaultSolidSlate
+val OnSecondaryContainer = Color(0xFFFFFFFF)
 
 val Tertiary = Color(0xFF7D5260)
 val OnTertiary = Color(0xFFFFFFFF)
 val TertiaryContainer = Color(0xFFFFD8E4)
 val OnTertiaryContainer = Color(0xFF31111D)
 
-val Error = Color(0xFFB3261E)
+val Error = Color(0xFFE53935)
 val OnError = Color(0xFFFFFFFF)
-val ErrorContainer = Color(0xFFF9DEDC)
-val OnErrorContainer = Color(0xFF410E0B)
+val ErrorContainer = Color(0xFF8C1D18)
+val OnErrorContainer = Color(0xFFF9DEDC)
 
-val Background = Color(0xFFFFFBFE)
-val OnBackground = Color(0xFF1C1B1F)
-val Surface = Color(0xFFFFFBFE)
-val OnSurface = Color(0xFF1C1B1F)
-val SurfaceVariant = Color(0xFFE7E0EC)
-val OnSurfaceVariant = Color(0xFF49454F)
+val Background = DefaultDeepCharcoal
+val OnBackground = Color(0xFFE6E1E5)
+val Surface = DefaultSolidSlate
+val OnSurface = Color(0xFFFFFFFF)
+val SurfaceVariant = DefaultSolidSlate
+val OnSurfaceVariant = DefaultCoolGray
 
-val Outline = Color(0xFF79747E)
-val OutlineVariant = Color(0xFFCAC4D0)
+val Outline = DefaultThinOutline
+val OutlineVariant = DefaultThinOutline
 
-// Dark theme colors
-val PrimaryDark = Color(0xFFD0BCFF)
-val OnPrimaryDark = Color(0xFF381E72)
-val PrimaryContainerDark = Color(0xFF4F378B)
-val OnPrimaryContainerDark = Color(0xFFEADDFF)
+// ── Dark Theme Palettes (used as baseline) ──────────────────────────────────
+val PrimaryDark = DefaultElectricBlue
+val OnPrimaryDark = Color(0xFFFFFFFF)
+val PrimaryContainerDark = DefaultSolidSlate
+val OnPrimaryContainerDark = Color(0xFFFFFFFF)
 
 val SecondaryDark = Color(0xFFCCC2DC)
 val OnSecondaryDark = Color(0xFF332D41)
-val SecondaryContainerDark = Color(0xFF4A4458)
+val SecondaryContainerDark = DefaultSolidSlate
 val OnSecondaryContainerDark = Color(0xFFE8DEF8)
 
 val TertiaryDark = Color(0xFFEFB8C8)
@@ -49,21 +59,41 @@ val OnTertiaryDark = Color(0xFF492532)
 val TertiaryContainerDark = Color(0xFF633B48)
 val OnTertiaryContainerDark = Color(0xFFFFD8E4)
 
-val ErrorDark = Color(0xFFF2B8B5)
-val OnErrorDark = Color(0xFF601410)
+val ErrorDark = Error
+val OnErrorDark = Color(0xFFFFFFFF)
 val ErrorContainerDark = Color(0xFF8C1D18)
 val OnErrorContainerDark = Color(0xFFF9DEDC)
 
-val BackgroundDark = Color(0xFF1C1B1F)
+val BackgroundDark = DefaultDeepCharcoal
 val OnBackgroundDark = Color(0xFFE6E1E5)
-val SurfaceDark = Color(0xFF1C1B1F)
-val OnSurfaceDark = Color(0xFFE6E1E5)
-val SurfaceVariantDark = Color(0xFF49454F)
-val OnSurfaceVariantDark = Color(0xFFCAC4D0)
+val SurfaceDark = DefaultSolidSlate
+val OnSurfaceDark = Color(0xFFFFFFFF)
+val SurfaceVariantDark = DefaultSolidSlate
+val OnSurfaceVariantDark = DefaultCoolGray
 
-val OutlineDark = Color(0xFF938F99)
-val OutlineVariantDark = Color(0xFF49454F)
+val OutlineDark = DefaultThinOutline
+val OutlineVariantDark = DefaultThinOutline
 
-// PR badge color
-val PrGold = Color(0xFFFFD700)
-val PrGoldDark = Color(0xFFFFC107)
+val PrGold = DefaultDeepGold
+val PrGoldDark = DefaultDeepGold
+
+// ── Composable Theme Accessors (for dynamic album-art theme matching) ─────────
+val DeepCharcoal: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+val SolidSlate: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+val ThinOutline: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+val ElectricBlue: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+val CoolGray: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant

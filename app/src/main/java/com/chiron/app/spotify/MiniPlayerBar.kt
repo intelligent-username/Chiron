@@ -1,6 +1,7 @@
 package com.chiron.app.spotify
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,6 +40,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.font.FontWeight
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
+import com.chiron.app.ui.theme.CoolGray
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -55,7 +61,10 @@ private fun formatMs(ms: Float): String {
 }
 
 @Composable
-fun MiniPlayerBar(modifier: Modifier = Modifier) {
+fun MiniPlayerBar(
+    modifier: Modifier = Modifier,
+    drawBackgroundAndBorder: Boolean = true
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val playerState by SpotifyManager.playerState.collectAsState()
     val isConnected by SpotifyManager.isConnected.collectAsState()
@@ -63,6 +72,8 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
     val needsAuthFlow by SpotifyManager.needsAuthFlow.collectAsState()
     val connectionError by SpotifyManager.connectionError.collectAsState()
     val albumArt by SpotifyManager.albumArt.collectAsState()
+    val resolvedActiveColor = ElectricBlue
+    val resolvedInactiveColor = ThinOutline
 
     val context = LocalContext.current
 
@@ -123,12 +134,20 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
     }
 
     // Outer Column: always clickable → opens Spotify.
-    // Album art image inside uses its own .clickable which stops propagation automatically.
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-            .background(Color(0xFF121212))
+            .then(
+                if (drawBackgroundAndBorder) {
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+            )
             .clickable { openSpotify() }
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
@@ -137,20 +156,20 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
-                    tint = Color(0xFF535353),
-                    modifier = Modifier.size(24.dp)
+                    tint = CoolGray,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = idleText,
-                    color = Color(0xFF535353),
-                    fontSize = 13.sp,
+                    color = CoolGray,
+                    style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -214,8 +233,8 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .fillMaxWidth(0.72f)
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { expanded = false }   // stops propagation; does NOT open Spotify
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { expanded = false }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -223,16 +242,17 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                 // Track name
                 Text(
                     text = track.name,
-                    color = Color.White,
-                    fontSize = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                // Artist / show name — always shown
+                // Artist / show name
                 Text(
                     text = secondaryText,
-                    color = Color(0xFFB3B3B3),
-                    fontSize = 14.sp,
+                    color = CoolGray,
+                    style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -255,17 +275,17 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                         Slider(
                             value = localPosition,
                             onValueChange = {
-                                isDragging = true
-                                localPosition = it
+                                  isDragging = true
+                                  localPosition = it
                             },
                             onValueChangeFinished = {
-                                isDragging = false
-                                lastSeekEventTime = System.currentTimeMillis()
-                                SpotifyManager.seekTo(localPosition.toLong())
+                                  isDragging = false
+                                  lastSeekEventTime = System.currentTimeMillis()
+                                  SpotifyManager.seekTo(localPosition.toLong())
                             },
                             valueRange = 0f..duration,
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF1DB954),
+                                thumbColor = ElectricBlue,
                                 activeTrackColor = Color.Transparent,
                                 inactiveTrackColor = Color.Transparent
                             ),
@@ -273,7 +293,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                         )
                     }
 
-                    // Timestamp row — always shown when duration > 0, showing current and total runtime
+                    // Timestamp row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -282,13 +302,13 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                     ) {
                         Text(
                             text = formatMs(localPosition),
-                            color = Color(0xFF888888),
-                            fontSize = 11.sp
+                            color = CoolGray,
+                            style = MaterialTheme.typography.bodySmall
                         )
                         Text(
                             text = formatMs(duration),
-                            color = Color(0xFF888888),
-                            fontSize = 11.sp
+                            color = CoolGray,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
 
@@ -303,7 +323,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                 ) {
                     // 1. Shuffle
                     val isShuffling = state.playbackOptions.isShuffling
-                    val shuffleTint = if (isShuffling) Color(0xFF1DB954) else Color(0xFFB3B3B3)
+                    val shuffleTint = if (isShuffling) ElectricBlue else CoolGray
                     IconButton(
                         onClick = { SpotifyManager.toggleShuffle() },
                         modifier = Modifier.size(48.dp)
@@ -320,7 +340,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             Icon(
                                 Icons.Default.Replay10,
                                 contentDescription = "Back 10 seconds",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -329,7 +349,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             Icon(
                                 Icons.Default.SkipPrevious,
                                 contentDescription = "Previous",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -343,7 +363,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                         Icon(
                             imageVector = if (state.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                             contentDescription = if (state.isPaused) "Play" else "Pause",
-                            tint = Color(0xFF1DB954),
+                            tint = ElectricBlue,
                             modifier = Modifier.size(52.dp)
                         )
                     }
@@ -354,7 +374,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             Icon(
                                 Icons.Default.Forward10,
                                 contentDescription = "Forward 10 seconds",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -363,7 +383,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                             Icon(
                                 Icons.Default.SkipNext,
                                 contentDescription = "Next",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -371,7 +391,7 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
 
                     // 5. Repeat
                     val repeatMode = state.playbackOptions.repeatMode
-                    val repeatTint = if (repeatMode != 0) Color(0xFF1DB954) else Color(0xFFB3B3B3)
+                    val repeatTint = if (repeatMode != 0) ElectricBlue else CoolGray
                     IconButton(
                         onClick = { SpotifyManager.toggleRepeat() },
                         modifier = Modifier.size(48.dp)
@@ -390,71 +410,63 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
         } else {
             // ── COMPACT / MINI VIEW ────────────────────────────────────────
 
-            // Wave seek bar (compact — thinner, sits above the info row)
+            // Simple linear progress bar in compact view
             if (duration > 0) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp),
-                    contentAlignment = Alignment.CenterStart
+                        .height(3.dp)
                 ) {
-                    WaveSliderBackground(
-                        progress = if (duration > 0) localPosition / duration else 0f,
-                        isPaused = state.isPaused,
-                        modifier = Modifier.fillMaxSize()
+                    // Background track
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(resolvedInactiveColor.copy(alpha = 0.2f))
                     )
-                    Slider(
-                        value = localPosition,
-                        onValueChange = {
-                            isDragging = true
-                            localPosition = it
-                        },
-                        onValueChangeFinished = {
-                            isDragging = false
-                            lastSeekEventTime = System.currentTimeMillis()
-                            SpotifyManager.seekTo(localPosition.toLong())
-                        },
-                        valueRange = 0f..duration,
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color(0xFF1DB954),
-                            activeTrackColor = Color.Transparent,
-                            inactiveTrackColor = Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+                    // Progress fill
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(if (duration > 0) localPosition / duration else 0f)
+                            .background(resolvedActiveColor)
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Album art — tap to expand (click is consumed here, does NOT bubble to openSpotify)
+                // Album art
                 albumArt?.let { bitmap ->
                     Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = "Album Art",
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(RoundedCornerShape(4.dp))
                             .clickable { expanded = true }
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                 }
 
-                // Track info — title + artist always visible
-                Column(modifier = Modifier.weight(1f)) {
+                // Track info
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     Text(
                         text = track.name,
-                        color = Color.White,
-                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = secondaryText,
-                        color = Color(0xFFB3B3B3),
-                        fontSize = 12.sp,
+                        color = CoolGray,
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -464,28 +476,28 @@ fun MiniPlayerBar(modifier: Modifier = Modifier) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isPodcast) {
                         IconButton(onClick = { SpotifyManager.seekBack10s() }) {
-                            Icon(Icons.Default.Replay10, contentDescription = "Back 10 seconds", tint = Color.White)
+                            Icon(Icons.Default.Replay10, contentDescription = "Back 10 seconds", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else {
                         IconButton(onClick = { SpotifyManager.skipPrevious() }) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White)
+                            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     IconButton(onClick = { SpotifyManager.togglePlayPause() }) {
                         Icon(
                             imageVector = if (state.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                             contentDescription = if (state.isPaused) "Play" else "Pause",
-                            tint = Color(0xFF1DB954),
+                            tint = ElectricBlue,
                             modifier = Modifier.size(36.dp)
                         )
                     }
                     if (isPodcast) {
                         IconButton(onClick = { SpotifyManager.seekForward10s() }) {
-                            Icon(Icons.Default.Forward10, contentDescription = "Forward 10 seconds", tint = Color.White)
+                            Icon(Icons.Default.Forward10, contentDescription = "Forward 10 seconds", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else {
                         IconButton(onClick = { SpotifyManager.skipNext() }) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White)
+                            Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -499,9 +511,12 @@ fun WaveSliderBackground(
     progress: Float,
     isPaused: Boolean,
     modifier: Modifier = Modifier,
-    activeColor: Color = Color(0xFF1DB954),
-    inactiveColor: Color = Color(0xFF535353)
+    activeColor: Color? = null,
+    inactiveColor: Color? = null
 ) {
+    val resolvedActiveColor = activeColor ?: ElectricBlue
+    val resolvedInactiveColor = inactiveColor ?: ThinOutline
+
     val infiniteTransition = rememberInfiniteTransition(label = "wave")
     val phase by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -511,7 +526,6 @@ fun WaveSliderBackground(
             repeatMode = RepeatMode.Restart
         ), label = "wavePhase"
     )
-
 
     val targetAmplitude = if (isPaused) 1.5f else 8f
     val amplitude by animateFloatAsState(
@@ -525,10 +539,10 @@ fun WaveSliderBackground(
         val midY = height / 2f
         val progressX = (width * progress).coerceIn(0f, width)
 
-        // 1. Right side: Flat unplayed line using inactiveColor
+        // 1. Right side: Flat unplayed line using resolvedInactiveColor
         if (progressX < width) {
             drawLine(
-                color = inactiveColor,
+                color = resolvedInactiveColor,
                 start = androidx.compose.ui.geometry.Offset(progressX, midY),
                 end = androidx.compose.ui.geometry.Offset(width, midY),
                 strokeWidth = 2.dp.toPx(),
@@ -536,7 +550,7 @@ fun WaveSliderBackground(
             )
         }
 
-        // 2. Left side: Sine wave starting at progressX and propagating leftward to 0f using activeColor
+        // 2. Left side: Sine wave starting at progressX and propagating leftward to 0f using resolvedActiveColor
         if (progressX > 0f) {
             val step = 4f
 
@@ -566,7 +580,7 @@ fun WaveSliderBackground(
             }
             drawPath(
                 path = primaryPath,
-                color = activeColor,
+                color = resolvedActiveColor,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
             )
         }

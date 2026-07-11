@@ -1,9 +1,17 @@
 package com.chiron.app.ui.history
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -11,8 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
+import com.chiron.app.ui.theme.CoolGray
 import com.chiron.app.viewmodel.HistoryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,52 +59,85 @@ fun HistoryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            // Row 1: Active/Archived (left) + Location filter (right, scrollable)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 0.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Active / Archived pills — left side
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(false) }, label = { Text("Active") })
-                    FilterChip(selected = state.showArchivedWorkouts, onClick = { viewModel.setShowArchivedWorkouts(true) }, label = { Text("Archived") })
-                }
-
-                if (!state.showArchivedWorkouts && state.locationTags.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(24.dp))
-
-                    LazyRow(
-                        modifier = Modifier
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(end = 0.dp),
-                        reverseLayout = false
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = state.selectedLocationTag == null,
-                                onClick = { viewModel.filterByLocationTag(null) },
-                                label = { Text("All") }
-                            )
-                        }
-                        items(state.locationTags) { loc ->
-                            FilterChip(
-                                selected = state.selectedLocationTag == loc,
-                                onClick = { viewModel.filterByLocationTag(loc) },
-                                label = { Text(loc) }
-                            )
-                        }
+            // Day tag filters (whole row for more space)
+            if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    item {
+                        LocationChip(
+                            label = "All",
+                            selected = state.selectedDayTag == null,
+                            onClick = { viewModel.filterByDayTag(null) }
+                        )
+                    }
+                    items(state.dayTags) { tag ->
+                        LocationChip(
+                            label = tag,
+                            selected = state.selectedDayTag == tag,
+                            onClick = { viewModel.filterByDayTag(tag) }
+                        )
                     }
                 }
             }
 
-            if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                    item { FilterChip(selected = state.selectedDayTag == null, onClick = { viewModel.filterByDayTag(null) }, label = { Text("All") }) }
-                    items(state.dayTags) { tag ->
-                        FilterChip(selected = state.selectedDayTag == tag, onClick = { viewModel.filterByDayTag(tag) }, label = { Text(tag) })
+            // Location + Active/Archived segmented controller row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left half: Locations
+                Box(modifier = Modifier.weight(1f)) {
+                    if (!state.showArchivedWorkouts && state.locationTags.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            item {
+                                LocationChip(
+                                    label = "All",
+                                    selected = state.selectedLocationTag == null,
+                                    onClick = { viewModel.filterByLocationTag(null) }
+                                )
+                            }
+                            items(state.locationTags) { loc ->
+                                LocationChip(
+                                    label = loc,
+                                    selected = state.selectedLocationTag == loc,
+                                    onClick = { viewModel.filterByLocationTag(loc) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Right half: Active/Archived segmented controller
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButtonItem(
+                            label = "Active",
+                            selected = !state.showArchivedWorkouts,
+                            onClick = { viewModel.setShowArchivedWorkouts(false) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        SegmentedButtonItem(
+                            label = "Archived",
+                            selected = state.showArchivedWorkouts,
+                            onClick = { viewModel.setShowArchivedWorkouts(true) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -166,6 +212,67 @@ fun HistoryScreen(
                 workoutToDelete = null
             },
             onDismiss = { showDeleteDialog = false; workoutToDelete = null }
+        )
+    }
+}
+
+@Composable
+private fun SegmentedButtonItem(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) ElectricBlue else SolidSlate)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else CoolGray
+        )
+    }
+}
+
+@Composable
+private fun LocationChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) ElectricBlue else SolidSlate)
+            .border(
+                width = if (selected) 0.dp else 1.dp,
+                color = ThinOutline,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else CoolGray,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

@@ -166,6 +166,7 @@ object SpotifyManager {
         _connectionError.value = null
         _playerState.value = null
         _albumArt.value = null
+        lastLoadedImageUri = null
         appRemote = null
     }
 

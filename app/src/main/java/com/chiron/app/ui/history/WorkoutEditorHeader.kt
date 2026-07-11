@@ -270,7 +270,7 @@ fun WorkoutEditorHeader(
             value = editableNotes,
             onValueChange = onNotesChange,
             readOnly = !isEditable,
-            placeholder = { Text("Add notes...", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.SansSerif), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            placeholder = { Text("Add notes…", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.SansSerif), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.SansSerif,
                 color = MaterialTheme.colorScheme.onSurface

@@ -250,7 +250,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isExporting
             ) {
-                Text(if (isExporting) "Exporting..." else "Export Data")
+                Text(if (isExporting) "Exporting…" else "Export Data")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -263,7 +263,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImporting
             ) {
-                Text(if (isImporting) "Importing..." else "Import Data")
+                Text(if (isImporting) "Importing…" else "Import Data")
             }
 
             lastExport?.let { exported ->

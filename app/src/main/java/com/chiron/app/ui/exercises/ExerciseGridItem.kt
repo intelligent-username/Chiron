@@ -1,17 +1,27 @@
 package com.chiron.app.ui.exercises
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.ui.components.ExerciseAsyncIcon
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 
 @Composable
 fun ExerciseGridItem(
@@ -21,47 +31,50 @@ fun ExerciseGridItem(
     onUnarchive: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth().aspectRatio(0.8f),
-        colors = CardDefaults.cardColors(
-            containerColor = if (showArchived)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    val containerAlpha = if (showArchived) 0.4f else 1f
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .alpha(containerAlpha)
+            .clip(RoundedCornerShape(8.dp))
+            .background(SolidSlate)
+            .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        // Icon takes up most of the space above
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.Center
         ) {
             ExerciseAsyncIcon(
                 iconName = exercise.iconName,
                 contentDescription = exercise.name,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(56.dp),
                 tint = Color.Unspecified
             )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = exercise.name,
-                style = MaterialTheme.typography.labelSmall,
-                textAlign = TextAlign.Center,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 11.sp
-            )
-            if (showArchived) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Archived",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    fontSize = 9.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
         }
+
+        // Name at the bottom
+        Text(
+            text = exercise.name,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+        )
     }
 }

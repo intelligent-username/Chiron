@@ -1,6 +1,7 @@
 package com.chiron.app.ui.exercises
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,8 +20,13 @@ import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExercisePr
 import com.chiron.app.data.entities.Exercise1rmEstimate
 import com.chiron.app.ui.components.ExerciseAsyncIcon
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.MonospaceFamily
 import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.ui.theme.PrGoldDark
+import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.util.UnitConversion
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.prefs.DistanceUnit
@@ -182,27 +188,22 @@ fun DistanceSelectorBar(
     ) {
         items(distances) { dist ->
             val isSelected = dist == selectedDistance
-            val backgroundColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            }
-            val textColor = if (isSelected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(backgroundColor)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isSelected) ElectricBlue else SolidSlate)
+                    .border(
+                        width = if (isSelected) 0.dp else 1.dp,
+                        color = ThinOutline,
+                        shape = RoundedCornerShape(6.dp)
+                    )
                     .clickable { onDistanceSelected(dist) }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = UnitConversion.formatDistance(dist, distanceUnit),
                     style = MaterialTheme.typography.labelMedium,
-                    color = textColor,
+                    color = if (isSelected) MaterialTheme.colorScheme.onSurface else CoolGray,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -263,7 +264,8 @@ internal fun Estimate1rmRow(estimate: Exercise1rmEstimate, displayInKg: Boolean)
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+            .background(SolidSlate)
+            .border(1.dp, ThinOutline, RoundedCornerShape(12.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -271,13 +273,13 @@ internal fun Estimate1rmRow(estimate: Exercise1rmEstimate, displayInKg: Boolean)
             text = "Estimated 1RM",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = CoolGray
         )
         Text(
             text = weightText,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = ElectricBlue
         )
     }
 }

@@ -17,6 +17,8 @@ import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.prefs.DistanceUnit
 import com.chiron.app.ui.theme.PrGold
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.util.UnitConversion
 
 /**
@@ -30,13 +32,9 @@ fun SetPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    val backgroundColor = if (isPr) {
-        PrGold.copy(alpha = 0.2f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val borderColor = if (isPr) PrGold else MaterialTheme.colorScheme.outline
+    val shape = RoundedCornerShape(4.dp)
+    val backgroundColor = SolidSlate
+    val borderColor = if (isPr) PrGold else ThinOutline
 
     // Responsive font size: shrink if text is long to fit on one line
     val baseStyle = MaterialTheme.typography.labelLarge
@@ -60,7 +58,7 @@ fun SetPill(
         Text(
             text = displayText,
             style = baseStyle.copy(fontSize = responsiveFontSize),
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (isPr) PrGold else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Clip
         )

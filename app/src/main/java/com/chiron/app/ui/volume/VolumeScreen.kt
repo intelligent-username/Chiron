@@ -34,6 +34,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.TextStyle
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.MonospaceFamily
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.viewmodel.VolumeMode
 import com.chiron.app.viewmodel.VolumePoint
 import com.chiron.app.viewmodel.VolumeStats
@@ -41,9 +46,6 @@ import com.chiron.app.viewmodel.VolumeUiState
 import com.chiron.app.viewmodel.VolumeViewModel
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
-
-// ── Palette ───────────────────────────────────────────────────────────────────
-private val DotColor = Color(0xFFFFFFFF)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -288,10 +290,15 @@ private fun VolumeLineGraph(
     val unit = if (displayInKg) "kg" else "lbs"
 
     val textMeasurer = rememberTextMeasurer()
-    val textColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
 
     var hoveredX by remember { mutableStateOf<Float?>(null) }
 
+    val lineAccentColor = ElectricBlue
+    val textLabelColor = CoolGray
+    val tooltipBgColor = SolidSlate
+    val tooltipBorderColor = ThinOutline
+
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
@@ -323,21 +330,24 @@ private fun VolumeLineGraph(
             val graphW = w - padLeft - padRight
             val graphH = h - padTop - padBottom
 
-            // Y-axis grid lines
+            // Y-axis grid lines — solid, very thin
             val gridLevels = listOf(0f, 0.25f, 0.5f, 0.75f, 1f)
             gridLevels.forEach { ratio ->
                 val y = padTop + graphH * (1f - ratio)
                 drawLine(
-                    color = Color(0xFF30363D).copy(alpha = 0.4f),
+                    color = tooltipBorderColor,
                     start = Offset(padLeft, y),
                     end = Offset(w - padRight, y),
-                    strokeWidth = 1f
+                    strokeWidth = 0.5.dp.toPx()
                 )
-                
+
                 val labelVal = maxVol * ratio
                 val v = if (displayInKg) labelVal * 0.453592 else labelVal
                 val labelStr = if (v >= 1000) "%.1fk".format(v / 1000) else "%.0f".format(v)
-                val measuredText = textMeasurer.measure(labelStr, TextStyle(color = Color(0xFF8B949E), fontSize = 10.sp))
+                val measuredText = textMeasurer.measure(
+                    labelStr,
+                    TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+                )
                 drawText(
                     textLayoutResult = measuredText,
                     topLeft = Offset(padLeft - measuredText.size.width - 16f, y - measuredText.size.height / 2f)
@@ -350,33 +360,10 @@ private fun VolumeLineGraph(
             fun xOf(i: Int) = padLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * graphW
             fun yOf(vol: Double) = padTop + graphH * (1.0 - (vol / maxVol)).toFloat()
 
-            val contrastBrush = androidx.compose.ui.graphics.Brush.linearGradient(
-                colors = listOf(Color(0xFFFFD700), Color(0xFFFF5252), Color(0xFF4CAF50))
-            )
-
-            // Fill area under line
-            val fillPath = Path()
+            // Solid Electric Blue line — no gradient fill area
+            val linePath = Path()
             val firstX = xOf(0)
             val firstY = yOf(points[0].volumeLbs * animProgress)
-            fillPath.moveTo(firstX, padTop + graphH)
-            fillPath.lineTo(firstX, firstY)
-            for (i in 1 until n) {
-                val cx1 = xOf(i - 1) + (xOf(i) - xOf(i - 1)) / 2f
-                val cy1 = yOf(points[i - 1].volumeLbs * animProgress)
-                val cx2 = cx1
-                val cy2 = yOf(points[i].volumeLbs * animProgress)
-                fillPath.cubicTo(cx1, cy1, cx2, cy2, xOf(i), yOf(points[i].volumeLbs * animProgress))
-            }
-            fillPath.lineTo(xOf(n - 1), padTop + graphH)
-            fillPath.close()
-            drawPath(fillPath, brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = listOf(Color(0xFFFFD700).copy(alpha = 0.2f), Color.Transparent),
-                startY = padTop,
-                endY = padTop + graphH
-            ))
-
-            // Line stroke
-            val linePath = Path()
             linePath.moveTo(firstX, firstY)
             for (i in 1 until n) {
                 val cx1 = xOf(i - 1) + (xOf(i) - xOf(i - 1)) / 2f
@@ -387,7 +374,7 @@ private fun VolumeLineGraph(
             }
             drawPath(
                 linePath,
-                brush = contrastBrush,
+                color = lineAccentColor,
                 style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round)
             )
 
@@ -395,20 +382,20 @@ private fun VolumeLineGraph(
             points.forEachIndexed { i, point ->
                 val x = xOf(i)
                 val y = yOf(point.volumeLbs * animProgress)
-                // Dot
                 if (point.volumeLbs > 0.0) {
-                    val dotColor = if (mode == VolumeMode.BY_DAY) Color(0xFF4CAF50) else Color.Transparent
                     if (mode == VolumeMode.BY_DAY) {
-                        drawCircle(color = dotColor, radius = 5f, center = Offset(x, y))
-                        drawCircle(color = DotColor, radius = 2.5f, center = Offset(x, y))
-                    } else if (i % 7 == 0 || i == n - 1) { // just draw dots for week boundaries to not clutter
-                        drawCircle(color = Color(0xFFFFD700), radius = 3f, center = Offset(x, y))
+                        drawCircle(color = lineAccentColor, radius = 3f, center = Offset(x, y))
+                    } else if (i % 7 == 0 || i == n - 1) {
+                        drawCircle(color = lineAccentColor, radius = 3f, center = Offset(x, y))
                     }
                 }
-                
-                // Draw X-axis label
+
+                // X-axis label — Monospace
                 if (point.label.isNotEmpty()) {
-                    val measuredText = textMeasurer.measure(point.label, TextStyle(color = Color(0xFF8B949E), fontSize = 10.sp))
+                    val measuredText = textMeasurer.measure(
+                        point.label,
+                        TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+                    )
                     drawText(
                         textLayoutResult = measuredText,
                         topLeft = Offset(x - measuredText.size.width / 2f, h - padBottom + 12f)
@@ -416,6 +403,7 @@ private fun VolumeLineGraph(
                 }
             }
 
+            // Tooltip
             if (hoveredX != null && points.isNotEmpty()) {
                 val hx = hoveredX!!
                 val closestIndex = (0 until n).minByOrNull { kotlin.math.abs(xOf(it) - hx) }
@@ -423,51 +411,56 @@ private fun VolumeLineGraph(
                     val p = points[closestIndex]
                     val px = xOf(closestIndex)
                     val py = yOf(p.volumeLbs * animProgress)
-                    
+
                     drawLine(
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = textLabelColor.copy(alpha = 0.5f),
                         start = Offset(px, padTop),
                         end = Offset(px, padTop + graphH),
-                        strokeWidth = 2f,
+                        strokeWidth = 1f,
                         pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
                     )
-                    
-                    drawCircle(color = Color.White, radius = 6f, center = Offset(px, py))
-                    
+
+                    drawCircle(color = lineAccentColor, radius = 5f, center = Offset(px, py))
+
                     val dateFmt = java.time.format.DateTimeFormatter.ofPattern("EEEE MMM d")
                     val dateStr = p.date.format(dateFmt)
                     val tooltipText = "$dateStr, ${p.volumeLbs.formatVolume(displayInKg)} $unit"
-                    
+
                     val textLayoutResult = textMeasurer.measure(
                         text = tooltipText,
-                        style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        style = TextStyle(
+                            color = onSurfaceColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = MonospaceFamily
+                        )
                     )
-                    
+
                     val tw = textLayoutResult.size.width.toFloat()
                     val th = textLayoutResult.size.height.toFloat()
                     val tooltipPad = 12f
-                    
+
                     var tx = px - tw / 2f
                     if (tx < padLeft) tx = padLeft
                     if (tx + tw > w - padRight) tx = w - padRight - tw
-                    
+
                     val ty = padTop - 20f
-                    
+
+                    // Flat tooltip with SolidSlate background and ThinOutline border
                     drawRoundRect(
-                        color = Color(0xFF21262D),
+                        color = tooltipBgColor,
                         topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
                         size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
                     )
-                    
                     drawRoundRect(
-                        color = Color(0xFF30363D),
+                        color = tooltipBorderColor,
                         topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
                         size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
                         style = Stroke(width = 1f)
                     )
-                    
+
                     drawText(
                         textLayoutResult = textLayoutResult,
                         topLeft = Offset(tx, ty)

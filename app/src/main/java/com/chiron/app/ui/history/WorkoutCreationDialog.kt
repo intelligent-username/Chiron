@@ -164,7 +164,7 @@ private fun SelectionInput(
             onExpandedChange = { expanded = !expanded }
         ) {
             OutlinedTextField(
-                value = if (selectedOption == "Custom") "Custom..." else selectedOption,
+                value = if (selectedOption == "Custom") "Custom…" else selectedOption,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text(label) },
@@ -192,7 +192,7 @@ private fun SelectionInput(
                 }
                 
                 DropdownMenuItem(
-                    text = { Text("Custom...") },
+                    text = { Text("Custom…") },
                     onClick = {
                         onOptionSelected("Custom")
                         expanded = false

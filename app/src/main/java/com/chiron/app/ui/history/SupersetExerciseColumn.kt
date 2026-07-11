@@ -85,7 +85,7 @@ fun SupersetExerciseColumn(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = exercise?.name ?: "Loading...",
+            text = exercise?.name ?: "Loading…",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

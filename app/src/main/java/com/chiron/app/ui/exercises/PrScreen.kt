@@ -1,14 +1,18 @@
 package com.chiron.app.ui.exercises
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -29,6 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.ui.components.ExerciseAsyncIcon
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.ThinOutline
+import com.chiron.app.ui.theme.SolidSlate
 import com.chiron.app.ui.theme.PrGold
 import com.chiron.app.viewmodel.ExercisesViewModel
 
@@ -142,32 +150,53 @@ private fun PrExerciseListPanel(
     }
 
     Column(modifier = Modifier.width(180.dp).fillMaxHeight()) {
-        TextField(
-            value = uiState.prSearchQuery,
-            onValueChange = viewModel::updatePrSearchQuery,
-            modifier = Modifier.fillMaxWidth().padding(8.dp).height(44.dp),
-            placeholder = { Text("Search", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodySmall,
-            shape = RoundedCornerShape(24.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-            ),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
-            trailingIcon = {
-                if (uiState.prSearchQuery.isNotBlank()) {
-                    IconButton(onClick = { viewModel.clearPrSearch() }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
+        // Flat borderless search input
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .height(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(SolidSlate)
+                .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = CoolGray
+            )
+            Spacer(Modifier.width(6.dp))
+            BasicTextField(
+                value = uiState.prSearchQuery,
+                onValueChange = viewModel::updatePrSearchQuery,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(ElectricBlue),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                decorationBox = { innerTextField ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (uiState.prSearchQuery.isEmpty()) {
+                            Text(
+                                "Search",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CoolGray
+                            )
+                        }
+                        innerTextField()
                     }
                 }
+            )
+            if (uiState.prSearchQuery.isNotBlank()) {
+                IconButton(onClick = { viewModel.clearPrSearch() }, modifier = Modifier.size(20.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear search", modifier = Modifier.size(14.dp), tint = CoolGray)
+                }
             }
-        )
+        }
 
         LazyColumn(modifier = Modifier.fillMaxSize().weight(1f), contentPadding = PaddingValues(vertical = 4.dp)) {
             if (displayedList.isEmpty()) {
@@ -183,19 +212,43 @@ private fun PrExerciseListPanel(
             }
             items(displayedList) { exercise ->
                 val isSelected = selectedExercise?.id == exercise.id
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isSelected) SolidSlate else Color.Transparent)
+                        .border(
+                            width = if (isSelected) 1.dp else 0.dp,
+                            color = ThinOutline,
+                            shape = RoundedCornerShape(6.dp)
+                        )
                         .clickable { onSelectExercise(exercise) }
-                        .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    ExerciseAsyncIcon(iconName = exercise.iconName, contentDescription = exercise.name, modifier = Modifier.size(24.dp), tint = Color.Unspecified)
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = exercise.name, style = MaterialTheme.typography.bodySmall, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        ExerciseAsyncIcon(
+                            iconName = exercise.iconName,
+                            contentDescription = exercise.name,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = exercise.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isSelected) ElectricBlue else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 14.sp
+                        )
+                    }
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                HorizontalDivider(thickness = 1.dp, color = ThinOutline)
             }
         }
     }

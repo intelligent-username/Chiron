@@ -15,9 +15,13 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,7 +57,6 @@ fun ChironApp(
     timerViewModel: TimerViewModel,
     onFinish: () -> Unit
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(NavTab.HISTORY) }
     var activeExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isExerciseDetailOpen by rememberSaveable { mutableStateOf(false) }
     var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -71,9 +74,10 @@ fun ChironApp(
     val timerState by timerViewModel.uiState.collectAsState()
     val volumeViewModel: VolumeViewModel = viewModel(factory = ServiceLocator.volumeViewModelFactory)
 
-    val tabs = NavTab.values()
-    val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { tabs.size }
+    val tabs = NavTab.entries.toTypedArray()
+    val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
     val scope = rememberCoroutineScope()
+    val selectedTab = tabs[pagerState.currentPage]
 
     val spotifyEnabled by ServiceLocator.userSettingsRepository.spotifyEnabledFlow
         .collectAsState(initial = false)
@@ -81,23 +85,6 @@ fun ChironApp(
 
     LaunchedEffect(spotifyEnabled) {
         if (!spotifyEnabled) SpotifyManager.disconnect()
-    }
-
-    LaunchedEffect(selectedTab) {
-        val page = selectedTab.ordinal
-        if (pagerState.currentPage != page) {
-            pagerState.animateScrollToPage(page)
-        }
-    }
-
-    // Keep selectedTab in sync with the pager, but only once the pager has settled.
-    // Using currentPage here causes a feedback loop when animating from page 0 -> 2:
-    // currentPage briefly becomes 1 (Exercises), overwriting selectedTab mid-animation.
-    LaunchedEffect(pagerState.settledPage) {
-        val settledTab = tabs[pagerState.settledPage]
-        if (selectedTab != settledTab) {
-            selectedTab = settledTab
-        }
     }
 
     androidx.activity.compose.BackHandler(enabled = true) {
@@ -110,7 +97,7 @@ fun ChironApp(
                 isPrScreenOpen = false
                 prTargetExerciseId = null
                 if (prOpenedFromHistory) {
-                    selectedTab = NavTab.HISTORY
+                    scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                     prOpenedFromHistory = false
                 }
             }
@@ -118,7 +105,7 @@ fun ChironApp(
                 isExerciseDetailOpen = false
                 activeExerciseId = null
                 if (exerciseDetailOpenedFromHistory) {
-                    selectedTab = NavTab.HISTORY
+                    scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                     exerciseDetailOpenedFromHistory = false
                 }
             }
@@ -154,7 +141,7 @@ fun ChironApp(
                             ) { mode ->
                                 Text(
                                     text = if (mode) "Volume" else "History",
-                                    style = MaterialTheme.typography.headlineLarge,
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                     modifier = Modifier.clickable(
                                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
@@ -170,7 +157,7 @@ fun ChironApp(
                         } else {
                             Text(
                                 text = when (selectedTab) { NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer"; else -> "" },
-                                style = MaterialTheme.typography.headlineLarge,
+                                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                             )
                         }
@@ -201,14 +188,56 @@ fun ChironApp(
                 )
             },
             bottomBar = {
-                Column {
-                    if (spotifyEnabled) MiniPlayerBar()
+                if (spotifyEnabled) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(com.chiron.app.ui.theme.SolidSlate)
+                            .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
+                    ) {
+                        MiniPlayerBar(drawBackgroundAndBorder = false)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(com.chiron.app.ui.theme.ThinOutline)
+                        )
+                        BottomNavBar(
+                            selectedTab = selectedTab,
+                            selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
+                            isVolumeMode = isVolumeMode,
+                            drawBackgroundAndBorder = false,
+                            onTabSelected = { tab ->
+                                if (tab == selectedTab) {
+                                    if (tab == NavTab.HISTORY) {
+                                        historyViewModel.closeEditor()
+                                    } else if (tab == NavTab.EXERCISES) {
+                                        isExerciseDetailOpen = false
+                                        isPrScreenOpen = false
+                                        prTargetExerciseId = null
+                                    }
+                                } else {
+                                    isPrScreenOpen = false
+                                    prTargetExerciseId = null
+                                    prOpenedFromHistory = false
+                                    isExerciseDetailOpen = false
+                                    activeExerciseId = null
+                                    exerciseDetailOpenedFromHistory = false
+                                    scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
+                                }
+                            }
+                        )
+                    }
+                } else {
                     BottomNavBar(
                         selectedTab = selectedTab,
+                        selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                         isVolumeMode = isVolumeMode,
+                        drawBackgroundAndBorder = true,
                         onTabSelected = { tab ->
                             if (tab == selectedTab) {
-                                // User clicked the currently active tab: pop to root
                                 if (tab == NavTab.HISTORY) {
                                     historyViewModel.closeEditor()
                                 } else if (tab == NavTab.EXERCISES) {
@@ -217,21 +246,24 @@ fun ChironApp(
                                     prTargetExerciseId = null
                                 }
                             } else {
-                                // User switched tabs: close any overlays so the new tab is unobscured
                                 isPrScreenOpen = false
                                 prTargetExerciseId = null
                                 prOpenedFromHistory = false
                                 isExerciseDetailOpen = false
                                 activeExerciseId = null
                                 exerciseDetailOpenedFromHistory = false
-                                selectedTab = tab
+                                scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
                             }
                         }
                     )
                 }
             }
         ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .padding(top = 16.dp)
+            ) {
                 HorizontalPager(
                     state = pagerState,
                     userScrollEnabled = !historyState.isEditorOpen,
@@ -253,11 +285,11 @@ fun ChironApp(
                                     onOpenPrForExercise = { exerciseId ->
                                         prTargetExerciseId = exerciseId
                                         prOpenedFromHistory = true
-                                        selectedTab = NavTab.EXERCISES
+                                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
                                         isPrScreenOpen = true
                                     },
                                     onOpenExerciseDetail = { exerciseId ->
-                                        selectedTab = NavTab.EXERCISES
+                                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
                                         activeExerciseId = exerciseId
                                         isExerciseDetailOpen = true
                                         exerciseDetailOpenedFromHistory = true
@@ -296,7 +328,7 @@ fun ChironApp(
                                         activeExerciseId = null
                                         volumeViewModel.setExerciseFilter(null)
                                         if (exerciseDetailOpenedFromHistory) {
-                                            selectedTab = NavTab.HISTORY
+                                            scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                                             exerciseDetailOpenedFromHistory = false
                                         }
                                     },
@@ -318,7 +350,7 @@ fun ChironApp(
                             isPrScreenOpen = false
                             prTargetExerciseId = null
                             if (prOpenedFromHistory) {
-                                selectedTab = NavTab.HISTORY
+                                scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                                 prOpenedFromHistory = false
                             }
                         },

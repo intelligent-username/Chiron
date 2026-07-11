@@ -1,11 +1,12 @@
 package com.chiron.app.ui.timer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlagCircle
 import androidx.compose.material.icons.filled.Pause
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,15 +25,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.Error
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.viewmodel.TimerViewModel
 
 @Composable
 fun StopwatchContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
-    val startColor = Color(0xFF43A047)
-    val pauseColor = MaterialTheme.colorScheme.error
-    val onPauseColor = MaterialTheme.colorScheme.onError
     val isRunning = state.isStopwatchRunning
     val hasTime = state.stopwatchMillis > 0
 
@@ -40,7 +44,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // ── Time display ─────────────────────────────────────────────────
+        // ── Monospace time display with gray milliseconds ────────────────
         val formatted = TimerViewModel.formatStopwatch(state.stopwatchMillis)
         val parts = formatted.split(".")
         val timePart = parts.getOrElse(0) { "00:00" }
@@ -69,7 +73,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                         fontSize = 40.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        color = CoolGray
                     ),
                     modifier = Modifier.alignByBaseline().padding(start = 2.dp),
                     maxLines = 1,
@@ -78,60 +82,76 @@ fun StopwatchContent(viewModel: TimerViewModel) {
             }
         }
 
-        // ── Buttons ──────────────────────────────────────────────────────
+        // ── Flat block buttons ───────────────────────────────────────────
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
         ) {
-            // Left: Lap / Reset
-            FilledTonalButton(
-                onClick = {
-                    if (isRunning) viewModel.recordLap() else viewModel.resetStopwatch()
-                },
-                enabled = isRunning || hasTime,
+            // Lap / Reset
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp),
-                shape = RoundedCornerShape(20.dp)
+                    .height(56.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(SolidSlate)
+                    .border(1.dp, ThinOutline, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (isRunning) viewModel.recordLap() else viewModel.resetStopwatch()
+                        }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isRunning) Icons.Default.FlagCircle else Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = if (isRunning) "Lap" else "Reset",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isRunning) Icons.Default.FlagCircle else Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = CoolGray
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isRunning) "Lap" else "Reset",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = CoolGray
+                    )
+                }
             }
 
-            // Right: Start / Pause
-            Button(
-                onClick = {
-                    if (isRunning) viewModel.pauseStopwatch() else viewModel.startStopwatch()
-                },
+            // Start / Pause
+            val btnColor = if (isRunning) Error else ElectricBlue
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRunning) pauseColor else startColor,
-                    contentColor = if (isRunning) onPauseColor else Color.White
-                )
+                    .height(56.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(btnColor)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (isRunning) viewModel.pauseStopwatch() else viewModel.startStopwatch()
+                        }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = if (isRunning) "Pause" else "Start",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isRunning) "Pause" else "Start",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
 
@@ -144,7 +164,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                 Text(
                     text = "Laps",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = ElectricBlue,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -161,8 +181,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = (maxLaps * 44).dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .heightIn(max = (maxLaps * 44).dp)
                 ) {
                     itemsIndexed(reversedLaps) { index, lapTime ->
                         val originalIndex = state.laps.size - 1 - index
@@ -178,6 +197,14 @@ fun StopwatchContent(viewModel: TimerViewModel) {
                             isFastest = isFastest,
                             isSlowest = isSlowest
                         )
+
+                        if (index < reversedLaps.lastIndex) {
+                            HorizontalDivider(
+                                thickness = 1.dp,
+                                color = ThinOutline,
+                                modifier = Modifier.padding(horizontal = 14.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -193,40 +220,41 @@ private fun LapRow(
     isFastest: Boolean = false,
     isSlowest: Boolean = false
 ) {
-    val durationColor = when {
-        isFastest -> Color(0xFF4CAF50)
-        isSlowest -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-    }
-
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Numbered disc
+        // Dot indicator
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .size(26.dp)
+                .size(8.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "$lapNumber",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+                .background(
+                    when {
+                        isFastest -> Color(0xFF4CAF50)
+                        isSlowest -> Error
+                        else -> Color.Transparent
+                    }
+                )
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        // Lap number
+        Text(
+            text = "$lapNumber",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = CoolGray,
+            modifier = Modifier.width(20.dp)
+        )
 
         // Timestamp
         Text(
             text = lapTimestamp,
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold
@@ -236,12 +264,15 @@ private fun LapRow(
         // Duration
         Text(
             text = "+$lapDuration",
-            modifier = Modifier.align(Alignment.CenterEnd),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium
             ),
-            color = durationColor
+            color = when {
+                isFastest -> Color(0xFF4CAF50)
+                isSlowest -> Error
+                else -> CoolGray
+            }
         )
     }
 }
