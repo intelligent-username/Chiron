@@ -29,6 +29,8 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("farmers-carry",          "farmers-carry.svg"),
 
     ExerciseIcon("jump",                   "jump.svg"),
+    ExerciseIcon("90-line-hop",            "90-line-hop.svg"),
+    ExerciseIcon("broad-jump",             "broad-jump.svg"),
     ExerciseIcon("leg-curl",               "leg-curl.svg"),
     ExerciseIcon("leg-extension",          "leg-extension.svg"),
     ExerciseIcon("squat",                  "squat.svg"),
