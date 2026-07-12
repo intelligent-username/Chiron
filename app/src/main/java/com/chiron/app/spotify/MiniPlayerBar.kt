@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
@@ -225,19 +226,33 @@ fun MiniPlayerBar(
             ) {
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Cover art — tap collapses back to mini
-                albumArt?.let { bitmap ->
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Album Art",
-                        modifier = Modifier
-                            .fillMaxWidth(0.72f)
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { expanded = false }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                // Cover art or placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                        .clickable { expanded = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (albumArt != null) {
+                        Image(
+                            bitmap = albumArt!!.asImageBitmap(),
+                            contentDescription = "Album Art",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = "No Album Art",
+                            tint = CoolGray,
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Track name
                 Text(
@@ -453,17 +468,32 @@ fun MiniPlayerBar(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Album art
-                albumArt?.let { bitmap ->
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Album Art",
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable { expanded = true }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+                // Album art or placeholder
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, ThinOutline, RoundedCornerShape(4.dp))
+                        .clickable { expanded = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (albumArt != null) {
+                        Image(
+                            bitmap = albumArt!!.asImageBitmap(),
+                            contentDescription = "Album Art",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = "No Album Art",
+                            tint = CoolGray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.width(12.dp))
 
                 // Track info
                 Column(

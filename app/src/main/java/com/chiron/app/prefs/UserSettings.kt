@@ -25,6 +25,7 @@ class UserSettingsRepository(private val context: Context) {
         private val MATCH_THEME_WITH_MEDIA = booleanPreferencesKey("match_theme_with_media")
         private val DISTANCE_UNIT = stringPreferencesKey("distance_unit")
         private val CURRENT_TAB = stringPreferencesKey("current_tab")
+        private val EDITING_WORKOUT_ID = androidx.datastore.preferences.core.longPreferencesKey("editing_workout_id")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -86,6 +87,20 @@ class UserSettingsRepository(private val context: Context) {
     suspend fun setCurrentTab(tab: String) {
         context.dataStore.edit { prefs ->
             prefs[CURRENT_TAB] = tab
+        }
+    }
+
+    val editingWorkoutIdFlow: Flow<Long?> = context.dataStore.data.map { prefs ->
+        prefs[EDITING_WORKOUT_ID]?.takeIf { it > 0L }
+    }
+
+    suspend fun setEditingWorkoutId(value: Long?) {
+        context.dataStore.edit { prefs ->
+            if (value == null || value <= 0L) {
+                prefs.remove(EDITING_WORKOUT_ID)
+            } else {
+                prefs[EDITING_WORKOUT_ID] = value
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.chiron.app.ui.history
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -13,11 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 import kotlinx.coroutines.launch
 
 /**
@@ -42,9 +47,10 @@ fun ExerciseNotesField(
     focusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
+    if (isReadOnly && value.isBlank()) return
+
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    val notesFontFamily = FontFamily.SansSerif
 
     fun maybeSave() {
         val normalized = value.trim()
@@ -61,21 +67,21 @@ fun ExerciseNotesField(
             placeholder = {
                 Text(
                     "No notes",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = notesFontFamily),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    style = MaterialTheme.typography.bodySmall,
+                    color = CoolGray.copy(alpha = 0.5f)
                 )
             },
             textStyle = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = notesFontFamily,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                color = CoolGray
             ),
             modifier = modifier.fillMaxWidth(),
             minLines = 1,
             maxLines = 3,
+            shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                disabledContainerColor = Color.Transparent,
-                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                disabledContainerColor = SolidSlate,
+                disabledBorderColor = ThinOutline.copy(alpha = 0.3f),
+                disabledTextColor = CoolGray
             )
         )
     } else {
@@ -92,14 +98,21 @@ fun ExerciseNotesField(
             placeholder = {
                 Text(
                     "Notes",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = notesFontFamily),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CoolGray
                 )
             },
-            textStyle = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = notesFontFamily,
-                color = MaterialTheme.colorScheme.onSurface
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Normal
             ),
+            label = {
+                Text(
+                    "Exercise notes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = CoolGray
+                )
+            },
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
                 capitalization = KeyboardCapitalization.Sentences
@@ -113,11 +126,17 @@ fun ExerciseNotesField(
             modifier = fieldModifier,
             minLines = 1,
             maxLines = 3,
+            shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                focusedContainerColor = SolidSlate,
+                unfocusedContainerColor = SolidSlate,
+                focusedBorderColor = ElectricBlue,
+                unfocusedBorderColor = ThinOutline,
+                cursorColor = ElectricBlue,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedLabelColor = ElectricBlue,
+                unfocusedLabelColor = CoolGray
             )
         )
     }

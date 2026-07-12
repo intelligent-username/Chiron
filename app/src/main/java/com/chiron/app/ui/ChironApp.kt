@@ -79,6 +79,21 @@ fun ChironApp(
     val scope = rememberCoroutineScope()
     val selectedTab = tabs[pagerState.currentPage]
 
+    val userSettingsRepository = remember { ServiceLocator.userSettingsRepository }
+    val savedTab by userSettingsRepository.currentTabFlow.collectAsState(initial = "history")
+
+    LaunchedEffect(savedTab) {
+        val targetPage = tabs.indexOfFirst { it.name.lowercase() == savedTab }.coerceAtLeast(0)
+        if (pagerState.currentPage != targetPage) {
+            pagerState.scrollToPage(targetPage)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        val tabName = tabs[pagerState.currentPage].name.lowercase()
+        userSettingsRepository.setCurrentTab(tabName)
+    }
+
     val spotifyEnabled by ServiceLocator.userSettingsRepository.spotifyEnabledFlow
         .collectAsState(initial = false)
     val context = androidx.compose.ui.platform.LocalContext.current

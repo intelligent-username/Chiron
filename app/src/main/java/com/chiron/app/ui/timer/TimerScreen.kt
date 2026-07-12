@@ -12,8 +12,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.FlagCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Offset
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -67,7 +73,7 @@ fun TimerScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Custom inline tab strip
@@ -119,10 +125,11 @@ fun TimerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1.5f))
-
+        // Content Box taking up the middle area and centering items vertically
         Box(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
             contentAlignment = Alignment.Center
         ) {
             when (state.activeTab) {
@@ -135,16 +142,146 @@ fun TimerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Shared buttons at the bottom (aligned & sized consistently, keeping them as low as possible)
+        val isRunning: Boolean
+        val leftText: String
+        val leftIcon: androidx.compose.ui.graphics.vector.ImageVector
+        val leftOnClick: () -> Unit
+
+        val rightText: String
+        val rightIcon: androidx.compose.ui.graphics.vector.ImageVector
+        val rightOnClick: () -> Unit
+        val rightBtnColor: Color
+
+        when (state.activeTab) {
+            TimerTab.TIMER -> {
+                isRunning = state.isCountdownRunning
+                leftText = "Reset"
+                leftIcon = Icons.Default.Refresh
+                leftOnClick = { viewModel.resetCountdown() }
+
+                rightText = if (isRunning) "Pause" else if (state.countdownRemaining < state.countdownSeconds) "Resume" else "Start"
+                rightIcon = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow
+                rightOnClick = { if (isRunning) viewModel.pauseCountdown() else viewModel.startCountdown() }
+                rightBtnColor = if (isRunning) com.chiron.app.ui.theme.Error else if (rightText == "Resume") ElectricBlue else com.chiron.app.ui.theme.Green
+            }
+            TimerTab.STOPWATCH -> {
+                isRunning = state.isStopwatchRunning
+                leftText = if (isRunning) "Lap" else "Reset"
+                leftIcon = if (isRunning) Icons.Default.FlagCircle else Icons.Default.Refresh
+                leftOnClick = { if (isRunning) viewModel.recordLap() else viewModel.resetStopwatch() }
+
+                rightText = if (isRunning) {
+                    "Pause"
+                } else if (state.stopwatchMillis > 0L) {
+                    "Resume"
+                } else {
+                    "Start"
+                }
+                rightIcon = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow
+                rightOnClick = { if (isRunning) viewModel.pauseStopwatch() else viewModel.startStopwatch() }
+                rightBtnColor = if (isRunning) com.chiron.app.ui.theme.Error else if (rightText == "Resume") ElectricBlue else com.chiron.app.ui.theme.Green
+            }
+            TimerTab.METRONOME -> {
+                isRunning = state.isMetronomeRunning
+                leftText = "Reset"
+                leftIcon = Icons.Default.Refresh
+                leftOnClick = { viewModel.setMetronomeBpm(60) }
+
+                rightText = if (isRunning) "Pause" else "Start"
+                rightIcon = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow
+                rightOnClick = { viewModel.toggleMetronome() }
+                rightBtnColor = if (isRunning) com.chiron.app.ui.theme.Error else com.chiron.app.ui.theme.Green
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left Spacer for centering single button in Metronome
+            if (state.activeTab == TimerTab.METRONOME) {
+                Spacer(modifier = Modifier.weight(0.25f))
+            }
+
+            // Left Button (Reset / Lap)
+            if (state.activeTab != TimerTab.METRONOME) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = leftOnClick
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = leftIcon,
+                            contentDescription = leftText,
+                            modifier = Modifier.size(20.dp),
+                            tint = com.chiron.app.ui.theme.CoolGray
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = leftText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = com.chiron.app.ui.theme.CoolGray
+                        )
+                    }
+                }
+            }
+
+            // Right Button (Start / Pause / Resume)
+            Box(
+                modifier = Modifier
+                    .weight(if (state.activeTab == TimerTab.METRONOME) 0.5f else 1f)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(rightBtnColor)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = rightOnClick
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = rightIcon,
+                        contentDescription = rightText,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = rightText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Right Spacer for centering single button in Metronome
+            if (state.activeTab == TimerTab.METRONOME) {
+                Spacer(modifier = Modifier.weight(0.25f))
+            }
+        }
     }
 }
 
 @Composable
 fun CountdownContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
-
-    val arcTrackColor = com.chiron.app.ui.theme.ThinOutline
-    val progressColor = com.chiron.app.ui.theme.ElectricBlue
     val isIdle = !state.isCountdownRunning && state.countdownRemaining == state.countdownSeconds
 
     Column(
@@ -155,35 +292,54 @@ fun CountdownContent(viewModel: TimerViewModel) {
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(320.dp)
         ) {
-            // ── Thin progress arc ────────────────────────────────────────
+            val arcTrackColor = com.chiron.app.ui.theme.ThinOutline
+            val progressColor = com.chiron.app.ui.theme.ElectricBlue
+
+            val rawProgress = if (state.countdownSeconds > 0) {
+                state.countdownRemaining.toFloat() / state.countdownSeconds.toFloat()
+            } else 1f
+
+            val animatedProgress by animateFloatAsState(
+                targetValue = rawProgress,
+                animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
+                label = "progress"
+            )
+
+            val infiniteTransition = rememberInfiniteTransition(label = "circlePulse")
+            val pulseWidthAnimated by infiniteTransition.animateFloat(
+                initialValue = 4f,
+                targetValue = 6f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1500, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "width"
+            )
+            val strokeWidthProgressDp = if (state.isCountdownRunning) pulseWidthAnimated.dp else 5.dp
+
             Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                val strokeWidth = 3.dp.toPx()
-                val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                val strokeWidthTrack = 2.dp.toPx()
+                val strokeWidthProgress = strokeWidthProgressDp.toPx()
                 
-                // Track
+                // Track (thin and semi-transparent)
                 drawArc(
-                    color = arcTrackColor,
+                    color = arcTrackColor.copy(alpha = 0.5f),
                     startAngle = -90f,
                     sweepAngle = 360f,
                     useCenter = false,
-                    style = stroke
+                    style = Stroke(width = strokeWidthTrack, cap = StrokeCap.Round)
                 )
                 
                 // Progress
-                val progress = if (state.countdownSeconds > 0) {
-                    state.countdownRemaining.toFloat() / state.countdownSeconds.toFloat()
-                } else 1f
-                
                 drawArc(
                     color = progressColor,
                     startAngle = -90f,
-                    sweepAngle = 360f * progress,
+                    sweepAngle = 360f * animatedProgress,
                     useCenter = false,
-                    style = stroke
+                    style = Stroke(width = strokeWidthProgress, cap = StrokeCap.Round)
                 )
             }
 
-            // ── Inner Content ────────────────────────────────────────────
             if (isIdle) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -225,6 +381,29 @@ fun CountdownContent(viewModel: TimerViewModel) {
                     )
                 }
             } else {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val pulseScaleAnimated by infiniteTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.05f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "scale"
+                )
+                val pulseAlphaAnimated by infiniteTransition.animateFloat(
+                    initialValue = 0.8f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "alpha"
+                )
+
+                val pulseScale = if (state.isCountdownRunning) pulseScaleAnimated else 1f
+                val pulseAlpha = if (state.isCountdownRunning) pulseAlphaAnimated else 1f
+
                 Text(
                     text = TimerViewModel.formatCountdown(state.countdownRemaining),
                     style = MaterialTheme.typography.displayLarge.copy(
@@ -232,7 +411,10 @@ fun CountdownContent(viewModel: TimerViewModel) {
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = (-1).sp
-                    )
+                    ),
+                    modifier = Modifier
+                        .scale(pulseScale)
+                        .alpha(pulseAlpha)
                 )
             }
         }
@@ -256,70 +438,6 @@ fun CountdownContent(viewModel: TimerViewModel) {
                 style = MaterialTheme.typography.titleMedium,
                 color = com.chiron.app.ui.theme.CoolGray
             )
-        }
-
-        // ── Flat block buttons ───────────────────────────────────────────
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Reset
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SolidSlate)
-                    .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { viewModel.resetCountdown() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Reset", modifier = Modifier.size(20.dp), tint = com.chiron.app.ui.theme.CoolGray)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Reset", style = MaterialTheme.typography.titleMedium, color = com.chiron.app.ui.theme.CoolGray)
-                }
-            }
-
-            // Start / Pause
-            val isRunning = state.isCountdownRunning
-            val btnColor = if (isRunning) com.chiron.app.ui.theme.Error else ElectricBlue
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(btnColor)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            if (isRunning) viewModel.pauseCountdown() else viewModel.startCountdown()
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (isRunning) "Pause" else "Start",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
         }
     }
 }

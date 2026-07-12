@@ -1,16 +1,14 @@
 package com.chiron.app.ui.history
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -30,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -43,13 +42,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.chiron.app.data.entities.WorkoutSession
+import com.chiron.app.ui.theme.CoolGray
+import com.chiron.app.ui.theme.ElectricBlue
+import com.chiron.app.ui.theme.SolidSlate
+import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.util.DateUtils
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
@@ -266,23 +268,47 @@ fun WorkoutEditorHeader(
         }
 
         // Notes field
-        TextField(
+        if (isEditable || editableNotes.isNotBlank()) { OutlinedTextField(
             value = editableNotes,
-            onValueChange = onNotesChange,
+            onValueChange = { if (isEditable) onNotesChange(it) },
             readOnly = !isEditable,
-            placeholder = { Text("Add notes…", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.SansSerif), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
+            placeholder = {
+                Text(
+                    "Add notes…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CoolGray
+                )
+            },
             textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.SansSerif,
                 color = MaterialTheme.colorScheme.onSurface
             ),
+            label = {
+                Text(
+                    "Workout notes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = CoolGray
+                )
+            },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            colors = transparentTextFieldColors(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset(x = (-16).dp),
+            modifier = Modifier.fillMaxWidth(),
             minLines = 1,
-            maxLines = 3
-        )
+            maxLines = 3,
+            shape = RoundedCornerShape(8.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = SolidSlate,
+                unfocusedContainerColor = SolidSlate,
+                focusedBorderColor = ElectricBlue,
+                unfocusedBorderColor = ThinOutline,
+                cursorColor = ElectricBlue,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedLabelColor = ElectricBlue,
+                unfocusedLabelColor = CoolGray,
+                disabledContainerColor = SolidSlate,
+                disabledBorderColor = ThinOutline.copy(alpha = 0.3f),
+                disabledTextColor = CoolGray
+            )
+        ) }
     }
 }
 

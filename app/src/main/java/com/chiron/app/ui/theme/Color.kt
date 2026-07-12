@@ -97,3 +97,5 @@ val ElectricBlue: Color
 val CoolGray: Color
     @Composable
     get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+val Green = Color(0xFF10B981)

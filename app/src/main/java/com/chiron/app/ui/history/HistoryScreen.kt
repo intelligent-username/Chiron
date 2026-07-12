@@ -155,7 +155,12 @@ fun HistoryScreen(
                 }
             } else baseWorkouts
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+            val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 80.dp)
+            ) {
                 items(filteredWorkouts) { workout ->
                     Box {
                         WorkoutCard(workout = workout, onClick = { viewModel.openEditor(workout.id) }, onLongClick = { expandedWorkoutId = workout.id })
@@ -234,7 +239,7 @@ private fun SegmentedButtonItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 6.dp),
+            .padding(vertical = 6.5.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -268,7 +273,7 @@ private fun LocationChip(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp, vertical = if (isLarge) 10.dp else 6.dp),
+            .padding(horizontal = if (isLarge) 14.dp else 12.dp, vertical = if (isLarge) 9.5.dp else 6.5.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(

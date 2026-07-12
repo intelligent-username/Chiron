@@ -107,7 +107,9 @@ fun ExercisesScreen(
             val displayedList = if (state.searchQuery.isNotBlank()) state.searchResults
             else if (state.showArchived) state.archivedExercises else state.exercises
 
+            val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Fixed(4),
                 contentPadding = PaddingValues(bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

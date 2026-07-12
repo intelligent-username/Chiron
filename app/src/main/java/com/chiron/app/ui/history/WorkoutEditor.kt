@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -39,17 +40,6 @@ import kotlinx.coroutines.launch
 
 /**
  * Top-level workout editor screen.
- *
- * Orchestrates all sub-composables:
- *  - [WorkoutEditorHeader]   — name, date, location, notes, done/delete/duplicate actions
- *  - [SupersetCard]          — a grouped superset entry
- *  - [ExerciseEntryCard]     — a standalone exercise entry
- *  - [WorkoutDeleteDialog]   — archive / permanent-delete confirmation
- *  - [WorkoutDuplicateDialog] — duplicate confirmation
- *  - [AddExerciseDialog]     — exercise picker (standalone or superset)
- *  - [EditSetDialog]         — weight/reps editor for a single set
- *
- * No business logic lives here — all mutations go through [viewModel].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +70,6 @@ fun WorkoutEditor(
     var didAddExerciseInDialog by remember { mutableStateOf(false) }
 
     // ── Set editing ────────────────────────────────────────────────────────────
-    // Triple: (exerciseEntryId, setIndex, exerciseId)
     var editingSetEntry by remember { mutableStateOf<Triple<Long, Int, Long>?>(null) }
     var editingExercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
 
@@ -120,10 +109,6 @@ fun WorkoutEditor(
         }
         map
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Main content
-    // ─────────────────────────────────────────────────────────────────────────
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LazyVerticalGrid(
@@ -195,16 +180,6 @@ fun WorkoutEditor(
                         )
                         onClose()
                     }
-                )
-            }
-
-            // Section label
-            item(span = { GridItemSpan(2) }) {
-                Text(
-                    text = "Exercises",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
@@ -298,9 +273,7 @@ fun WorkoutEditor(
         )
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Dialogs
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Dialogs ─────────────────────────────────────────────────────────────
 
     if (showDeleteConfirmation) {
         WorkoutDeleteDialog(

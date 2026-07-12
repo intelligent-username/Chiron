@@ -56,7 +56,6 @@ fun MetronomeContent(
             ?.sortedBy { it.lowercase() }
             ?: listOf("Tick1.mp3", "Tick2.mp3", "Tick3.mp3"))
     }
-    var expanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.metronomeTick.collect {
@@ -100,8 +99,6 @@ fun MetronomeContent(
         onDispose { viewModel.pauseMetronome() }
     }
 
-    val selectedTickIndex = (availableTicks.indexOf(state.metronomeTickAsset).takeIf { it >= 0 } ?: 0) + 1
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -109,17 +106,17 @@ fun MetronomeContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Circular pendulum indicator (Compact: 120.dp) ──────────────────────────────
+        // ── Circular pendulum indicator (Compact: 180.dp) ──────────────────────────────
         val trackColor = ThinOutline
         val pendulumColor = ElectricBlue
         Box(
-            modifier = Modifier.size(120.dp),
+            modifier = Modifier.size(180.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val cx = size.width / 2f
                 val cy = size.height / 2f
-                val radius = size.minDimension / 2f - 10f
+                val radius = size.minDimension / 2f - 12f
 
                 // Track arc (semi-circle bottom)
                 drawArc(
@@ -127,7 +124,7 @@ fun MetronomeContent(
                     startAngle = 180f,
                     sweepAngle = 180f,
                     useCenter = false,
-                    style = Stroke(width = 2.dp.toPx()),
+                    style = Stroke(width = 3.dp.toPx()),
                     topLeft = Offset(cx - radius, cy - radius),
                     size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2)
                 )
@@ -142,13 +139,13 @@ fun MetronomeContent(
                     color = pendulumColor,
                     start = Offset(cx, cy),
                     end = Offset(endX, endY),
-                    strokeWidth = 2.dp.toPx()
+                    strokeWidth = 3.dp.toPx()
                 )
 
                 // Pendulum bob
                 drawCircle(
                     color = pendulumColor,
-                    radius = 6.dp.toPx(),
+                    radius = 8.dp.toPx(),
                     center = Offset(endX, endY)
                 )
             }
@@ -170,142 +167,34 @@ fun MetronomeContent(
             format = { index -> "${index + 20}" }
         )
 
-        // Flat tick sound selector (Floating Dropdown Menu)
-        Box {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SolidSlate)
-                    .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { expanded = true }
-                    )
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.GraphicEq,
-                        contentDescription = "Tick sound",
-                        modifier = Modifier.size(18.dp),
-                        tint = CoolGray
-                    )
-                    Text(
-                        text = "Tick $selectedTickIndex",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = CoolGray
-                    )
-                }
-            }
-
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .background(SolidSlate)
-                    .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-            ) {
-                availableTicks.forEachIndexed { idx, tick ->
-                    val isSelected = state.metronomeTickAsset == tick
-                    DropdownMenuItem(
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "${idx + 1}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = if (isSelected) ElectricBlue else CoolGray
-                                )
-                                Text(
-                                    text = tick.removeSuffix(".mp3"),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (isSelected) ElectricBlue else CoolGray
-                                )
-                            }
-                        },
-                        onClick = {
-                            viewModel.setMetronomeTickAsset(tick)
-                            expanded = false
-                        },
-                        modifier = Modifier.background(
-                            if (isSelected) ElectricBlue.copy(alpha = 0.15f) else Color.Transparent
-                        )
-                    )
-                }
-            }
-        }
-
-        // ── Flat block buttons (Reset and Start/Pause side-by-side) ─────────────────
+        // Flat tick sound selector (Horizontal Segmented Selector)
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .width(180.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(SolidSlate)
+                .border(1.dp, ThinOutline, RoundedCornerShape(8.dp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Reset BPM to default 60
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SolidSlate)
-                    .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { viewModel.setMetronomeBpm(60) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Reset BPM",
-                        modifier = Modifier.size(20.dp),
-                        tint = CoolGray
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Reset", style = MaterialTheme.typography.titleMedium, color = CoolGray)
-                }
-            }
-
-            // Start / Pause
-            val isRunning = state.isMetronomeRunning
-            val btnColor = if (isRunning) Error else ElectricBlue
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(btnColor)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { viewModel.toggleMetronome() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.width(8.dp))
+            availableTicks.forEachIndexed { idx, tick ->
+                val isSelected = state.metronomeTickAsset == tick
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .background(if (isSelected) ElectricBlue else Color.Transparent)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { viewModel.setMetronomeTickAsset(tick) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        if (isRunning) "Pause" else "Start",
+                        text = "${idx + 1}",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else CoolGray
                     )
                 }
             }

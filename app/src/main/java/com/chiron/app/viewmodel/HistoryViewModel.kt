@@ -121,14 +121,28 @@ class HistoryViewModel(
         viewModelScope.launch { repository.archivedWorkoutsFlow.collect { w -> _uiState.update { it.copy(archivedWorkouts = w) } } }
         viewModelScope.launch { settingsRepository.displayInKgFlow.collect { v -> _uiState.update { it.copy(displayInKg = v) } } }
         viewModelScope.launch { settingsRepository.distanceUnitFlow.collect { v -> _uiState.update { it.copy(distanceUnit = v) } } }
+        viewModelScope.launch {
+            settingsRepository.editingWorkoutIdFlow.collect { id ->
+                _uiState.update { it.copy(isEditorOpen = id != null, editingWorkoutId = id) }
+            }
+        }
     }
 
     // ── Workout operations ────────────────────────────────────────────────────
     fun filterByDayTag(dayTag: String?) = _uiState.update { it.copy(selectedDayTag = dayTag) }
     fun filterByLocationTag(locationTag: String?) = _uiState.update { it.copy(selectedLocationTag = locationTag) }
     fun setShowArchivedWorkouts(show: Boolean) = _uiState.update { it.copy(showArchivedWorkouts = show, selectedDayTag = null, selectedLocationTag = null) }
-    fun openEditor(workoutId: Long?) = _uiState.update { it.copy(isEditorOpen = true, editingWorkoutId = workoutId) }
-    fun closeEditor() { forceSync(); _uiState.update { it.copy(isEditorOpen = false, editingWorkoutId = null) } }
+    fun openEditor(workoutId: Long?) {
+        viewModelScope.launch {
+            settingsRepository.setEditingWorkoutId(workoutId)
+        }
+    }
+    fun closeEditor() {
+        forceSync()
+        viewModelScope.launch {
+            settingsRepository.setEditingWorkoutId(null)
+        }
+    }
 
     fun createNewWorkout(dayTag: String, locationTag: String) {
         viewModelScope.launch {
