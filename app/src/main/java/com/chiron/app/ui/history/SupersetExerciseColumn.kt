@@ -81,9 +81,10 @@ fun SupersetExerciseColumn(
                     Color.Transparent
             )
             .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Exercise name — fixed height so sets don't shift
         Text(
             text = exercise?.name ?: "Loading…",
             style = MaterialTheme.typography.titleSmall,
@@ -98,6 +99,16 @@ fun SupersetExerciseColumn(
                 .clickable { onOpenExerciseDetail(entry.exerciseId) }
         )
 
+        // Date label sits between name and icon when previewing previous session
+        if (isPreviewingLastSession && lastSessionPreview != null) {
+            Text(
+                text = lastSessionPreview!!.dateLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
+        }
+
         ExerciseAsyncIcon(
             iconName = exercise?.iconName,
             contentDescription = exercise?.name,
@@ -107,23 +118,21 @@ fun SupersetExerciseColumn(
             tint = Color.Unspecified
         )
 
+        // Sets (or previous session's sets)
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (isPreviewingLastSession && lastSessionPreview != null) {
-                Text(
-                    text = lastSessionPreview!!.dateLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
                 lastSessionPreview!!.sets.forEach { set ->
                     SetPill(
                         set = set,
                         displayInKg = displayInKg,
                         distanceUnit = distanceUnit,
                         isPr = set.isPr == 1,
-                        onClick = {}
+                        compact = true,
+                        onClick = {},
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             } else {
@@ -135,6 +144,7 @@ fun SupersetExerciseColumn(
                             displayInKg = displayInKg,
                             distanceUnit = distanceUnit,
                             isPr = set.isPr == 1,
+                            compact = true,
                             onClick = { onSetClick(index + 1) },
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -144,26 +154,27 @@ fun SupersetExerciseColumn(
                             displayInKg = displayInKg,
                             distanceUnit = distanceUnit,
                             isPr = set.isPr == 1,
+                            compact = true,
                             onClick = { if (isEditable) onSetClick(index + 1) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
 
-                    if (isEditable) {
-                        OutlinedButton(
-                            onClick = onAddSet,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                            modifier = Modifier
-                                .height(28.dp)
-                                .width(50.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
-                        }
+                if (isEditable) {
+                    OutlinedButton(
+                        onClick = onAddSet,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .width(50.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
                     }
+                }
             }
 
             if (hasHistory) {

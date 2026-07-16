@@ -29,6 +29,7 @@ import com.chiron.app.util.UnitConversion
 fun SetPill(
     displayText: String,
     isPr: Boolean = false,
+    compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -36,23 +37,33 @@ fun SetPill(
     val backgroundColor = SolidSlate
     val borderColor = if (isPr) PrGold else ThinOutline
 
-    // Responsive font size: shrink if text is long to fit on one line
-    val baseStyle = MaterialTheme.typography.labelLarge
-    val responsiveFontSize = when {
-        displayText.length > 16 -> baseStyle.fontSize * 0.80f
-        displayText.length > 14 -> baseStyle.fontSize * 0.85f
-        displayText.length > 12 -> baseStyle.fontSize * 0.90f
-        else -> baseStyle.fontSize
+    // In compact (superset) mode use a smaller base style and shrink more aggressively
+    val baseStyle = if (compact) MaterialTheme.typography.labelSmall
+                    else MaterialTheme.typography.labelLarge
+    val responsiveFontSize = if (compact) {
+        when {
+            displayText.length > 14 -> baseStyle.fontSize * 0.78f
+            displayText.length > 11 -> baseStyle.fontSize * 0.85f
+            displayText.length > 8  -> baseStyle.fontSize * 0.92f
+            else -> baseStyle.fontSize
+        }
+    } else {
+        when {
+            displayText.length > 16 -> baseStyle.fontSize * 0.80f
+            displayText.length > 14 -> baseStyle.fontSize * 0.85f
+            displayText.length > 12 -> baseStyle.fontSize * 0.90f
+            else -> baseStyle.fontSize
+        }
     }
 
     Box(
         modifier = modifier
-            .height(32.dp)
+            .height(if (compact) 28.dp else 32.dp)
             .clip(shape)
             .background(backgroundColor)
             .border(1.dp, borderColor, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = if (compact) 8.dp else 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -60,7 +71,7 @@ fun SetPill(
             style = baseStyle.copy(fontSize = responsiveFontSize),
             color = if (isPr) PrGold else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = TextOverflow.Clip
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -75,12 +86,14 @@ fun SetPill(
     displayInKg: Boolean,
     distanceUnit: DistanceUnit,
     isPr: Boolean = false,
+    compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     SetPill(
         displayText = UnitConversion.formatSet(set, exercise, displayInKg, distanceUnit),
         isPr = isPr,
+        compact = compact,
         onClick = onClick,
         modifier = modifier
     )
@@ -134,6 +147,7 @@ fun SetPill(
     displayInKg: Boolean,
     distanceUnit: DistanceUnit,
     isPr: Boolean = false,
+    compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -154,6 +168,7 @@ fun SetPill(
     SetPill(
         displayText = displayText,
         isPr = isPr,
+        compact = compact,
         onClick = onClick,
         modifier = modifier
     )
