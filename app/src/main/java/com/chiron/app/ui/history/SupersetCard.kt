@@ -35,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -85,17 +86,24 @@ fun SupersetCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 16.dp,
+                shape = MaterialTheme.shapes.medium,
+                spotColor = Color.White.copy(alpha = 0.12f),
+                ambientColor = Color.White.copy(alpha = 0.06f)
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, com.chiron.app.ui.theme.ThinOutline.copy(alpha = 0.15f))
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
 
             // ── Header row: icon, editable title, delete button ───────────────
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -198,20 +206,23 @@ fun SupersetCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ── Shared notes field ─────────────────────────────────────────────
-            ExerciseNotesField(
-                value = exerciseNotes,
-                onValueChange = { exerciseNotes = it },
-                committed = committedExerciseNotes,
-                onCommit = { normalized ->
-                    committedExerciseNotes = normalized
-                    viewModel.updateExerciseEntry(startEntry.copy(notes = normalized.ifBlank { null }))
-                }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
+            val showNotes = isEditable || exerciseNotes.isNotBlank()
+            if (showNotes) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ExerciseNotesField(
+                    value = exerciseNotes,
+                    onValueChange = { if (isEditable) exerciseNotes = it },
+                    committed = committedExerciseNotes,
+                    onCommit = { normalized ->
+                        committedExerciseNotes = normalized
+                        viewModel.updateExerciseEntry(startEntry.copy(notes = normalized.ifBlank { null }))
+                    },
+                    isReadOnly = !isEditable
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+            } else {
+                Spacer(modifier = Modifier.height(10.dp))
+            }
 
             // ── Superset toggle + count stepper ────────────────────────────────
             if (isEditable) {

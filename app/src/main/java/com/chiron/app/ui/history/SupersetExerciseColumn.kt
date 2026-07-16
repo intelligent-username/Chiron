@@ -112,6 +112,11 @@ fun SupersetExerciseColumn(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (isPreviewingLastSession && lastSessionPreview != null) {
+                Text(
+                    text = lastSessionPreview!!.dateLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
                 lastSessionPreview!!.sets.forEach { set ->
                     SetPill(
                         set = set,

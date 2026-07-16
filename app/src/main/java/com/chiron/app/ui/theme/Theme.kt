@@ -86,8 +86,8 @@ fun ChironTheme(
     }
 
     val adjustedBaseScheme = baseScheme.copy(
-        outline = if (darkTheme) androidx.compose.ui.graphics.Color(0xFF232A38) else baseScheme.outline.copy(alpha = 0.2f),
-        outlineVariant = if (darkTheme) androidx.compose.ui.graphics.Color(0xFF232A38) else baseScheme.outlineVariant.copy(alpha = 0.2f)
+        outline = if (darkTheme) baseScheme.outline else baseScheme.outline.copy(alpha = 0.2f),
+        outlineVariant = if (darkTheme) baseScheme.outlineVariant else baseScheme.outlineVariant.copy(alpha = 0.2f)
     )
 
     val colorScheme = if (mediaColor != null) {

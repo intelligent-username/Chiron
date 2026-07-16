@@ -60,7 +60,7 @@ fun HistoryScreen(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             // Day tag filters (whole row for more space)
-            if (!state.showArchivedWorkouts && state.dayTags.isNotEmpty()) {
+            if (state.dayTags.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -96,7 +96,7 @@ fun HistoryScreen(
             ) {
                 // Left half: Locations
                 Box(modifier = Modifier.weight(1f)) {
-                    if (!state.showArchivedWorkouts && state.locationTags.isNotEmpty()) {
+                    if (state.locationTags.isNotEmpty()) {
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -145,15 +145,13 @@ fun HistoryScreen(
             }
 
             val baseWorkouts = if (state.showArchivedWorkouts) state.archivedWorkouts else state.workouts
-            val filteredWorkouts = if (!state.showArchivedWorkouts) {
-                baseWorkouts.filter { workout ->
-                    val dayMatch = state.selectedDayTag == null ||
-                        (state.selectedDayTag == "Untitled Workout" && (workout.dayTag == "Untitled Workout" || workout.dayTag.isBlank())) ||
-                        workout.dayTag == state.selectedDayTag
-                    val locMatch = state.selectedLocationTag == null || workout.locationTag == state.selectedLocationTag
-                    dayMatch && locMatch
-                }
-            } else baseWorkouts
+            val filteredWorkouts = baseWorkouts.filter { workout ->
+                val dayMatch = state.selectedDayTag == null ||
+                    (state.selectedDayTag == "Untitled Workout" && (workout.dayTag == "Untitled Workout" || workout.dayTag.isBlank())) ||
+                    workout.dayTag == state.selectedDayTag
+                val locMatch = state.selectedLocationTag == null || workout.locationTag == state.selectedLocationTag
+                dayMatch && locMatch
+            }
 
             val listState = androidx.compose.foundation.lazy.rememberLazyListState()
             LazyColumn(

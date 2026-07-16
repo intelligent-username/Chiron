@@ -6,11 +6,11 @@ import androidx.compose.ui.graphics.Color
 
 // ── Default Static Constants (used for theme initialization) ─────────────────
 val DefaultDeepCharcoal = Color(0xFF090D14)
-val DefaultSolidSlate = Color(0xFF141923)
-val DefaultThinOutline = Color(0xFF232A38)
-val DefaultElectricBlue = Color(0xFF4F46E5) // Premium Indigo accent color (darkened for better contrast)
+val DefaultSolidSlate = Color(0xFF1D2636) // Lightened for better contrast
+val DefaultThinOutline = Color(0xFF222B3B) // Extremely subtle outline
+val DefaultElectricBlue = Color(0xFF4F46E5) // Premium Indigo accent color
 val DefaultDeepGold = Color(0xFFF2C94C)
-val DefaultCoolGray = Color(0xFF9CA3AF) // Lightened gray for improved WCAG readability
+val DefaultCoolGray = Color(0xFFA1A9B8) // Slightly lighter cool gray
 
 // ── Light Theme Palettes (kept for compilation/fallback) ─────────────────────
 val Primary = DefaultElectricBlue
@@ -98,4 +98,4 @@ val CoolGray: Color
     @Composable
     get() = MaterialTheme.colorScheme.onSurfaceVariant
 
-val Green = Color(0xFF10B981)
+val Green = Color(0xFF047857)

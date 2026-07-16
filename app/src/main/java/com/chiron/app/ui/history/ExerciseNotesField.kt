@@ -1,12 +1,13 @@
 package com.chiron.app.ui.history
 
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -14,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -59,60 +62,38 @@ fun ExerciseNotesField(
         }
     }
 
-    if (isReadOnly) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            enabled = false,
-            placeholder = {
-                Text(
-                    "No notes",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = CoolGray.copy(alpha = 0.5f)
-                )
-            },
-            textStyle = MaterialTheme.typography.bodySmall.copy(
-                color = CoolGray
-            ),
-            modifier = modifier.fillMaxWidth(),
-            minLines = 1,
-            maxLines = 3,
-            shape = RoundedCornerShape(8.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledContainerColor = SolidSlate,
-                disabledBorderColor = ThinOutline.copy(alpha = 0.3f),
-                disabledTextColor = CoolGray
-            )
-        )
+    val containerColor = if (isReadOnly) SolidSlate else Color.Transparent
+    val borderColor = if (isReadOnly) ThinOutline.copy(alpha = 0.3f) else ThinOutline.copy(alpha = 0.4f)
+    val textStyle = if (isReadOnly) {
+        MaterialTheme.typography.bodySmall.copy(color = CoolGray)
     } else {
-        val fieldModifier = modifier
+        MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface)
+    }
+    val placeholderText = if (isReadOnly) "No notes" else "Notes"
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (!isReadOnly) {
+            Text(
+                text = "Exercise notes",
+                style = MaterialTheme.typography.labelSmall,
+                color = CoolGray,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+
+        val fieldModifier = Modifier
             .fillMaxWidth()
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .onFocusChanged { state ->
                 if (!state.isFocused) maybeSave()
             }
 
-        OutlinedTextField(
+        BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = {
-                Text(
-                    "Notes",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CoolGray
-                )
-            },
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Normal
-            ),
-            label = {
-                Text(
-                    "Exercise notes",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = CoolGray
-                )
-            },
+            enabled = !isReadOnly,
+            textStyle = textStyle,
+            cursorBrush = SolidColor(ElectricBlue),
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
                 capitalization = KeyboardCapitalization.Sentences
@@ -126,18 +107,24 @@ fun ExerciseNotesField(
             modifier = fieldModifier,
             minLines = 1,
             maxLines = 3,
-            shape = RoundedCornerShape(8.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = SolidSlate,
-                unfocusedContainerColor = SolidSlate,
-                focusedBorderColor = ElectricBlue,
-                unfocusedBorderColor = ThinOutline,
-                cursorColor = ElectricBlue,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedLabelColor = ElectricBlue,
-                unfocusedLabelColor = CoolGray
-            )
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(containerColor, RoundedCornerShape(8.dp))
+                        .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholderText,
+                            style = textStyle,
+                            color = CoolGray.copy(alpha = 0.5f)
+                        )
+                    }
+                    innerTextField()
+                }
+            }
         )
     }
 }

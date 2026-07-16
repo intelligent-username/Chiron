@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
@@ -133,15 +134,23 @@ fun ExerciseEntryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 16.dp,
+                shape = MaterialTheme.shapes.medium,
+                spotColor = Color.White.copy(alpha = 0.12f),
+                ambientColor = Color.White.copy(alpha = 0.06f)
+            )
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
                 onClick = { focusManager.clearFocus() }
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, com.chiron.app.ui.theme.ThinOutline.copy(alpha = 0.15f))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
 
             // ── Top row: icon | name+sets | action buttons ─────────────────────
             Row(
@@ -311,7 +320,10 @@ fun ExerciseEntryCard(
                     }
                 }            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            val isNotesVisible = isEditable || exerciseNotes.isNotBlank() || (isPreviewingLastSession && (lastSessionPreview != null || lastSessionSupersetPreview != null))
+            
+            if (isNotesVisible) {
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // ── Notes section ──────────────────────────────────────────────────
                 if (isPreviewingLastSession && (lastSessionPreview != null || lastSessionSupersetPreview != null)) {
@@ -328,7 +340,7 @@ fun ExerciseEntryCard(
                         isReadOnly = true
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
                         text = dateLabel,
@@ -357,7 +369,8 @@ fun ExerciseEntryCard(
                     }
                 }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(2.dp))
+            }
 
             // ── Superset controls (hidden during preview) ──────────────────────
             if (isEditable && !isPreviewingLastSession) {

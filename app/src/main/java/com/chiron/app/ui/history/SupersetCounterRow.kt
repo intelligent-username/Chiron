@@ -58,7 +58,12 @@ fun SupersetCounterRow(
         )
         Switch(
             checked = isSupersetEnabled,
-            onCheckedChange = onSupersetToggle
+            onCheckedChange = onSupersetToggle,
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                uncheckedThumbColor = com.chiron.app.ui.theme.CoolGray,
+                uncheckedTrackColor = com.chiron.app.ui.theme.SolidSlate,
+                uncheckedBorderColor = com.chiron.app.ui.theme.ThinOutline
+            )
         )
     }
 

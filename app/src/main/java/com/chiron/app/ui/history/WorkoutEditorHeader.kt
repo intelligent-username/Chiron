@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -150,7 +151,8 @@ fun WorkoutEditorHeader(
                 DropdownMenu(
                     expanded = expandedName && filteredDayTags.isNotEmpty(),
                     onDismissRequest = { expandedName = false },
-                    properties = PopupProperties(focusable = false)
+                    properties = PopupProperties(focusable = false),
+                    modifier = Modifier.border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
                 ) {
                     filteredDayTags.forEach { tag ->
                         DropdownMenuItem(
@@ -252,7 +254,8 @@ fun WorkoutEditorHeader(
                 DropdownMenu(
                     expanded = expandedLocation && filteredLocations.isNotEmpty(),
                     onDismissRequest = { expandedLocation = false },
-                    properties = PopupProperties(focusable = false)
+                    properties = PopupProperties(focusable = false),
+                    modifier = Modifier.border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
                 ) {
                     filteredLocations.forEach { loc ->
                         DropdownMenuItem(
@@ -295,17 +298,17 @@ fun WorkoutEditorHeader(
             maxLines = 3,
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = SolidSlate,
-                unfocusedContainerColor = SolidSlate,
-                focusedBorderColor = ElectricBlue,
-                unfocusedBorderColor = ThinOutline,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
                 cursorColor = ElectricBlue,
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 focusedLabelColor = ElectricBlue,
                 unfocusedLabelColor = CoolGray,
-                disabledContainerColor = SolidSlate,
-                disabledBorderColor = ThinOutline.copy(alpha = 0.3f),
+                disabledContainerColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
                 disabledTextColor = CoolGray
             )
         ) }

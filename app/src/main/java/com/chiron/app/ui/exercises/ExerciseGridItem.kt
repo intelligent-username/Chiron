@@ -40,7 +40,7 @@ fun ExerciseGridItem(
             .alpha(containerAlpha)
             .clip(RoundedCornerShape(8.dp))
             .background(SolidSlate)
-            .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+            .border(1.dp, ThinOutline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
