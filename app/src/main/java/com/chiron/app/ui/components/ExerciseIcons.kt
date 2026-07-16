@@ -71,6 +71,7 @@ val AVAILABLE_ICONS = listOf(
 
     ExerciseIcon("treadmill",              "treadmill.svg"),
     ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
+    ExerciseIcon("Air-bike",               "a-bike.svg"),
     ExerciseIcon("heart-rate",             "heart-rate.svg"),
 
     ExerciseIcon("lateral-raise",          "lateral-raise.svg"),

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.prefs.UserSettingsRepository
@@ -250,7 +251,10 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isExporting
             ) {
-                Text(if (isExporting) "Exporting…" else "Export Data")
+                Text(
+                    text = if (isExporting) "Exporting…" else "Export Data",
+                    style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -263,7 +267,10 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImporting
             ) {
-                Text(if (isImporting) "Importing…" else "Import Data")
+                Text(
+                    text = if (isImporting) "Importing…" else "Import Data",
+                    style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
+                )
             }
 
             lastExport?.let { exported ->
@@ -319,7 +326,10 @@ fun SettingsScreen(
                                     }
                                 }
                             }) {
-                                Text("Open")
+                                Text(
+                                    text = "Open",
+                                    style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
+                                )
                             }
 
                             OutlinedButton(onClick = {
@@ -328,7 +338,10 @@ fun SettingsScreen(
                                     snackbarHostState.showSnackbar("Location copied")
                                 }
                             }) {
-                                Text("Copy Location")
+                                Text(
+                                    text = "Copy Location",
+                                    style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
+                                )
                             }
                         }
                     }
