@@ -110,7 +110,17 @@ fun WorkoutEditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (isEditable) {
+            var showNameDialog by remember { mutableStateOf(false) }
+
+            Text(
+                text = editableDayTag.ifBlank { "Untitled Workout" },
+                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = isEditable) { showNameDialog = true }
+            )
+
+            if (showNameDialog) {
                 val isKnownDayTag = dayTags.contains(editableDayTag)
                 var nameSelectedOption by remember {
                     mutableStateOf(if (isKnownDayTag) editableDayTag else "Custom")
@@ -119,29 +129,33 @@ fun WorkoutEditorHeader(
                     mutableStateOf(if (isKnownDayTag) "" else editableDayTag)
                 }
 
-                SelectionInput(
-                    label = "Workout Name",
-                    options = dayTags,
-                    selectedOption = nameSelectedOption,
-                    onOptionSelected = { option ->
-                        nameSelectedOption = option
-                        if (option != "Custom") {
-                            nameCustomInput = ""
-                            onDayTagChange(option)
+                AlertDialog(
+                    onDismissRequest = { showNameDialog = false },
+                    title = { Text("Workout Name") },
+                    text = {
+                        SelectionInput(
+                            label = "Name",
+                            options = dayTags,
+                            selectedOption = nameSelectedOption,
+                            onOptionSelected = { option ->
+                                nameSelectedOption = option
+                                if (option != "Custom") {
+                                    nameCustomInput = ""
+                                    onDayTagChange(option)
+                                }
+                            },
+                            customInput = nameCustomInput,
+                            onCustomInputChange = {
+                                nameCustomInput = it
+                                onDayTagChange(it)
+                            }
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showNameDialog = false }) {
+                            Text("Done")
                         }
-                    },
-                    customInput = nameCustomInput,
-                    onCustomInputChange = {
-                        nameCustomInput = it
-                        onDayTagChange(it)
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                Text(
-                    text = editableDayTag.ifBlank { "Untitled Workout" },
-                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.weight(1f)
+                    }
                 )
             }
 

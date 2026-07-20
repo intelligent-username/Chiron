@@ -72,8 +72,8 @@ fun ExerciseDetailScreen(
                     }
                 },
                 actions = {
-                    // PR trophy — only for weight+reps exercises
-                    if (onOpenPrForExercise != null && isPrEligible) {
+                    // PR trophy — redirects to the PR screen for this exercise
+                    if (onOpenPrForExercise != null) {
                         IconButton(onClick = { onOpenPrForExercise(exercise.id) }) {
                             Icon(
                                 Icons.Default.EmojiEvents,
