@@ -248,7 +248,6 @@ private fun PrExerciseListPanel(
                         )
                     }
                 }
-                HorizontalDivider(thickness = 1.dp, color = ThinOutline)
             }
         }
     }

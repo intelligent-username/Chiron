@@ -93,7 +93,7 @@ fun IconPicker(
                         .background(Color.White)
                         .border(
                             width = if (isSelected) 3.dp else 1.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            color = if (isSelected) Color(0xFF64B5F6) else MaterialTheme.colorScheme.outline,
                             shape = RoundedCornerShape(8.dp)
                         )
                         .clickable { onIconSelected(icon.name) }
@@ -154,13 +154,13 @@ fun IconPickerDropdown(
                                     .background(Color.White)
                                     .border(
                                         width = if (isSelected) 3.dp else 1.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable {
-                                        onIconSelected(icon.name)
-                                        expanded = false
-                                    }
+                                            color = if (isSelected) Color(0xFF64B5F6) else MaterialTheme.colorScheme.outline,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            onIconSelected(icon.name)
+                                            expanded = false
+                                        }
                                     .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {

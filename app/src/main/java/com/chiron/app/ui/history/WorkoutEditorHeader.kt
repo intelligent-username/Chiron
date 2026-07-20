@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
@@ -54,10 +53,7 @@ import com.chiron.app.ui.theme.ElectricBlue
 import com.chiron.app.ui.theme.SolidSlate
 import com.chiron.app.ui.theme.ThinOutline
 import com.chiron.app.util.DateUtils
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.platform.LocalFocusManager
+
 import java.time.Instant
 import java.time.ZoneId
 
@@ -92,7 +88,6 @@ fun WorkoutEditorHeader(
     onShowDuplicateDialog: () -> Unit,
     onDone: () -> Unit
 ) {
-    var expandedName by remember { mutableStateOf(false) }
     var expandedLocation by remember { mutableStateOf(false) }
     var isTimeDialogOpen by remember { mutableStateOf(false) }
 
@@ -115,55 +110,39 @@ fun WorkoutEditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val filteredDayTags = remember(editableDayTag, dayTags) {
-                dayTags
-                    .filter { it.contains(editableDayTag, ignoreCase = true) && it != editableDayTag }
-                    .take(5)
-            }
-
-            Box(modifier = Modifier.weight(1f)) {
-                TextField(
-                    value = editableDayTag,
-                    onValueChange = {
-                        if (!isEditable) return@TextField
-                        onDayTagChange(it)
-                        expandedName = true
-                    },
-                    readOnly = !isEditable,
-                    textStyle = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    colors = transparentTextFieldColors(),
-                    placeholder = {
-                        Text(
-                            "Untitled Workout",
-                            style = MaterialTheme.typography.displayMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
-                        )
-                    },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(x = (-16).dp) // offset M3 TextField's built-in start padding
-                )
-
-                DropdownMenu(
-                    expanded = expandedName && filteredDayTags.isNotEmpty(),
-                    onDismissRequest = { expandedName = false },
-                    properties = PopupProperties(focusable = false),
-                    modifier = Modifier.border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
-                ) {
-                    filteredDayTags.forEach { tag ->
-                        DropdownMenuItem(
-                            text = { Text(tag) },
-                            onClick = {
-                                onDayTagChange(tag)
-                                expandedName = false
-                            }
-                        )
-                    }
+            if (isEditable) {
+                val isKnownDayTag = dayTags.contains(editableDayTag)
+                var nameSelectedOption by remember {
+                    mutableStateOf(if (isKnownDayTag) editableDayTag else "Custom")
                 }
+                var nameCustomInput by remember {
+                    mutableStateOf(if (isKnownDayTag) "" else editableDayTag)
+                }
+
+                SelectionInput(
+                    label = "Workout Name",
+                    options = dayTags,
+                    selectedOption = nameSelectedOption,
+                    onOptionSelected = { option ->
+                        nameSelectedOption = option
+                        if (option != "Custom") {
+                            nameCustomInput = ""
+                            onDayTagChange(option)
+                        }
+                    },
+                    customInput = nameCustomInput,
+                    onCustomInputChange = {
+                        nameCustomInput = it
+                        onDayTagChange(it)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Text(
+                    text = editableDayTag.ifBlank { "Untitled Workout" },
+                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {

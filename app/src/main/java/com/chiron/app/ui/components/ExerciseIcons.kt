@@ -11,6 +11,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("incline-dumbbell-press", "incline-db-press.svg"),
     ExerciseIcon("overhead-press",         "overhead-press.svg"),
     ExerciseIcon("overhead-press-machine", "overhead-press-machine.svg"),
+    ExerciseIcon("db-ohp",                 "db-ohp.svg"),
 
     ExerciseIcon("incline-curl",           "incline-curl.svg"),
     ExerciseIcon("curl",                   "curl.svg"),
@@ -71,7 +72,8 @@ val AVAILABLE_ICONS = listOf(
 
     ExerciseIcon("treadmill",              "treadmill.svg"),
     ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
-    ExerciseIcon("Air-bike",               "a-bike.svg"),
+    ExerciseIcon("air-bike",               "a-bike.svg"),
+    ExerciseIcon("row-cardio",             "row-cardio.svg"),
     ExerciseIcon("heart-rate",             "heart-rate.svg"),
 
     ExerciseIcon("lateral-raise",          "lateral-raise.svg"),
@@ -90,7 +92,7 @@ val AVAILABLE_ICONS = listOf(
 
     ExerciseIcon("machine-row",            "machine-row.svg"),
     ExerciseIcon("single-arm-row-machine", "single-arm-row-machine.svg"),
-    ExerciseIcon("sarow",                  "sarow.svg"),
+    ExerciseIcon("sarow",                  "sa-row.svg"),
     ExerciseIcon("barbell-row",            "barbell-row.svg"),
 
     ExerciseIcon("clean",                   "clean.svg"),
