@@ -44,9 +44,11 @@ object SpotifyManager {
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError
 
+    private var accessToken: String? = null
     private var timeoutJob: kotlinx.coroutines.Job? = null
     private var sleepJob: kotlinx.coroutines.Job? = null
     private var lastLoadedImageUri: com.spotify.protocol.types.ImageUri? = null
+    private var lastLoadedTrackUri: String? = null
     private val managerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
 
     fun getAuthIntent(activity: Activity): android.content.Intent {
@@ -55,7 +57,7 @@ object SpotifyManager {
             AuthorizationResponse.Type.TOKEN, 
             REDIRECT_URI
         )
-        builder.setScopes(arrayOf("app-remote-control", "user-read-playback-state"))
+        builder.setScopes(arrayOf("app-remote-control", "user-read-playback-state", "user-read-currently-playing"))
         return AuthorizationClient.createLoginActivityIntent(
             activity,
             builder.build()
@@ -67,6 +69,7 @@ object SpotifyManager {
         when (response.type) {
             AuthorizationResponse.Type.TOKEN -> {
                 Log.d("SpotifyManager", "Auth successful, token received. Connecting remote...")
+                accessToken = response.accessToken
                 _needsAuthFlow.value = false
                 // After explicit user auth, allow an interactive connect to complete any remaining handshake.
                 connect(context, interactive = true)
@@ -167,6 +170,7 @@ object SpotifyManager {
         _playerState.value = null
         _albumArt.value = null
         lastLoadedImageUri = null
+        lastLoadedTrackUri = null
         appRemote = null
     }
 
@@ -186,28 +190,129 @@ object SpotifyManager {
         appRemote?.playerApi?.subscribeToPlayerState()?.setEventCallback { state ->
             _playerState.value = state
             
-            val imageUri = state.track?.imageUri
-            if (imageUri != null) {
-                if (imageUri != lastLoadedImageUri) {
-                    lastLoadedImageUri = imageUri
-                    appRemote?.imagesApi?.getImage(imageUri, com.spotify.protocol.types.Image.Dimension.MEDIUM)?.setResultCallback { bitmap ->
-                        _albumArt.value = bitmap
-                        // Extract average color for theming
-                        if (bitmap != null) {
-                            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 1, 1, true)
-                            val colorInt = scaled.getPixel(0, 0)
-                            scaled.recycle()
-                            _dominantColor.value = Color(colorInt)
-                        } else {
-                            _dominantColor.value = null
-                        }
+            val track = state.track
+            val trackUri = track?.uri
+            val imageUri = track?.imageUri
+            
+            if (trackUri != lastLoadedTrackUri || imageUri != lastLoadedImageUri) {
+                lastLoadedTrackUri = trackUri
+                lastLoadedImageUri = imageUri
+                loadCoverArt(state)
+            }
+        }
+    }
+
+    private fun loadCoverArt(state: PlayerState) {
+        val track = state.track ?: run {
+            _albumArt.value = null
+            _dominantColor.value = null
+            return
+        }
+
+        // Method 1 & 2: App Remote SDK local image Uri fallback chain
+        val localImageUri = track.imageUri
+        if (localImageUri != null) {
+            appRemote?.imagesApi?.getImage(localImageUri, com.spotify.protocol.types.Image.Dimension.MEDIUM)
+                ?.setResultCallback { bitmap ->
+                    if (bitmap != null) {
+                        applyBitmap(bitmap)
+                    } else {
+                        // SDK getImage returned null, fallback to Web API
+                        fetchCoverFromWebApi(track.uri)
                     }
                 }
-            } else {
-                lastLoadedImageUri = null
-                _albumArt.value = null
-                _dominantColor.value = null
+                ?.setErrorCallback {
+                    // SDK getImage errored, fallback to Web API
+                    fetchCoverFromWebApi(track.uri)
+                }
+        } else {
+            // imageUri was null on SDK track payload, fall back directly to Web API
+            fetchCoverFromWebApi(track.uri)
+        }
+    }
+
+    private fun fetchCoverFromWebApi(trackOrEpisodeUri: String?) {
+        val token = accessToken
+        if (token.isNullOrBlank()) {
+            _albumArt.value = null
+            _dominantColor.value = null
+            return
+        }
+
+        managerScope.launch(Dispatchers.IO) {
+            try {
+                // Query Web API with additional_types=episode param (essential for podcasts)
+                val url = java.net.URL("https://api.spotify.com/v1/me/player/currently-playing?additional_types=episode")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+
+                if (conn.responseCode == 200) {
+                    val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+
+                    val jsonObj = org.json.JSONObject(jsonStr)
+                    val item = jsonObj.optJSONObject("item") ?: return@launch
+                    
+                    var imageUrl: String? = null
+                    
+                    // 1. Try track album images: item.album.images[]
+                    val album = item.optJSONObject("album")
+                    if (album != null) {
+                        val images = album.optJSONArray("images")
+                        if (images != null && images.length() > 0) {
+                            imageUrl = images.optJSONObject(0)?.optString("url")
+                        }
+                    }
+                    
+                    // 2. Try episode-specific images: item.images[]
+                    if (imageUrl.isNullOrEmpty()) {
+                        val images = item.optJSONArray("images")
+                        if (images != null && images.length() > 0) {
+                            imageUrl = images.optJSONObject(0)?.optString("url")
+                        }
+                    }
+                    
+                    // 3. Try show (podcast-level) images: item.show.images[]
+                    if (imageUrl.isNullOrEmpty()) {
+                        val show = item.optJSONObject("show")
+                        if (show != null) {
+                            val images = show.optJSONArray("images")
+                            if (images != null && images.length() > 0) {
+                                imageUrl = images.optJSONObject(0)?.optString("url")
+                            }
+                        }
+                    }
+
+                    if (!imageUrl.isNullOrEmpty()) {
+                        val imgUrl = java.net.URL(imageUrl)
+                        val bitmap = android.graphics.BitmapFactory.decodeStream(imgUrl.openStream())
+                        if (bitmap != null) {
+                            withContext(Dispatchers.Main) {
+                                applyBitmap(bitmap)
+                            }
+                        }
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.e("SpotifyManager", "Error fetching cover from Web API", e)
             }
+        }
+    }
+
+    private fun applyBitmap(bitmap: android.graphics.Bitmap) {
+        _albumArt.value = bitmap
+        try {
+            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 1, 1, true)
+            val colorInt = scaled.getPixel(0, 0)
+            scaled.recycle()
+            _dominantColor.value = Color(colorInt)
+        } catch (e: Exception) {
+            _dominantColor.value = null
         }
     }
 

@@ -74,9 +74,9 @@ fun EditSetDialog(
     // Validate: either all enabled metrics are blank (placeholder) or all must be valid
     fun validate(): Boolean {
         val weightOk  = !hasWeight  || weightField.isBlank()   || (weightField.toDoubleOrNull() ?: -1.0) >= 0
-        val repsOk    = !hasReps    || repsField.isBlank()      || (repsField.toIntOrNull() ?: 0) > 0
-        val timeOk    = !hasTime    || timeField.isBlank()      || (timeField.toIntOrNull() ?: 0) > 0
-        val distOk    = !hasDist    || distanceField.isBlank()  || (distanceField.toDoubleOrNull() ?: -1.0) > 0
+        val repsOk    = !hasReps    || repsField.isBlank()      || (repsField.toIntOrNull() ?: -1) >= 0
+        val timeOk    = !hasTime    || timeField.isBlank()      || (timeField.toIntOrNull() ?: -1) >= 0
+        val distOk    = !hasDist    || distanceField.isBlank()  || (distanceField.toDoubleOrNull() ?: -1.0) >= 0
 
         val allBlank = (!hasWeight || weightField.isBlank()) &&
                 (!hasReps || repsField.isBlank()) &&

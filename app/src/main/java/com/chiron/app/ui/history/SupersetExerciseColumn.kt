@@ -99,16 +99,6 @@ fun SupersetExerciseColumn(
                 .clickable { onOpenExerciseDetail(entry.exerciseId) }
         )
 
-        // Date label sits between name and icon when previewing previous session
-        if (isPreviewingLastSession && lastSessionPreview != null) {
-            Text(
-                text = lastSessionPreview!!.dateLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
-        }
-
         ExerciseAsyncIcon(
             iconName = exercise?.iconName,
             contentDescription = exercise?.name,
@@ -183,6 +173,14 @@ fun SupersetExerciseColumn(
                     dotSize = 8,
                     onPreviewActive = { isPreviewingLastSession = it }
                 )
+                if (isPreviewingLastSession && lastSessionPreview != null) {
+                    Text(
+                        text = lastSessionPreview!!.dateLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }

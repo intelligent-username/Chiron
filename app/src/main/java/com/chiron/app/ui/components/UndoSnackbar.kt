@@ -35,7 +35,7 @@ fun UndoSnackbar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             Snackbar(
@@ -46,7 +46,13 @@ fun UndoSnackbar(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("UNDO")
+                        Text(
+                            "Undo",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                shadow = null,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        )
                     }
                 }
             ) {
@@ -57,7 +63,7 @@ fun UndoSnackbar(
                     }
                     is DeletedItem.WorkoutSessionWithEntries -> "Workout deleted"
                 }
-                Text(message)
+                Text(message, style = MaterialTheme.typography.bodyMedium.copy(shadow = null))
             }
         }
     }
