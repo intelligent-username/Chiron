@@ -259,8 +259,9 @@ private fun ModeSelector(
             ) {
                 Text(
                     text = label,
+                    style = MaterialTheme.typography.bodyMedium.copy(shadow = null),
                     color = if (isSelected) Color.White else Color(0xFF8B949E),
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 14.sp
                 )
             }

@@ -242,8 +242,8 @@ private fun SegmentedButtonItem(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            style = MaterialTheme.typography.labelMedium.copy(shadow = null),
+            fontWeight = FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.onSurface else CoolGray
         )
     }

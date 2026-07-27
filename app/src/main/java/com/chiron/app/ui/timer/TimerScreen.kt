@@ -106,8 +106,8 @@ fun TimerScreen(
                     ) {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            style = MaterialTheme.typography.titleMedium.copy(shadow = null),
+                            fontWeight = FontWeight.Medium,
                             color = if (isSelected) ElectricBlue else com.chiron.app.ui.theme.CoolGray
                         )
                         // Underline indicator

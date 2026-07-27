@@ -185,14 +185,14 @@ fun ModernToggleCard(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyLarge.copy(shadow = null),
+                fontWeight = FontWeight.Medium,
                 color = textColor
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (checked) "Enabled" else "Disabled",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(shadow = null),
                 color = textColor.copy(alpha = 0.7f)
             )
         }
@@ -237,8 +237,8 @@ fun ModernSegmentedSelector(
             ) {
                 Text(
                     text = option,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium.copy(shadow = null),
+                    fontWeight = FontWeight.Medium,
                     color = textColor
                 )
             }

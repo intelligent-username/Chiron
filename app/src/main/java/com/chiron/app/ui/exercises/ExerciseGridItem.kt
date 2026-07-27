@@ -31,7 +31,7 @@ fun ExerciseGridItem(
     onUnarchive: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val containerAlpha = if (showArchived) 0.4f else 1f
+    val containerAlpha = if (showArchived) 0.7f else 1f
 
     Column(
         modifier = modifier

@@ -202,9 +202,9 @@ fun DistanceSelectorBar(
             ) {
                 Text(
                     text = UnitConversion.formatDistance(dist, distanceUnit),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium.copy(shadow = null),
                     color = if (isSelected) MaterialTheme.colorScheme.onSurface else CoolGray,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = FontWeight.Medium
                 )
             }
         }

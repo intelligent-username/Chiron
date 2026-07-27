@@ -192,8 +192,8 @@ fun MetronomeContent(
                 ) {
                     Text(
                         text = "${idx + 1}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        style = MaterialTheme.typography.titleMedium.copy(shadow = null),
+                        fontWeight = FontWeight.Medium,
                         color = if (isSelected) MaterialTheme.colorScheme.onPrimary else CoolGray
                     )
                 }

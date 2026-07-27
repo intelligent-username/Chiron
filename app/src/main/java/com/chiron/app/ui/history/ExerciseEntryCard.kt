@@ -157,7 +157,10 @@ fun ExerciseEntryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(top = 3.dp)
+                ) {
                     ExerciseAsyncIcon(
                         iconName = if (isSupersetEnabled) "link" else exercise?.iconName,
                         contentDescription = exercise?.name,
