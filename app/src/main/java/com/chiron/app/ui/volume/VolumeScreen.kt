@@ -12,9 +12,6 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +36,7 @@ import com.chiron.app.ui.theme.ElectricBlue
 import com.chiron.app.ui.theme.MonospaceFamily
 import com.chiron.app.ui.theme.SolidSlate
 import com.chiron.app.ui.theme.ThinOutline
+import com.chiron.app.ui.components.WeekNavigator
 import com.chiron.app.viewmodel.VolumeMode
 import com.chiron.app.viewmodel.VolumePoint
 import com.chiron.app.viewmodel.VolumeStats
@@ -69,9 +67,7 @@ fun VolumeScreen(
     val state by viewModel.uiState.collectAsState()
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF0D1117))
+        modifier = modifier.fillMaxSize()
     ) {
         if (state.isLoading) {
             CircularProgressIndicator(
@@ -473,54 +469,7 @@ private fun VolumeLineGraph(
 }
 
 // ── Week Navigator ────────────────────────────────────────────────────────────
-
-@Composable
-private fun WeekNavigator(
-    weekLabel: String,
-    canGoPrev: Boolean,
-    canGoNext: Boolean,
-    onPrev: () -> Unit,
-    onNext: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            onClick = onPrev,
-            enabled = canGoPrev
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Previous week",
-                tint = if (canGoPrev) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
-            )
-        }
-
-        Text(
-            text = weekLabel,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f)
-        )
-
-        IconButton(
-            onClick = onNext,
-            enabled = canGoNext
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Next week",
-                tint = if (canGoNext) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
-            )
-        }
-    }
-}
+// (moved to shared ui/components/WeekNavigator.kt)
 
 @Composable
 private fun VolumeStatsSection(stats: VolumeStats, displayInKg: Boolean) {

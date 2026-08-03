@@ -10,12 +10,15 @@ import android.provider.MediaStore
 import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.ExercisePrDao
+import com.chiron.app.data.dao.GoalDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.dao.WorkoutSessionDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.ExercisePr
+import com.chiron.app.data.entities.Goal
+import com.chiron.app.data.entities.GoalExercise
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.TimerPreset
 import com.chiron.app.data.entities.WorkoutSession
@@ -37,6 +40,7 @@ class DataTransferRepository(
     private val setEntryDao: SetEntryDao,
     private val timerPresetDao: TimerPresetDao,
     private val exercisePrDao: ExercisePrDao,
+    private val goalDao: GoalDao,
     private val onRebuildPrs: suspend (exerciseId: Long) -> Unit
 ) {
     data class ExportedData(
@@ -417,6 +421,51 @@ class DataTransferRepository(
                         }
                     }
                 }
+
+            // ── 5b. Goals ─────────────────────────────────────────────────────
+            // Only when the imported backup has the goal tables (pre-goals backups
+            // must still import fine — their schema has no `goal` table at all).
+            val hasGoalTable = db.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='goal'", null
+            )?.use { it.moveToFirst() } == true
+
+            if (hasGoalTable) {
+                // Map: importedGoalId -> localGoalId (merge by name)
+                val goalIdMap = mutableMapOf<Long, Long>()
+
+                db.rawQuery("SELECT * FROM goal", null)?.use { cursor ->
+                    val iId = cursor.getColumnIndex("id")
+                    val iName = cursor.getColumnIndex("name")
+                    val iWeeklyTarget = cursor.getColumnIndex("weekly_target")
+                    val iArchived = cursor.getColumnIndex("archived")
+                    while (cursor.moveToNext()) {
+                        val importedId = cursor.getLong(iId)
+                        val name = cursor.getString(iName) ?: continue
+                        val existing = goalDao.getGoalByName(name)
+                        val localId = existing?.id ?: goalDao.insertGoal(
+                            Goal(
+                                name = name,
+                                weeklyTarget = if (iWeeklyTarget >= 0) cursor.getInt(iWeeklyTarget) else 2,
+                                archived = if (iArchived >= 0) cursor.getInt(iArchived) else 0
+                            )
+                        )
+                        goalIdMap[importedId] = localId
+                    }
+                }
+
+                db.rawQuery("SELECT * FROM goal_exercise", null)?.use { cursor ->
+                    val iGoalId = cursor.getColumnIndex("goal_id")
+                    val iExerciseId = cursor.getColumnIndex("exercise_id")
+                    while (cursor.moveToNext()) {
+                        // Skip rows whose goal or exercise could not be mapped
+                        val localGoalId = goalIdMap[cursor.getLong(iGoalId)] ?: continue
+                        val localExerciseId = exerciseIdMap[cursor.getLong(iExerciseId)] ?: continue
+                        goalDao.insertJunction(
+                            GoalExercise(goalId = localGoalId, exerciseId = localExerciseId)
+                        )
+                    }
+                }
+            }
 
             // ── 6. Fix Workout End Times ───────────────────────────────────────
             // Retroactively infer end times for workouts that may lack them (e.g., from old exports)

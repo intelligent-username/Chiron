@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
@@ -46,6 +47,7 @@ fun BottomNavBar(
     onTabSelected: (NavTab) -> Unit,
     modifier: Modifier = Modifier,
     isVolumeMode: Boolean = false,
+    isGoalsMode: Boolean = false,
     drawBackgroundAndBorder: Boolean = true
 ) {
     BoxWithConstraints(
@@ -101,8 +103,16 @@ fun BottomNavBar(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 NavTab.entries.forEach { tab ->
-                    val labelStr = if (tab == NavTab.HISTORY && isVolumeMode) "Volume" else tab.label
-                    val iconVec = if (tab == NavTab.HISTORY && isVolumeMode) Icons.Default.ShowChart else tab.icon
+                    val labelStr = when {
+                        tab == NavTab.HISTORY && isVolumeMode -> "Volume"
+                        tab == NavTab.EXERCISES && isGoalsMode -> "Goals"
+                        else -> tab.label
+                    }
+                    val iconVec = when {
+                        tab == NavTab.HISTORY && isVolumeMode -> Icons.Default.ShowChart
+                        tab == NavTab.EXERCISES && isGoalsMode -> Icons.Default.Flag
+                        else -> tab.icon
+                    }
                     val isSelected = selectedTab == tab
                     val scale by animateFloatAsState(
                         targetValue = if (isSelected) 1.03f else 0.97f,

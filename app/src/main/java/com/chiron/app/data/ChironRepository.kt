@@ -6,13 +6,17 @@ import com.chiron.app.data.dao.ExerciseDao
 import com.chiron.app.data.dao.ExerciseEntryDao
 import com.chiron.app.data.dao.ExercisePrDao
 import com.chiron.app.data.dao.Exercise1rmEstimateDao
+import com.chiron.app.data.dao.GoalDao
 import com.chiron.app.data.dao.SetEntryDao
+import com.chiron.app.data.dao.SetTimestampRow
 import com.chiron.app.data.entities.Exercise1rmEstimate
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.dao.WorkoutSessionDao
 import com.chiron.app.data.entities.Exercise
 import com.chiron.app.data.entities.ExerciseEntry
 import com.chiron.app.data.entities.ExercisePr
+import com.chiron.app.data.entities.Goal
+import com.chiron.app.data.entities.GoalExercise
 import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.TimerPreset
 import com.chiron.app.data.entities.WorkoutSession
@@ -52,7 +56,8 @@ class ChironRepository(
     private val setEntryDao: SetEntryDao,
     private val timerPresetDao: TimerPresetDao,
     private val exercisePrDao: ExercisePrDao,
-    private val exercise1rmEstimateDao: Exercise1rmEstimateDao
+    private val exercise1rmEstimateDao: Exercise1rmEstimateDao,
+    private val goalDao: GoalDao
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -123,6 +128,7 @@ class ChironRepository(
         setEntryDao = setEntryDao,
         timerPresetDao = timerPresetDao,
         exercisePrDao = exercisePrDao,
+        goalDao = goalDao,
         onRebuildPrs = { exerciseId -> prRepository.rebuildPrsForExercise(exerciseId) }
     )
 
@@ -344,6 +350,44 @@ class ChironRepository(
 
     suspend fun getTimerPresetById(id: Long): TimerPreset? =
         timerPresetRepository.getTimerPresetById(id)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Goals
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val goalsFlow: Flow<List<Goal>> get() = goalDao.getActiveGoalsFlow()
+
+    val allGoalsFlow: Flow<List<Goal>> get() = goalDao.getAllGoalsFlow()
+
+    val goalJunctionsFlow: Flow<List<GoalExercise>> get() = goalDao.getJunctionsFlow()
+
+    suspend fun getJunctionsForGoal(goalId: Long): List<GoalExercise> =
+        goalDao.getJunctionsForGoal(goalId)
+
+    suspend fun getGoalById(id: Long): Goal? =
+        goalDao.getGoalById(id)
+
+    suspend fun getGoalByName(name: String): Goal? =
+        goalDao.getGoalByName(name)
+
+    suspend fun insertGoal(goal: Goal): Long =
+        goalDao.insertGoal(goal)
+
+    suspend fun updateGoal(goal: Goal) =
+        goalDao.updateGoal(goal)
+
+    suspend fun archiveGoal(id: Long) =
+        goalDao.archiveGoal(id)
+
+    suspend fun deleteGoal(id: Long) =
+        goalDao.deleteGoal(id)
+
+    suspend fun getSetTimestampsForExercises(exerciseIds: List<Long>): List<SetTimestampRow> =
+        if (exerciseIds.isEmpty()) emptyList() else goalDao.getSetTimestampsForExercises(exerciseIds)
+
+    /** Inserts or updates a goal and replaces its junction rows in one transaction. */
+    suspend fun saveGoalWithExercises(goal: Goal, exerciseIds: List<Long>) =
+        goalDao.saveGoalWithExercises(goal, exerciseIds)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Data export / import

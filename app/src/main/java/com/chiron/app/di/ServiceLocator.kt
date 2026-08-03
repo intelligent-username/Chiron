@@ -5,6 +5,7 @@ import com.chiron.app.data.ChironDatabase
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.prefs.UserSettingsRepository
 import com.chiron.app.viewmodel.ExercisesViewModel
+import com.chiron.app.viewmodel.GoalsViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerViewModel
 import com.chiron.app.viewmodel.VolumeViewModel
@@ -30,7 +31,8 @@ object ServiceLocator {
             setEntryDao = database.setEntryDao(),
             timerPresetDao = database.timerPresetDao(),
             exercisePrDao = database.exercisePrDao(),
-            exercise1rmEstimateDao = database.exercise1rmEstimateDao()
+            exercise1rmEstimateDao = database.exercise1rmEstimateDao(),
+            goalDao = database.goalDao()
         )
     }
 
@@ -60,6 +62,10 @@ object ServiceLocator {
 
     val volumeViewModelFactory: VolumeViewModel.Factory by lazy {
         VolumeViewModel.Factory(repository)
+    }
+
+    val goalsViewModelFactory: GoalsViewModel.Factory by lazy {
+        GoalsViewModel.Factory(repository)
     }
 }
 

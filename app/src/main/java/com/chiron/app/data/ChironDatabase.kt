@@ -19,7 +19,10 @@ import com.chiron.app.data.entities.SetEntry
 import com.chiron.app.data.entities.WorkoutSession
 import com.chiron.app.data.entities.TimerPreset
 import com.chiron.app.data.dao.Exercise1rmEstimateDao
+import com.chiron.app.data.dao.GoalDao
 import com.chiron.app.data.entities.Exercise1rmEstimate
+import com.chiron.app.data.entities.Goal
+import com.chiron.app.data.entities.GoalExercise
 
 @Database(
     entities = [
@@ -29,9 +32,11 @@ import com.chiron.app.data.entities.Exercise1rmEstimate
         SetEntry::class,
         TimerPreset::class,
         ExercisePr::class,
-        Exercise1rmEstimate::class
+        Exercise1rmEstimate::class,
+        Goal::class,
+        GoalExercise::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -43,6 +48,7 @@ abstract class ChironDatabase : RoomDatabase() {
     abstract fun timerPresetDao(): TimerPresetDao
     abstract fun exercisePrDao(): ExercisePrDao
     abstract fun exercise1rmEstimateDao(): Exercise1rmEstimateDao
+    abstract fun goalDao(): GoalDao
 
     companion object {
         @Volatile
@@ -217,6 +223,14 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `goal` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `weekly_target` INTEGER NOT NULL, `archived` INTEGER NOT NULL DEFAULT 0)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `goal_exercise` (`goal_id` INTEGER NOT NULL, `exercise_id` INTEGER NOT NULL, PRIMARY KEY(`goal_id`, `exercise_id`), FOREIGN KEY(`goal_id`) REFERENCES `goal`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(`exercise_id`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_goal_exercise_exercise_id` ON `goal_exercise` (`exercise_id`)")
+            }
+        }
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -224,7 +238,7 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

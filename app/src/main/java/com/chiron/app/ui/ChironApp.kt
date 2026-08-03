@@ -35,6 +35,7 @@ import com.chiron.app.ui.components.NavTab
 import com.chiron.app.ui.exercises.ExerciseDetailScreen
 import com.chiron.app.ui.exercises.ExercisesScreen
 import com.chiron.app.ui.exercises.PrScreen
+import com.chiron.app.ui.goals.GoalsScreen
 import com.chiron.app.ui.history.HistoryScreen
 import com.chiron.app.ui.settings.SettingsScreen
 import com.chiron.app.ui.theme.PrGold
@@ -42,6 +43,7 @@ import com.chiron.app.ui.timer.AddPresetDialog
 import com.chiron.app.ui.timer.PresetsSheet
 import com.chiron.app.ui.timer.TimerScreenHost
 import com.chiron.app.viewmodel.ExercisesViewModel
+import com.chiron.app.viewmodel.GoalsViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
 import com.chiron.app.viewmodel.TimerTab
 import com.chiron.app.viewmodel.TimerViewModel
@@ -68,11 +70,13 @@ fun ChironApp(
     var exerciseDetailOpenedFromHistory by rememberSaveable { mutableStateOf(false) }
     var exercisesSearchHasText by remember { mutableStateOf(false) }
     var isVolumeMode by rememberSaveable { mutableStateOf(false) }
+    var isGoalsMode by rememberSaveable { mutableStateOf(false) }
 
     val exercisesState by exercisesViewModel.uiState.collectAsState()
     val historyState by historyViewModel.uiState.collectAsState()
     val timerState by timerViewModel.uiState.collectAsState()
     val volumeViewModel: VolumeViewModel = viewModel(factory = ServiceLocator.volumeViewModelFactory)
+    val goalsViewModel: GoalsViewModel = viewModel(factory = ServiceLocator.goalsViewModelFactory)
 
     val tabs = NavTab.entries.toTypedArray()
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
@@ -104,6 +108,10 @@ fun ChironApp(
 
     androidx.activity.compose.BackHandler(enabled = true) {
         when {
+            isGoalsMode -> {
+                isGoalsMode = false
+                goalsViewModel.closeDetail()
+            }
             isVolumeMode -> {
                 isVolumeMode = false
                 volumeViewModel.setExerciseFilter(null)
@@ -169,6 +177,21 @@ fun ChironApp(
                                     }
                                 )
                             }
+                        } else if (selectedTab == NavTab.EXERCISES) {
+                            androidx.compose.animation.AnimatedContent(
+                                targetState = isGoalsMode,
+                                label = "goals_toggle"
+                            ) { mode ->
+                                Text(
+                                    text = if (mode) "Goals" else "Exercises",
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    modifier = Modifier.clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                    ) { isGoalsMode = !isGoalsMode }
+                                )
+                            }
                         } else {
                             Text(
                                 text = when (selectedTab) { NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer"; else -> "" },
@@ -180,15 +203,17 @@ fun ChironApp(
                     actions = {
                         when (selectedTab) {
                             NavTab.EXERCISES -> {
-                                IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
-                                    Icon(Icons.Default.Archive, contentDescription = if (exercisesState.showArchived) "Show active" else "Show archived", tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                IconButton(onClick = {
-                                    prTargetExerciseId = null
-                                    prOpenedFromHistory = false
-                                    isPrScreenOpen = true
-                                }) {
-                                    Icon(Icons.Default.EmojiEvents, contentDescription = "Personal Records", tint = PrGold)
+                                if (!isGoalsMode) {
+                                    IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
+                                        Icon(Icons.Default.Archive, contentDescription = if (exercisesState.showArchived) "Show active" else "Show archived", tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    IconButton(onClick = {
+                                        prTargetExerciseId = null
+                                        prOpenedFromHistory = false
+                                        isPrScreenOpen = true
+                                    }) {
+                                        Icon(Icons.Default.EmojiEvents, contentDescription = "Personal Records", tint = PrGold)
+                                    }
                                 }
                             }
                             NavTab.TIMER -> IconButton(onClick = { isPresetsOpen = true }) { Icon(Icons.Default.Tune, contentDescription = "Presets") }
@@ -223,6 +248,7 @@ fun ChironApp(
                             selectedTab = selectedTab,
                             selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                             isVolumeMode = isVolumeMode,
+                            isGoalsMode = isGoalsMode,
                             drawBackgroundAndBorder = false,
                             onTabSelected = { tab ->
                                 if (tab == selectedTab) {
@@ -234,6 +260,10 @@ fun ChironApp(
                                         prTargetExerciseId = null
                                     }
                                 } else {
+                                    if (selectedTab == NavTab.EXERCISES) {
+                                        isGoalsMode = false
+                                        goalsViewModel.closeDetail()
+                                    }
                                     isPrScreenOpen = false
                                     prTargetExerciseId = null
                                     prOpenedFromHistory = false
@@ -250,6 +280,7 @@ fun ChironApp(
                         selectedTab = selectedTab,
                         selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                         isVolumeMode = isVolumeMode,
+                        isGoalsMode = isGoalsMode,
                         drawBackgroundAndBorder = true,
                         onTabSelected = { tab ->
                             if (tab == selectedTab) {
@@ -261,6 +292,10 @@ fun ChironApp(
                                     prTargetExerciseId = null
                                 }
                             } else {
+                                if (selectedTab == NavTab.EXERCISES) {
+                                    isGoalsMode = false
+                                    goalsViewModel.closeDetail()
+                                }
                                 isPrScreenOpen = false
                                 prTargetExerciseId = null
                                 prOpenedFromHistory = false
@@ -313,42 +348,49 @@ fun ChironApp(
                             }
                         }
                         NavTab.EXERCISES -> Box(modifier = Modifier.fillMaxSize()) {
-                            ExercisesScreen(
-                                viewModel = exercisesViewModel,
-                                onOpenDetail = { exId ->
-                                    activeExerciseId = exId
-                                    isExerciseDetailOpen = true
-                                    exerciseDetailOpenedFromHistory = false
-                                },
-                                onSearchQueryChange = { exercisesSearchHasText = it }
-                            )
-                            if (isExerciseDetailOpen) {
-                                val exercise = exercisesState.exercises.find { it.id == activeExerciseId }
-                                    ?: exercisesState.archivedExercises.find { it.id == activeExerciseId }
-                                ExerciseDetailScreen(
-                                    exercise = exercise,
-                                    volumeViewModel = volumeViewModel,
-                                    displayInKg = historyState.displayInKg,
-                                    onSave = { exercisesViewModel.updateExerciseSuspend(it) },
-                                    onDelete = { exercisesViewModel.archiveExercise(it) },
-                                    onUnarchive = { exercisesViewModel.unarchiveExercise(it) },
-                                    onDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },
-                                    onOpenPrForExercise = { exerciseId ->
-                                        prTargetExerciseId = exerciseId
-                                        prOpenedFromHistory = false
-                                        isPrScreenOpen = true
-                                    },
-                                    onClose = {
-                                        isExerciseDetailOpen = false
-                                        activeExerciseId = null
-                                        volumeViewModel.setExerciseFilter(null)
-                                        if (exerciseDetailOpenedFromHistory) {
-                                            scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
-                                            exerciseDetailOpenedFromHistory = false
-                                        }
-                                    },
+                            if (isGoalsMode) {
+                                GoalsScreen(
+                                    viewModel = goalsViewModel,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                ExercisesScreen(
+                                    viewModel = exercisesViewModel,
+                                    onOpenDetail = { exId ->
+                                        activeExerciseId = exId
+                                        isExerciseDetailOpen = true
+                                        exerciseDetailOpenedFromHistory = false
+                                    },
+                                    onSearchQueryChange = { exercisesSearchHasText = it }
+                                )
+                                if (isExerciseDetailOpen) {
+                                    val exercise = exercisesState.exercises.find { it.id == activeExerciseId }
+                                        ?: exercisesState.archivedExercises.find { it.id == activeExerciseId }
+                                    ExerciseDetailScreen(
+                                        exercise = exercise,
+                                        volumeViewModel = volumeViewModel,
+                                        displayInKg = historyState.displayInKg,
+                                        onSave = { exercisesViewModel.updateExerciseSuspend(it) },
+                                        onDelete = { exercisesViewModel.archiveExercise(it) },
+                                        onUnarchive = { exercisesViewModel.unarchiveExercise(it) },
+                                        onDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },
+                                        onOpenPrForExercise = { exerciseId ->
+                                            prTargetExerciseId = exerciseId
+                                            prOpenedFromHistory = false
+                                            isPrScreenOpen = true
+                                        },
+                                        onClose = {
+                                            isExerciseDetailOpen = false
+                                            activeExerciseId = null
+                                            volumeViewModel.setExerciseFilter(null)
+                                            if (exerciseDetailOpenedFromHistory) {
+                                                scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                                                exerciseDetailOpenedFromHistory = false
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
                         NavTab.TIMER -> TimerScreenHost(viewModel = timerViewModel)
