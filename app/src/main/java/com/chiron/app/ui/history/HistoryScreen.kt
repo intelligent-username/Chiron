@@ -44,6 +44,8 @@ fun HistoryScreen(
     var expandedWorkoutId by remember { mutableStateOf<Long?>(null) }
     var deleteMode by remember { mutableStateOf("archive") }
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
     if (state.isEditorOpen && state.editingWorkoutId != null) {
         val workout = (state.workouts + state.archivedWorkouts).find { it.id == state.editingWorkoutId }
         WorkoutEditor(
@@ -153,7 +155,6 @@ fun HistoryScreen(
                 dayMatch && locMatch
             }
 
-            val listState = androidx.compose.foundation.lazy.rememberLazyListState()
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
