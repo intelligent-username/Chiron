@@ -28,6 +28,14 @@ abstract class GoalDao {
     @Query("SELECT * FROM goal_exercise WHERE goal_id = :goalId")
     abstract suspend fun getJunctionsForGoal(goalId: Long): List<GoalExercise>
 
+    /**
+     * Emits whenever the set_entry table changes (insert/update/delete), so goal
+     * progress can refresh immediately when exercises are added to or removed
+     * from workouts — not just when goals/junctions/exercises themselves change.
+     */
+    @Query("SELECT COUNT(*) FROM set_entry")
+    abstract fun getSetEntryCountFlow(): Flow<Int>
+
     @Query("SELECT * FROM goal WHERE id = :id")
     abstract suspend fun getGoalById(id: Long): Goal?
 

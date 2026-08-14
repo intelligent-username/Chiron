@@ -3,13 +3,16 @@ package com.chiron.app.ui.volume
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -62,6 +65,7 @@ private fun Double.formatVolume(inKg: Boolean): String {
 fun VolumeScreen(
     viewModel: VolumeViewModel,
     displayInKg: Boolean,
+    onPointTap: (VolumePoint) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -82,7 +86,8 @@ fun VolumeScreen(
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
                 onNextWeek = viewModel::goToNextWeek,
-                onToggleAbridgeGaps = viewModel::toggleAbridgeGaps
+                onToggleAbridgeGaps = viewModel::toggleAbridgeGaps,
+                onPointTap = onPointTap
             )
         }
     }
@@ -97,6 +102,7 @@ fun VolumeContent(
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onToggleAbridgeGaps: () -> Unit,
+    onPointTap: (VolumePoint) -> Unit = {},
     scrollable: Boolean = true
 ) {
     val unit = if (displayInKg) "kg" else "lbs"
@@ -191,6 +197,7 @@ fun VolumeContent(
                         points = state.points,
                         displayInKg = displayInKg,
                         mode = state.mode,
+                        onPointTap = onPointTap,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
@@ -267,11 +274,13 @@ private fun ModeSelector(
 
 // ── Line Graph ────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VolumeLineGraph(
     points: List<VolumePoint>,
     displayInKg: Boolean,
     mode: VolumeMode,
+    onPointTap: (VolumePoint) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Animate in on first composition
@@ -309,13 +318,33 @@ private fun VolumeLineGraph(
                     }
                 }
                 .pointerInput(points) {
-                    detectTapGestures(
-                        onPress = { offset ->
-                            hoveredX = offset.x
-                            tryAwaitRelease()
-                            hoveredX = null
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val startTime = down.uptimeMillis
+                        hoveredX = down.position.x
+                        val up = waitForUpOrCancellation()
+                        hoveredX = null
+                        if (up != null) {
+                            val pressDuration = up.uptimeMillis - startTime
+                            // Short tap (< 300ms) → redirect to that day's performance.
+                            // Longer press → just show the tooltip, no redirect.
+                            if (pressDuration < 300L) {
+                                if (points.isEmpty()) return@awaitEachGesture
+                                val n = points.size
+                                val padLeft = 100f
+                                val padRight = 10f
+                                val graphW = size.width - padLeft - padRight
+                                val rawIndex = ((down.position.x - padLeft) / graphW * (n - 1).coerceAtLeast(1))
+                                    .roundToInt()
+                                val index = rawIndex.coerceIn(0, n - 1)
+                                val point = points[index]
+                                // No volume that day → nothing to redirect to.
+                                if (point.volumeLbs > 0.0) {
+                                    onPointTap(point)
+                                }
+                            }
                         }
-                    )
+                    }
                 }
         ) {
             val w = size.width

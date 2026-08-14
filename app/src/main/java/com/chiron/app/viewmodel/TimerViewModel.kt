@@ -9,14 +9,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.data.entities.TimerPreset
+import com.chiron.app.service.MetronomeController
 
 enum class TimerTab { TIMER, STOPWATCH, METRONOME }
 
@@ -55,12 +55,8 @@ class TimerViewModel(
     private val _timerFinished = MutableSharedFlow<Unit>()
     val timerFinished: SharedFlow<Unit> = _timerFinished.asSharedFlow()
 
-    private val _metronomeTick = MutableSharedFlow<Unit>()
-    val metronomeTick: SharedFlow<Unit> = _metronomeTick.asSharedFlow()
-
     private var countdownJob: Job? = null
     private var stopwatchJob: Job? = null
-    private var metronomeJob: Job? = null
 
     init {
         // Load presets from database
@@ -68,6 +64,25 @@ class TimerViewModel(
             repository.timerPresetsFlow.collect { presets ->
                 _uiState.update { it.copy(presets = presets) }
             }
+        }
+
+        // Mirror metronome controller state into the UI state so the UI stays
+        // in sync when the metronome is started/paused from the notification.
+        viewModelScope.launch {
+            combine(
+                MetronomeController.isRunning,
+                MetronomeController.bpm,
+                MetronomeController.tickAsset
+            ) { running, bpm, asset -> Triple(running, bpm, asset) }
+                .collect { (running, bpm, asset) ->
+                    _uiState.update {
+                        it.copy(
+                            isMetronomeRunning = running,
+                            metronomeBpm = bpm,
+                            metronomeTickAsset = asset
+                        )
+                    }
+                }
         }
     }
 
@@ -77,7 +92,7 @@ class TimerViewModel(
 
     fun selectTab(tab: TimerTab) {
         if (tab != TimerTab.METRONOME) {
-            pauseMetronome()
+            stopMetronome()
         }
         _uiState.update { it.copy(activeTab = tab) }
     }
@@ -87,39 +102,27 @@ class TimerViewModel(
     // ─────────────────────────────────────────────────────────────────────────
 
     fun setMetronomeBpm(bpm: Int) {
-        val clamped = bpm.coerceIn(20, 300)
-        _uiState.update { it.copy(metronomeBpm = clamped) }
+        MetronomeController.setBpm(bpm)
     }
 
     fun setMetronomeTickAsset(assetFileName: String) {
-        _uiState.update { it.copy(metronomeTickAsset = assetFileName) }
+        MetronomeController.setTickAsset(assetFileName)
     }
 
     fun startMetronome() {
-        if (_uiState.value.isMetronomeRunning) return
-
-        _uiState.update { it.copy(isMetronomeRunning = true) }
-
-        metronomeJob = viewModelScope.launch {
-            while (_uiState.value.isMetronomeRunning) {
-                _metronomeTick.emit(Unit)
-                val intervalMs = (60_000L / _uiState.value.metronomeBpm.coerceAtLeast(1))
-                delay(intervalMs)
-            }
-        }
+        MetronomeController.start()
     }
 
     fun pauseMetronome() {
-        metronomeJob?.cancel()
-        _uiState.update { it.copy(isMetronomeRunning = false) }
+        MetronomeController.pause()
+    }
+
+    fun stopMetronome() {
+        MetronomeController.stop()
     }
 
     fun toggleMetronome() {
-        if (_uiState.value.isMetronomeRunning) {
-            pauseMetronome()
-        } else {
-            startMetronome()
-        }
+        MetronomeController.toggle()
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -236,7 +239,8 @@ class TimerViewModel(
     override fun onCleared() {
         countdownJob?.cancel()
         stopwatchJob?.cancel()
-        metronomeJob?.cancel()
+        // Metronome is stopped by the UI's DisposableEffect on dispose; the
+        // ViewModel outlives the composable, so stopping here is redundant.
         super.onCleared()
     }
 

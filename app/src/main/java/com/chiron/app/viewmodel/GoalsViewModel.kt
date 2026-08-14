@@ -87,8 +87,9 @@ class GoalsViewModel(
             combine(
                 repository.goalsFlow,
                 repository.goalJunctionsFlow,
-                repository.exercisesFlow
-            ) { goals, junctions, exercises -> Triple(goals, junctions, exercises) }
+                repository.exercisesFlow,
+                repository.setEntryCountFlow
+            ) { goals, junctions, exercises, _ -> Triple(goals, junctions, exercises) }
                 .collect { (g, j, e) ->
                     this@GoalsViewModel.goals = g
                     this@GoalsViewModel.junctions = j

@@ -75,9 +75,12 @@ fun ExerciseEntryCard(
     onDeleteEntry: () -> Unit,
     onOpenPrForExercise: (Long) -> Unit,
     onOpenExerciseDetail: (Long) -> Unit,
+    onOpenSetInWorkout: (Long) -> Unit = {},
     workoutId: Long,
     onRequestAddExercise: () -> Unit,
-    isEditable: Boolean
+    isEditable: Boolean,
+    highlightedEntryId: Long? = null,
+    highlightedSetIndex: Int? = null
 ) {
     val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<com.chiron.app.data.entities.Exercise?>(null) }
@@ -206,7 +209,7 @@ fun ExerciseEntryCard(
                                                     displayInKg = displayInKg,
                                                     distanceUnit = distanceUnit,
                                                     isPr = set.isPr == 1,
-                                                    onClick = {}
+                                                    onClick = { onOpenSetInWorkout(set.id) }
                                                 )
                                             }
                                         }
@@ -235,7 +238,7 @@ fun ExerciseEntryCard(
                                         displayInKg = displayInKg,
                                         distanceUnit = distanceUnit,
                                         isPr = set.isPr == 1,
-                                        onClick = {}
+                                        onClick = { onOpenSetInWorkout(set.id) }
                                     )
                                 }
                             }
@@ -256,6 +259,7 @@ fun ExerciseEntryCard(
                                 modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
                             ) {
                                 sets.forEachIndexed { index, set ->
+                                    val isHighlighted = entry.id == highlightedEntryId && (index + 1) == highlightedSetIndex
                                     if (exercise != null) {
                                         SetPill(
                                             set = set,
@@ -263,6 +267,7 @@ fun ExerciseEntryCard(
                                             displayInKg = displayInKg,
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
+                                            highlighted = isHighlighted,
                                             onClick = { if (isEditable) onSetClick(index + 1) }
                                         )
                                     } else {
@@ -271,6 +276,7 @@ fun ExerciseEntryCard(
                                             displayInKg = displayInKg,
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
+                                            highlighted = isHighlighted,
                                             onClick = { if (isEditable) onSetClick(index + 1) }
                                         )
                                     }

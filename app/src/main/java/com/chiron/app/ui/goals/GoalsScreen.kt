@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -146,9 +147,14 @@ private fun GoalsContent(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(items = state.goals, key = { it.id }) { goal ->
+                items(
+                    count = state.goals.size,
+                    key = { index -> state.goals[index].id }
+                ) { index ->
+                    val goal = state.goals[index]
                     GoalCard(
                         goal = goal,
+                        index = index,
                         onOpen = onOpenGoal
                     )
                 }
@@ -171,52 +177,81 @@ private fun GoalsContent(
 @Composable
 private fun GoalCard(
     goal: GoalWithProgress,
+    index: Int,
     onOpen: (GoalWithProgress) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val completed = goal.daysDone >= goal.weeklyTarget
+
+    // Cycle through the theme's primary/secondary/tertiary accents so each card
+    // gets its own hue — all derived from MaterialTheme so the miniplayer's
+    // media-color matching flows through automatically.
+    val accents = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary
+    )
+    val containers = listOf(
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer
+    )
+    val accent = accents[index % accents.size]
+    val container = containers[index % containers.size]
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f),
-        colors = CardDefaults.cardColors(containerColor = SolidSlate),
+        colors = CardDefaults.cardColors(containerColor = container),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, ThinOutline)
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.55f))
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(accent.copy(alpha = 0.14f), Color.Transparent)
+                    )
+                )
                 .clickable { onOpen(goal) }
                 .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            contentAlignment = Alignment.Center
         ) {
-            GoalDonut(
-                progress = goal.daysDone.toFloat() / goal.weeklyTarget,
-                modifier = Modifier.size(64.dp),
-                strokeWidth = 6.dp
-            )
-            Text(
-                text = goal.name,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "${goal.daysDone}/${goal.weeklyTarget} days",
-                    color = if (completed) ElectricBlue else CoolGray,
-                    fontSize = 13.sp,
-                    fontFamily = MonospaceFamily
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                GoalDonut(
+                    progress = goal.daysDone.toFloat() / goal.weeklyTarget,
+                    modifier = Modifier.size(64.dp),
+                    strokeWidth = 6.dp,
+                    accentColor = accent
                 )
                 Text(
-                    text = "${goal.exerciseCount} exercises",
-                    color = CoolGray,
-                    fontSize = 11.sp
+                    text = goal.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${goal.daysDone}/${goal.weeklyTarget} days",
+                        color = if (completed) accent else CoolGray,
+                        fontSize = 13.sp,
+                        fontFamily = MonospaceFamily
+                    )
+                    Text(
+                        text = "${goal.exerciseCount} exercises",
+                        color = CoolGray,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }

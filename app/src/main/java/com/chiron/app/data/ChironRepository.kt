@@ -9,6 +9,7 @@ import com.chiron.app.data.dao.Exercise1rmEstimateDao
 import com.chiron.app.data.dao.GoalDao
 import com.chiron.app.data.dao.SetEntryDao
 import com.chiron.app.data.dao.SetTimestampRow
+import com.chiron.app.data.dao.SetWorkoutContext
 import com.chiron.app.data.entities.Exercise1rmEstimate
 import com.chiron.app.data.dao.TimerPresetDao
 import com.chiron.app.data.dao.WorkoutSessionDao
@@ -299,6 +300,18 @@ class ChironRepository(
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryRepository.getLastSetForExercise(exerciseId)
 
+    /** Resolve the workout/entry/setIndex for a given set (used to deep-link from a PR row). */
+    suspend fun getWorkoutContextForSet(setId: Long): SetWorkoutContext? =
+        setEntryDao.getWorkoutContextForSet(setId)
+
+    /** Resolve the most recent set's workout context for an exercise within a UTC date range. */
+    suspend fun getWorkoutContextForExerciseOnDate(
+        exerciseId: Long,
+        startUtc: Long,
+        endUtc: Long
+    ): SetWorkoutContext? =
+        setEntryDao.getWorkoutContextForExerciseOnDate(exerciseId, startUtc, endUtc)
+
     suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDay(exerciseId)
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -360,6 +373,9 @@ class ChironRepository(
     val allGoalsFlow: Flow<List<Goal>> get() = goalDao.getAllGoalsFlow()
 
     val goalJunctionsFlow: Flow<List<GoalExercise>> get() = goalDao.getJunctionsFlow()
+
+    /** Emits whenever set_entry rows change (used to keep goal progress fresh). */
+    val setEntryCountFlow: Flow<Int> get() = goalDao.getSetEntryCountFlow()
 
     suspend fun getJunctionsForGoal(goalId: Long): List<GoalExercise> =
         goalDao.getJunctionsForGoal(goalId)

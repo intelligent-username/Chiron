@@ -48,6 +48,7 @@ fun PrScreen(
     distanceUnit: com.chiron.app.prefs.DistanceUnit,
     initialExerciseId: Long? = null,
     onClose: () -> Unit,
+    onOpenWorkout: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -124,7 +125,8 @@ fun PrScreen(
                         exercise = exercise,
                         viewModel = viewModel,
                         displayInKg = displayInKg,
-                        distanceUnit = distanceUnit
+                        distanceUnit = distanceUnit,
+                        onOpenWorkout = onOpenWorkout
                     )
                 }
             }

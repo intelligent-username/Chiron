@@ -38,6 +38,7 @@ fun ExerciseDetailScreen(
     onUnarchive: ((Long) -> Unit)? = null,
     onDeletePermanently: ((Long) -> Unit)? = null,
     onOpenPrForExercise: ((Long) -> Unit)? = null,
+    onOpenWorkoutFromDate: ((Long, java.time.LocalDate) -> Unit)? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -284,6 +285,9 @@ fun ExerciseDetailScreen(
                     onPrevWeek = volumeViewModel::goToPreviousWeek,
                     onNextWeek = volumeViewModel::goToNextWeek,
                     onToggleAbridgeGaps = volumeViewModel::toggleAbridgeGaps,
+                    onPointTap = { point ->
+                        onOpenWorkoutFromDate?.invoke(exercise.id, point.date)
+                    },
                     scrollable = false
                 )
             }

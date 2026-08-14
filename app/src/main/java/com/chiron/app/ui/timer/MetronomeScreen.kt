@@ -1,10 +1,7 @@
 package com.chiron.app.ui.timer
 
-import android.media.MediaPlayer
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -12,13 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,23 +48,6 @@ fun MetronomeContent(
             ?: listOf("Tick1.mp3", "Tick2.mp3", "Tick3.mp3"))
     }
 
-    LaunchedEffect(viewModel) {
-        viewModel.metronomeTick.collect {
-            val fileName = state.metronomeTickAsset
-            try {
-                val afd = context.assets.openFd("audio/$fileName")
-                val mediaPlayer = MediaPlayer()
-                mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                afd.close()
-                mediaPlayer.setOnPreparedListener { it.start() }
-                mediaPlayer.setOnCompletionListener { it.release() }
-                mediaPlayer.prepareAsync()
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    // Pendulum physics tween animation synchronized with BPM
     LaunchedEffect(state.isMetronomeRunning, state.metronomeBpm) {
         if (!state.isMetronomeRunning) {
             pendulumAngle.snapTo(0f)
@@ -96,7 +70,7 @@ fun MetronomeContent(
     }
 
     DisposableEffect(Unit) {
-        onDispose { viewModel.pauseMetronome() }
+        onDispose { viewModel.stopMetronome() }
     }
 
     Column(

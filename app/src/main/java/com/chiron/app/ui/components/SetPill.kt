@@ -30,12 +30,20 @@ fun SetPill(
     displayText: String,
     isPr: Boolean = false,
     compact: Boolean = false,
+    highlighted: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(4.dp)
-    val backgroundColor = SolidSlate
-    val borderColor = if (isPr) PrGold else ThinOutline
+    val backgroundColor = when {
+        highlighted -> PrGold.copy(alpha = 0.22f)
+        else -> SolidSlate
+    }
+    val borderColor = when {
+        isPr && !highlighted -> PrGold
+        highlighted -> PrGold
+        else -> ThinOutline
+    }
 
     // In compact (superset) mode use a smaller base style and shrink more aggressively
     val baseStyle = if (compact) MaterialTheme.typography.labelSmall
@@ -87,6 +95,7 @@ fun SetPill(
     distanceUnit: DistanceUnit,
     isPr: Boolean = false,
     compact: Boolean = false,
+    highlighted: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -94,6 +103,7 @@ fun SetPill(
         displayText = UnitConversion.formatSet(set, exercise, displayInKg, distanceUnit),
         isPr = isPr,
         compact = compact,
+        highlighted = highlighted,
         onClick = onClick,
         modifier = modifier
     )
@@ -148,6 +158,7 @@ fun SetPill(
     distanceUnit: DistanceUnit,
     isPr: Boolean = false,
     compact: Boolean = false,
+    highlighted: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -169,6 +180,7 @@ fun SetPill(
         displayText = displayText,
         isPr = isPr,
         compact = compact,
+        highlighted = highlighted,
         onClick = onClick,
         modifier = modifier
     )

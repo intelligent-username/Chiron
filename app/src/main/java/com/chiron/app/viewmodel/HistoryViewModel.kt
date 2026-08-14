@@ -37,6 +37,12 @@ sealed class DeletedItem {
     data class WorkoutSessionWithEntries(val workout: WorkoutSession, val entries: List<ExerciseEntry>, val sets: Map<Long, List<SetEntry>>) : DeletedItem()
 }
 
+/** Deep-link target: scroll the workout editor to a specific exercise entry and set. */
+data class WorkoutScrollTarget(
+    val entryId: Long,
+    val setIndex: Int
+)
+
 class HistoryViewModel(
     private val repository: ChironRepository,
     private val settingsRepository: UserSettingsRepository
@@ -49,6 +55,37 @@ class HistoryViewModel(
 
     private val _lastDeleted = MutableStateFlow<DeletedItem?>(null)
     val lastDeleted: StateFlow<DeletedItem?> = _lastDeleted.asStateFlow()
+
+    private val _scrollTarget = MutableStateFlow<WorkoutScrollTarget?>(null)
+    val scrollTarget: StateFlow<WorkoutScrollTarget?> = _scrollTarget.asStateFlow()
+
+    /**
+     * Deep-link from a PR row: resolve the set's workout/entry/setIndex and open the
+     * workout editor scrolled to that exact set.
+     */
+    fun openWorkoutFromPr(setId: Long) {
+        viewModelScope.launch {
+            val ctx = repository.getWorkoutContextForSet(setId) ?: return@launch
+            _scrollTarget.value = WorkoutScrollTarget(entryId = ctx.entryId, setIndex = ctx.setIndex)
+            openEditor(ctx.workoutId)
+        }
+    }
+
+    /**
+     * Deep-link from a volume-graph tap: resolve the most recent set for [exerciseId]
+     * performed on [date] and open the workout editor scrolled to that exact set.
+     */
+    fun openWorkoutFromDate(exerciseId: Long, date: LocalDate) {
+        viewModelScope.launch {
+            val zone = java.time.ZoneId.systemDefault()
+            val startUtc = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val endUtc = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val ctx = repository.getWorkoutContextForExerciseOnDate(exerciseId, startUtc, endUtc)
+                ?: return@launch
+            _scrollTarget.value = WorkoutScrollTarget(entryId = ctx.entryId, setIndex = ctx.setIndex)
+            openEditor(ctx.workoutId)
+        }
+    }
 
     fun clearLastDeleted() {
         _lastDeleted.value = null
@@ -139,6 +176,7 @@ class HistoryViewModel(
     }
     fun closeEditor() {
         forceSync()
+        _scrollTarget.value = null
         viewModelScope.launch {
             settingsRepository.setEditingWorkoutId(null)
         }

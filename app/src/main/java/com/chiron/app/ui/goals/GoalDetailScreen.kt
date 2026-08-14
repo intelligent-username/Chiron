@@ -113,6 +113,25 @@ fun GoalDetailScreen(
         )
 
         Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Edit")
+            }
+            TextButton(
+                onClick = { showDeleteConfirmation = true },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "Exercises",
             color = Color.White,
@@ -131,42 +150,24 @@ fun GoalDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ExerciseAsyncIcon(
                         iconName = exercise.iconName,
                         contentDescription = exercise.name,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(51.dp)
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Text(
                         text = exercise.name,
                         color = CoolGray,
-                        fontSize = 14.sp
+                        fontSize = 22.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onEdit,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Edit")
-            }
-            TextButton(
-                onClick = { showDeleteConfirmation = true },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
-            }
-        }
         Spacer(modifier = Modifier.height(120.dp))
     }
 

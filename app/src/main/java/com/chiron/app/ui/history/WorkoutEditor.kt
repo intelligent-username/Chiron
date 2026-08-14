@@ -11,7 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +50,7 @@ fun WorkoutEditor(
     onClose: () -> Unit,
     onOpenPrForExercise: (Long) -> Unit = {},
     onOpenExerciseDetail: (Long) -> Unit = {},
+    onOpenSetInWorkout: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (workout == null) return
@@ -110,9 +112,27 @@ fun WorkoutEditor(
         map
     }
 
+    // ── Deep-link scroll target (from a PR row) ────────────────────────────────
+    val gridState = rememberLazyGridState()
+    val scrollTarget by viewModel.scrollTarget.collectAsState()
+    val highlightedEntryId = scrollTarget?.entryId
+    val highlightedSetIndex = scrollTarget?.setIndex
+
+    LaunchedEffect(scrollTarget, exerciseGroups) {
+        val target = scrollTarget ?: return@LaunchedEffect
+        val groupIndex = exerciseGroups.indexOfFirst { group ->
+            group.any { it.id == target.entryId }
+        }
+        if (groupIndex >= 0) {
+            // Grid item 0 is the header; exercise groups start at index 1.
+            gridState.animateScrollToItem(groupIndex + 1)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
+            state = gridState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
@@ -184,11 +204,11 @@ fun WorkoutEditor(
             }
 
             // Exercise groups
-            itemsIndexed(
+            items(
                 items = exerciseGroups,
-                key = { _, group -> group.firstOrNull()?.id ?: 0 },
-                span = { _, _ -> GridItemSpan(2) }
-            ) { _, group ->
+                key = { group -> group.firstOrNull()?.id ?: 0 },
+                span = { GridItemSpan(2) }
+            ) { group ->
                 if (group.size > 1 && group[0].sequenceType == "SUPERSET_START") {
                     SupersetCard(
                         entries = group,
@@ -198,6 +218,8 @@ fun WorkoutEditor(
                         allEntries = entries,
                         workoutId = workout.id,
                         supersetNumber = supersetNumbersByStartId[group.first().id] ?: 1,
+                        highlightedEntryId = highlightedEntryId,
+                        highlightedSetIndex = highlightedSetIndex,
                         onSetClick = { entryId, setIndex ->
                             val exerciseId = entries.find { it.id == entryId }?.exerciseId ?: return@SupersetCard
                             editingSetEntry = Triple(entryId, setIndex, exerciseId)
@@ -214,6 +236,7 @@ fun WorkoutEditor(
                         },
                         onOpenPrForExercise = onOpenPrForExercise,
                         onOpenExerciseDetail = onOpenExerciseDetail,
+                        onOpenSetInWorkout = onOpenSetInWorkout,
                         onRequestAddExercise = { fromIncrement ->
                             if (!isEditable) return@SupersetCard
                             didAddExerciseInDialog = false
@@ -232,6 +255,8 @@ fun WorkoutEditor(
                         distanceUnit = distanceUnit,
                         allEntries = entries,
                         workoutId = workout.id,
+                        highlightedEntryId = highlightedEntryId,
+                        highlightedSetIndex = highlightedSetIndex,
                         onSetClick = { setIndex ->
                             editingSetEntry = Triple(group[0].id, setIndex, group[0].exerciseId)
                         },
@@ -247,6 +272,7 @@ fun WorkoutEditor(
                         },
                         onOpenPrForExercise = onOpenPrForExercise,
                         onOpenExerciseDetail = onOpenExerciseDetail,
+                        onOpenSetInWorkout = onOpenSetInWorkout,
                         onRequestAddExercise = {
                             if (!isEditable) return@ExerciseEntryCard
                             supersetParentEntryId = group[0].id

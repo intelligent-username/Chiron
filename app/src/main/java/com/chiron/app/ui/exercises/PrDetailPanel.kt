@@ -39,7 +39,8 @@ internal fun PrDetailPanel(
     exercise: Exercise,
     viewModel: ExercisesViewModel,
     displayInKg: Boolean,
-    distanceUnit: DistanceUnit
+    distanceUnit: DistanceUnit,
+    onOpenWorkout: (Long, Long) -> Unit = { _, _ -> }
 ) {
     val prs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
     val estimate by viewModel.get1rmEstimateForExerciseFlow(exercise.id).collectAsState(initial = null)
@@ -115,7 +116,7 @@ internal fun PrDetailPanel(
                         val reps = (pr.bucket - distMeters * 100000.0).roundToInt()
                         val title = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
                         val value = UnitConversion.formatWeight(pr.record, displayInKg)
-                        PrRow(title = title, value = value, timestampUtc = pr.timestampUtc)
+                        PrRow(title = title, value = value, timestampUtc = pr.timestampUtc, onClick = { onOpenWorkout(exercise.id, pr.setId) })
                     }
                 }
             } else {
@@ -163,7 +164,7 @@ internal fun PrDetailPanel(
                             PrCategory.NONE -> "" to ""
                         }
                         if (title.isNotEmpty()) {
-                            PrRow(title = title, value = value, timestampUtc = pr.timestampUtc)
+                            PrRow(title = title, value = value, timestampUtc = pr.timestampUtc, onClick = { onOpenWorkout(exercise.id, pr.setId) })
                         }
                     }
                 }
@@ -215,7 +216,8 @@ fun DistanceSelectorBar(
 internal fun PrRow(
     title: String,
     value: String,
-    timestampUtc: Long
+    timestampUtc: Long,
+    onClick: () -> Unit = {}
 ) {
     val dateLabel = remember(timestampUtc) {
         try {
@@ -232,6 +234,7 @@ internal fun PrRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(PrGold.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween

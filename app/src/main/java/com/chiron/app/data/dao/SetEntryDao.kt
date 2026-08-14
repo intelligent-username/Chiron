@@ -27,6 +27,41 @@ interface SetEntryDao {
     @Query("SELECT * FROM set_entry WHERE id = :id")
     suspend fun getById(id: Long): SetEntry?
 
+    /**
+     * Resolve the workout, exercise-entry, and set index that a given set belongs to.
+     * Used to deep-link from a PR row to the exact workout/set where the PR was set.
+     */
+    @Query("""
+        SELECT e.workout_id AS workoutId, e.id AS entryId, s.set_index AS setIndex
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE s.id = :setId
+        LIMIT 1
+    """)
+    suspend fun getWorkoutContextForSet(setId: Long): SetWorkoutContext?
+
+    /**
+     * Resolve the workout/entry/setIndex of the most recent set for an exercise
+     * performed within a given UTC date range. Used to deep-link from a volume-graph
+     * tap to the last performance of that exercise on that day.
+     */
+    @Query("""
+        SELECT e.workout_id AS workoutId, e.id AS entryId, s.set_index AS setIndex
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE e.exercise_id = :exerciseId
+          AND w.date_utc >= :startUtc
+          AND w.date_utc < :endUtc
+        ORDER BY s.timestamp_utc DESC, s.id DESC
+        LIMIT 1
+    """)
+    suspend fun getWorkoutContextForExerciseOnDate(
+        exerciseId: Long,
+        startUtc: Long,
+        endUtc: Long
+    ): SetWorkoutContext?
+
     @Query("SELECT exercise_id FROM exercise_entry WHERE id = :entryId LIMIT 1")
     suspend fun getExerciseIdForEntry(entryId: Long): Long?
 
@@ -211,4 +246,11 @@ interface SetEntryDao {
 data class DailyVolume(
     val dateUtc: Long,
     val volumeLbs: Double
+)
+
+/** Resolved location of a set within a workout (for deep-linking from a PR row). */
+data class SetWorkoutContext(
+    val workoutId: Long,
+    val entryId: Long,
+    val setIndex: Int
 )

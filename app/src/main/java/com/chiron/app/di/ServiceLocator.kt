@@ -4,6 +4,7 @@ import android.content.Context
 import com.chiron.app.data.ChironDatabase
 import com.chiron.app.data.ChironRepository
 import com.chiron.app.prefs.UserSettingsRepository
+import com.chiron.app.service.MetronomeController
 import com.chiron.app.viewmodel.ExercisesViewModel
 import com.chiron.app.viewmodel.GoalsViewModel
 import com.chiron.app.viewmodel.HistoryViewModel
@@ -42,6 +43,7 @@ object ServiceLocator {
 
     fun init(context: Context) {
         applicationContext = context.applicationContext
+        MetronomeController.init(context)
     }
 
     // ─────────────────────────────────────────────────────────────────────────

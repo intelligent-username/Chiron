@@ -35,6 +35,7 @@ fun HistoryScreen(
     onOpenWorkout: (Long?) -> Unit,
     onOpenPrForExercise: (Long) -> Unit = {},
     onOpenExerciseDetail: (Long) -> Unit = {},
+    onOpenSetInWorkout: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -54,6 +55,7 @@ fun HistoryScreen(
             onClose = { viewModel.closeEditor() },
             onOpenPrForExercise = onOpenPrForExercise,
             onOpenExerciseDetail = onOpenExerciseDetail,
+            onOpenSetInWorkout = onOpenSetInWorkout,
             modifier = modifier
         )
         return

@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
@@ -18,7 +19,7 @@ import com.chiron.app.ui.theme.ElectricBlue
 import com.chiron.app.ui.theme.ThinOutline
 
 /**
- * Stroke-only progress ring. ThinOutline background arc, ElectricBlue progress
+ * Stroke-only progress ring. ThinOutline background arc, [accentColor] progress
  * arc, round caps. [progress] is animated on change.
  */
 @Composable
@@ -26,6 +27,7 @@ fun GoalDonut(
     progress: Float,
     modifier: Modifier = Modifier,
     strokeWidth: Dp = 8.dp,
+    accentColor: Color = ElectricBlue,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
     val animated by animateFloatAsState(
@@ -35,7 +37,6 @@ fun GoalDonut(
     )
     // Capture theme colors in composable context (the Canvas draw scope is not @Composable).
     val outlineColor = ThinOutline
-    val accentColor = ElectricBlue
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = strokeWidth.toPx()
@@ -58,14 +59,14 @@ fun GoalDonut(
     }
 }
 
-/** Small circle for the Sun–Sat day strip: filled ElectricBlue when done, hollow ThinOutline ring otherwise. */
+/** Small circle for the Sun–Sat day strip: filled [accentColor] when done, hollow ThinOutline ring otherwise. */
 @Composable
 fun DayDot(
     done: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accentColor: Color = ElectricBlue
 ) {
     val outlineColor = ThinOutline
-    val accentColor = ElectricBlue
     Canvas(modifier = modifier) {
         if (done) {
             drawCircle(color = accentColor)

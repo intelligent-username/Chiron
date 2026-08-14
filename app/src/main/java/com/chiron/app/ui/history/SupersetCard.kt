@@ -68,8 +68,11 @@ fun SupersetCard(
     onDeleteSuperset: () -> Unit,
     onOpenPrForExercise: (Long) -> Unit,
     onOpenExerciseDetail: (Long) -> Unit,
+    onOpenSetInWorkout: (Long) -> Unit = {},
     onRequestAddExercise: (fromIncrement: Boolean) -> Unit,
-    isEditable: Boolean
+    isEditable: Boolean,
+    highlightedEntryId: Long? = null,
+    highlightedSetIndex: Int? = null
 ) {
     val startEntry = entries.firstOrNull() ?: return
     val scope = rememberCoroutineScope()
@@ -196,10 +199,13 @@ fun SupersetCard(
                             distanceUnit = distanceUnit,
                             workoutId = workoutId,
                             modifier = Modifier.width(columnWidth),
+                            highlighted = entry.id == highlightedEntryId,
+                            highlightedSetIndex = highlightedSetIndex,
                             onSetClick = { setIndex -> if (isEditable) onSetClick(entry.id, setIndex) },
                             onAddSet = { if (isEditable) onAddSet(entry.id) },
                             onOpenPrForExercise = onOpenPrForExercise,
                             onOpenExerciseDetail = onOpenExerciseDetail,
+                            onOpenSetInWorkout = onOpenSetInWorkout,
                             isEditable = isEditable
                         )
                     }

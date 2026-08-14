@@ -55,7 +55,10 @@ fun SupersetExerciseColumn(
     onAddSet: () -> Unit,
     onOpenPrForExercise: (Long) -> Unit,
     onOpenExerciseDetail: (Long) -> Unit,
-    isEditable: Boolean
+    onOpenSetInWorkout: (Long) -> Unit = {},
+    isEditable: Boolean,
+    highlighted: Boolean = false,
+    highlightedSetIndex: Int? = null
 ) {
     val sets by viewModel.getSetsForEntry(entry.id)
         .collectAsState(initial = emptyList())
@@ -121,12 +124,13 @@ fun SupersetExerciseColumn(
                         distanceUnit = distanceUnit,
                         isPr = set.isPr == 1,
                         compact = true,
-                        onClick = {},
+                        onClick = { onOpenSetInWorkout(set.id) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             } else {
                 sets.forEachIndexed { index, set ->
+                    val isHighlighted = highlighted && (index + 1) == highlightedSetIndex
                     if (exercise != null) {
                         SetPill(
                             set = set,
@@ -135,6 +139,7 @@ fun SupersetExerciseColumn(
                             distanceUnit = distanceUnit,
                             isPr = set.isPr == 1,
                             compact = true,
+                            highlighted = isHighlighted,
                             onClick = { onSetClick(index + 1) },
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -145,6 +150,7 @@ fun SupersetExerciseColumn(
                             distanceUnit = distanceUnit,
                             isPr = set.isPr == 1,
                             compact = true,
+                            highlighted = isHighlighted,
                             onClick = { if (isEditable) onSetClick(index + 1) },
                             modifier = Modifier.fillMaxWidth()
                         )
