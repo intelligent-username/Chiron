@@ -103,6 +103,8 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("face-pulls",             "facepulls.svg"),
     ExerciseIcon("neck-curl",              "neck-curl.svg"),
     ExerciseIcon("lateral-neck",           "lateral-neck.svg"),
+    ExerciseIcon("be",                     "back-extension.svg"),
+
 
     ExerciseIcon("dumbell",                "dumbell.svg"),
     ExerciseIcon("barbell",                "barbell.svg"),

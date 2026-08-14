@@ -53,12 +53,9 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-/** Format milliseconds as m:ss */
-private fun formatMs(ms: Float): String {
-    val totalSec = (ms / 1000).toLong().coerceAtLeast(0)
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "$min:${sec.toString().padStart(2, '0')}"
+/** Format milliseconds using polymorphic PlaybackTimeFormatter */
+private fun formatMs(ms: Float, totalDurationMs: Float = ms): String {
+    return PlaybackTimeFormatter.forDuration(totalDurationMs).format(ms)
 }
 
 @Composable
@@ -308,6 +305,8 @@ fun MiniPlayerBar(
                         )
                     }
 
+                    val timeFormatter = remember(duration) { PlaybackTimeFormatter.forDuration(duration) }
+
                     // Timestamp row
                     Row(
                         modifier = Modifier
@@ -316,12 +315,12 @@ fun MiniPlayerBar(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = formatMs(localPosition),
+                            text = timeFormatter.format(localPosition),
                             color = CoolGray,
                             style = MaterialTheme.typography.bodySmall
                         )
                         Text(
-                            text = formatMs(duration),
+                            text = timeFormatter.format(duration),
                             color = CoolGray,
                             style = MaterialTheme.typography.bodySmall
                         )
