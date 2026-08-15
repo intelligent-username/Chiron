@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.MediaPlayer
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -19,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
@@ -30,6 +33,15 @@ class MetronomeService : Service() {
     private lateinit var notificationManager: NotificationManager
     private var tickJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var currentTickAsset: String? = null
+
+    // MediaPlayer must be created/used on a thread with a Looper (its callbacks are
+    // delivered there). Building it on the main thread every beat is what caused the
+    // notification-shade jank, so the whole tick loop runs on a dedicated background thread.
+    private val tickThread = HandlerThread("MetronomeTicks").apply { start() }
+    private val tickScope = CoroutineScope(SupervisorJob() + Handler(tickThread.looper).asCoroutineDispatcher())
+
+    // Only used for UI/notification work.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
@@ -87,7 +99,7 @@ class MetronomeService : Service() {
 
     private fun startTickLoop() {
         tickJob?.cancel()
-        tickJob = serviceScope.launch {
+        tickJob = tickScope.launch {
             while (MetronomeController.isRunning.value) {
                 playTick(MetronomeController.tickAsset.value)
                 delay(60_000L / MetronomeController.bpm.value.coerceAtLeast(1))
@@ -97,16 +109,23 @@ class MetronomeService : Service() {
 
     private fun playTick(fileName: String) {
         try {
-            // Release any previous in-flight player so ticks never overlap or leak.
-            mediaPlayer?.release()
-            val afd = assets.openFd("audio/$fileName")
-            val player = MediaPlayer()
-            player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-            afd.close()
-            player.setOnPreparedListener { it.start() }
-            player.setOnCompletionListener { it.release() }
-            player.prepareAsync()
-            mediaPlayer = player
+            // Reuse a single MediaPlayer: only (re)build it when the tick asset changes,
+            // then just rewind and replay. Creating a new MediaPlayer every beat is what
+            // caused the notification-shade jank.
+            if (mediaPlayer == null || currentTickAsset != fileName) {
+                mediaPlayer?.release()
+                val afd = assets.openFd("audio/$fileName")
+                val player = MediaPlayer()
+                player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                afd.close()
+                player.prepare()
+                mediaPlayer = player
+                currentTickAsset = fileName
+            }
+            mediaPlayer?.apply {
+                seekTo(0)
+                start()
+            }
         } catch (_: Exception) {
         }
     }
@@ -119,6 +138,12 @@ class MetronomeService : Service() {
                     if (running) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
                     0,
                     1f
+                )
+                .setActions(
+                    PlaybackStateCompat.ACTION_PLAY or
+                        PlaybackStateCompat.ACTION_PAUSE or
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                        PlaybackStateCompat.ACTION_STOP
                 )
                 .build()
         )
@@ -147,7 +172,8 @@ class MetronomeService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_metronome)
+            .setColor(0xFF4F46E5.toInt())
             .setContentTitle("Metronome")
             .setContentText("BPM ${MetronomeController.bpm.value}")
             .setOngoing(true)
@@ -166,6 +192,8 @@ class MetronomeService : Service() {
     override fun onDestroy() {
         tickJob?.cancel()
         serviceScope.cancel()
+        tickScope.cancel()
+        tickThread.quitSafely()
         mediaPlayer?.release()
         mediaSession.release()
         notificationManager.cancel(NOTIFICATION_ID)
