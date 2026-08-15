@@ -7,13 +7,6 @@ plugins {
 
 import java.util.Properties
 
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.inputStream().use { localProperties.load(it) }
-}
-val spotifyClientId = localProperties.getProperty("SPOTIFY_CLIENT_ID") ?: ""
-
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 if (keystorePropertiesFile.exists()) {
@@ -44,8 +37,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
-        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
 
         manifestPlaceholders["redirectSchemeName"] = "com.chiron.app"
         manifestPlaceholders["redirectHostName"] = "callback"
@@ -113,23 +104,27 @@ dependencies {
     implementation(libs.accompanist.pager)
     implementation(libs.accompanist.pager.indicators)
 
+    implementation(project(":core:model"))
+    implementation(project(":core:common"))
+    implementation(project(":core:database"))
+    implementation(project(":core:ui"))
+    implementation(project(":core:spotify"))
+    implementation(files(rootProject.file("core/spotify/libs/spotify-app-remote-release-0.8.0.aar")))
+
+    implementation(project(":feature:exercises"))
+    implementation(project(":feature:history"))
+    implementation(project(":feature:goals"))
+    implementation(project(":feature:timer"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.media)
     implementation(libs.material)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation("io.coil-kt:coil-svg:2.7.0")
 
-    // Spotify App Remote SDK
-    implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
-    implementation("com.spotify.android:auth:3.1.0")
-    implementation("com.google.code.gson:gson:2.10.1")
-
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
 

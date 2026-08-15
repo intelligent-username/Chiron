@@ -28,27 +28,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiron.app.di.ServiceLocator
-import com.chiron.app.ui.components.BottomNavBar
-import com.chiron.app.spotify.MiniPlayerBar
-import com.chiron.app.spotify.SpotifyManager
-import com.chiron.app.ui.components.NavTab
-import com.chiron.app.ui.exercises.ExerciseDetailScreen
-import com.chiron.app.ui.exercises.ExercisesScreen
-import com.chiron.app.ui.exercises.PrScreen
-import com.chiron.app.ui.goals.GoalsScreen
-import com.chiron.app.ui.history.HistoryScreen
 import com.chiron.app.ui.settings.SettingsScreen
-import com.chiron.app.ui.theme.PrGold
-import com.chiron.app.ui.timer.AddPresetDialog
-import com.chiron.app.ui.timer.PresetsSheet
-import com.chiron.app.ui.timer.TimerScreenHost
-import com.chiron.app.viewmodel.ExercisesViewModel
-import com.chiron.app.viewmodel.GoalsViewModel
-import com.chiron.app.viewmodel.HistoryViewModel
-import com.chiron.app.viewmodel.TimerTab
-import com.chiron.app.viewmodel.TimerViewModel
-import com.chiron.app.ui.volume.VolumeScreen
-import com.chiron.app.viewmodel.VolumeViewModel
+import com.chiron.core.spotify.MiniPlayerBar
+import com.chiron.core.spotify.SpotifyManager
+import com.chiron.core.ui.components.BottomNavBar
+import com.chiron.core.ui.components.NavTab
+import com.chiron.core.ui.theme.PrGold
+import com.chiron.feature.exercises.ExerciseDetailScreen
+import com.chiron.feature.exercises.ExercisesScreen
+import com.chiron.feature.exercises.ExercisesViewModel
+import com.chiron.feature.exercises.PrScreen
+import com.chiron.feature.goals.GoalsScreen
+import com.chiron.feature.goals.GoalsViewModel
+import com.chiron.feature.history.HistoryScreen
+import com.chiron.feature.history.HistoryViewModel
+import com.chiron.feature.history.VolumeScreen
+import com.chiron.feature.history.VolumeViewModel
+import com.chiron.feature.timer.AddPresetDialog
+import com.chiron.feature.timer.PresetsSheet
+import com.chiron.feature.timer.TimerScreenHost
+import com.chiron.feature.timer.TimerTab
+import com.chiron.feature.timer.TimerViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -245,15 +245,15 @@ fun ChironApp(
                             .fillMaxWidth()
                             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(com.chiron.app.ui.theme.SolidSlate)
-                            .border(1.dp, com.chiron.app.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
+                            .background(com.chiron.core.ui.theme.SolidSlate)
+                            .border(1.dp, com.chiron.core.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
                     ) {
                         MiniPlayerBar(drawBackgroundAndBorder = false)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(com.chiron.app.ui.theme.ThinOutline)
+                                .background(com.chiron.core.ui.theme.ThinOutline)
                         )
                         BottomNavBar(
                             selectedTab = selectedTab,

@@ -7,12 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiron.app.di.ServiceLocator
-import com.chiron.app.spotify.SpotifyManager
 import com.chiron.app.ui.ChironApp
-import com.chiron.app.ui.theme.ChironTheme
-import com.chiron.app.viewmodel.ExercisesViewModel
-import com.chiron.app.viewmodel.HistoryViewModel
-import com.chiron.app.viewmodel.TimerViewModel
+import com.chiron.core.spotify.SpotifyManager
+import com.chiron.core.ui.theme.ChironTheme
+import com.chiron.feature.exercises.ExercisesViewModel
+import com.chiron.feature.history.HistoryViewModel
+import com.chiron.feature.timer.TimerViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState

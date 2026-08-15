@@ -37,7 +37,7 @@
         </activity>
 
         <service
-            android:name=".service.MetronomeService"
+            android:name="com.chiron.feature.timer.MetronomeService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="false" />

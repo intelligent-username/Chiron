@@ -1,15 +1,15 @@
 package com.chiron.app.di
 
 import android.content.Context
-import com.chiron.app.data.ChironDatabase
-import com.chiron.app.data.ChironRepository
-import com.chiron.app.prefs.UserSettingsRepository
-import com.chiron.app.service.MetronomeController
-import com.chiron.app.viewmodel.ExercisesViewModel
-import com.chiron.app.viewmodel.GoalsViewModel
-import com.chiron.app.viewmodel.HistoryViewModel
-import com.chiron.app.viewmodel.TimerViewModel
-import com.chiron.app.viewmodel.VolumeViewModel
+import com.chiron.core.common.UserSettingsRepository
+import com.chiron.core.database.ChironDatabase
+import com.chiron.core.database.ChironRepository
+import com.chiron.feature.exercises.ExercisesViewModel
+import com.chiron.feature.goals.GoalsViewModel
+import com.chiron.feature.history.HistoryViewModel
+import com.chiron.feature.history.VolumeViewModel
+import com.chiron.feature.timer.MetronomeController
+import com.chiron.feature.timer.TimerViewModel
 
 /**
  * Simple service locator for manual dependency injection.

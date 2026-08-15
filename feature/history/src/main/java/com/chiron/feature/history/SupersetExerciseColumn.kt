@@ -1,0 +1,193 @@
+package com.chiron.feature.history
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.chiron.core.database.ChironRepository
+import com.chiron.core.model.ExerciseEntry
+import com.chiron.core.ui.components.ExerciseAsyncIcon
+import com.chiron.core.ui.components.SetPill
+import com.chiron.feature.history.HistoryViewModel
+
+/**
+ * A single exercise column inside a [SupersetCard].
+ *
+ * Shows the exercise icon, name, and its set pills in a compact vertical layout.
+ * Supports the press-and-hold last-session preview via [LastSessionPreviewButton].
+ */
+@Composable
+fun SupersetExerciseColumn(
+    entry: ExerciseEntry,
+    viewModel: HistoryViewModel,
+    displayInKg: Boolean,
+    distanceUnit: com.chiron.core.common.DistanceUnit,
+    workoutId: Long,
+    modifier: Modifier = Modifier,
+    onSetClick: (Int) -> Unit,
+    onAddSet: () -> Unit,
+    onOpenPrForExercise: (Long) -> Unit,
+    onOpenExerciseDetail: (Long) -> Unit,
+    onOpenSetInWorkout: (Long) -> Unit = {},
+    isEditable: Boolean,
+    highlighted: Boolean = false,
+    highlightedSetIndex: Int? = null
+) {
+    val sets by viewModel.getSetsForEntry(entry.id)
+        .collectAsState(initial = emptyList())
+    var exercise by remember { mutableStateOf<com.chiron.core.model.Exercise?>(null) }
+    var isPreviewingLastSession by remember { mutableStateOf(false) }
+    var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
+    val hasHistory = lastSessionPreview != null
+
+    LaunchedEffect(entry.exerciseId) {
+        exercise = viewModel.getExerciseById(entry.exerciseId)
+    }
+    LaunchedEffect(entry.exerciseId, workoutId) {
+        lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+    }
+
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(
+                if (isPreviewingLastSession)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                else
+                    Color.Transparent
+            )
+            .padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Exercise name — fixed height so sets don't shift
+        Text(
+            text = exercise?.name ?: "Loading…",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clickable { onOpenExerciseDetail(entry.exerciseId) }
+        )
+
+        ExerciseAsyncIcon(
+            iconName = exercise?.iconName,
+            contentDescription = exercise?.name,
+            modifier = Modifier
+                .size(40.dp)
+                .clickable { onOpenPrForExercise(entry.exerciseId) },
+            tint = Color.Unspecified
+        )
+
+        // Sets (or previous session's sets)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (isPreviewingLastSession && lastSessionPreview != null) {
+                lastSessionPreview!!.sets.forEach { set ->
+                    SetPill(
+                        set = set,
+                        displayInKg = displayInKg,
+                        distanceUnit = distanceUnit,
+                        isPr = set.isPr == 1,
+                        compact = true,
+                        onClick = { onOpenSetInWorkout(set.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else {
+                sets.forEachIndexed { index, set ->
+                    val isHighlighted = highlighted && (index + 1) == highlightedSetIndex
+                    if (exercise != null) {
+                        SetPill(
+                            set = set,
+                            exercise = exercise!!,
+                            displayInKg = displayInKg,
+                            distanceUnit = distanceUnit,
+                            isPr = set.isPr == 1,
+                            compact = true,
+                            highlighted = isHighlighted,
+                            onClick = { onSetClick(index + 1) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        SetPill(
+                            set = set,
+                            displayInKg = displayInKg,
+                            distanceUnit = distanceUnit,
+                            isPr = set.isPr == 1,
+                            compact = true,
+                            highlighted = isHighlighted,
+                            onClick = { if (isEditable) onSetClick(index + 1) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                if (isEditable) {
+                    OutlinedButton(
+                        onClick = onAddSet,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .width(50.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+
+            if (hasHistory) {
+                LastSessionPreviewButton(
+                    size = 22,
+                    dotSize = 8,
+                    onPreviewActive = { isPreviewingLastSession = it }
+                )
+                if (isPreviewingLastSession && lastSessionPreview != null) {
+                    Text(
+                        text = lastSessionPreview!!.dateLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
