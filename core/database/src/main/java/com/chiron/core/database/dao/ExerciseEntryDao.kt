@@ -27,6 +27,9 @@ interface ExerciseEntryDao {
     @Query("SELECT * FROM exercise_entry WHERE id = :id")
     suspend fun getById(id: Long): ExerciseEntry?
 
+    @Query("SELECT * FROM exercise_entry WHERE workout_id = :workoutId AND exercise_id = :exerciseId AND slot_index = :slotIndex LIMIT 1")
+    suspend fun findMatchingEntry(workoutId: Long, exerciseId: Long, slotIndex: Int): ExerciseEntry?
+
     @Query("SELECT MAX(slot_index) FROM exercise_entry WHERE workout_id = :workoutId")
     suspend fun getMaxSlotIndex(workoutId: Long): Int?
 

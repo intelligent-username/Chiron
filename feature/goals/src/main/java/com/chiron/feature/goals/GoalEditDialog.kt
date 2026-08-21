@@ -120,7 +120,7 @@ fun GoalEditDialog(
                             Spacer(Modifier.width(12.dp))
                             Text(
                                 text = exercise.name,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 14.sp,
                                 modifier = Modifier.weight(1f)
                             )
@@ -152,11 +152,20 @@ fun GoalEditDialog(
                         onSave()
                     }
                 },
-                enabled = form.name.isNotBlank()
-            ) { Text("Save") }
+                enabled = form.name.isNotBlank(),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            ) { Text("Save", fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) { Text("Cancel") }
         }
     )
 }

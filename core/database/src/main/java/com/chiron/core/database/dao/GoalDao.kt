@@ -42,6 +42,9 @@ abstract class GoalDao {
     @Query("SELECT * FROM goal WHERE name = :name AND archived = 0 LIMIT 1")
     abstract suspend fun getGoalByName(name: String): Goal?
 
+    @Query("SELECT * FROM goal WHERE TRIM(name) = TRIM(:name) COLLATE NOCASE LIMIT 1")
+    abstract suspend fun getGoalByNameAnyStatus(name: String): Goal?
+
     @Query(
         "SELECT s.timestamp_utc AS timestampUtc, e.exercise_id AS exerciseId " +
             "FROM set_entry s INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id " +

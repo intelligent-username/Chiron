@@ -136,10 +136,11 @@ fun ExerciseDetailScreen(
                         },
                         enabled = nameState.trim().isNotBlank(),
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         )
                     ) {
-                        Text("Save", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                        Text("Save", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                     }
                 }
             )

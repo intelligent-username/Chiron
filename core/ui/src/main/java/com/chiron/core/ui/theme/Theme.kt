@@ -90,32 +90,90 @@ fun ChironTheme(
         outlineVariant = if (darkTheme) baseScheme.outlineVariant else baseScheme.outlineVariant.copy(alpha = 0.2f)
     )
 
-    val colorScheme = if (mediaColor != null) {
-        val darkMediaColor = mediaColor.copy(
-            red = mediaColor.red * 0.15f,
-            green = mediaColor.green * 0.15f,
-            blue = mediaColor.blue * 0.15f
-        )
-        val primaryMediaColor = mediaColor.copy(
-            red = mediaColor.red * 0.8f,
-            green = mediaColor.green * 0.8f,
-            blue = mediaColor.blue * 0.8f
-        )
-        val mediaOutlineColor = mediaColor.copy(
-            red = mediaColor.red * 0.22f,
-            green = mediaColor.green * 0.22f,
-            blue = mediaColor.blue * 0.22f
-        )
-        adjustedBaseScheme.copy(
-            primary = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.primary, primaryMediaColor, 0.6f),
-            background = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.background, darkMediaColor, 0.3f),
-            surface = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surface, darkMediaColor, 0.3f),
-            surfaceVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surfaceVariant, darkMediaColor, 0.4f),
-            outline = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outline, mediaOutlineColor, 0.4f),
-            outlineVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outlineVariant, mediaOutlineColor, 0.4f)
-        )
+    val colorScheme = if (mediaColor != null && mediaColor.alpha > 0.01f) {
+        val hsl = ColorContrastUtils.colorToHsl(mediaColor)
+        val h = hsl[0]
+        val s = hsl[1]
+
+        if (darkTheme) {
+            val primaryMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtLeast(0.60f),
+                l = 0.72f
+            )
+            val darkMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.30f),
+                l = 0.06f
+            )
+            val surfaceMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.30f),
+                l = 0.12f
+            )
+            val surfaceVariantMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.30f),
+                l = 0.16f
+            )
+            val mediaOutlineColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.30f),
+                l = 0.26f
+            )
+            val mediaPrimaryContainer = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.40f),
+                l = 0.20f
+            )
+
+            adjustedBaseScheme.copy(
+                primary = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.primary, primaryMediaColor, 0.75f),
+                primaryContainer = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.primaryContainer, mediaPrimaryContainer, 0.6f),
+                background = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.background, darkMediaColor, 0.5f),
+                surface = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surface, surfaceMediaColor, 0.5f),
+                surfaceVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surfaceVariant, surfaceVariantMediaColor, 0.5f),
+                outline = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outline, mediaOutlineColor, 0.5f),
+                outlineVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outlineVariant, mediaOutlineColor, 0.5f)
+            ).enforceAccessibleContrast(isDark = true)
+        } else {
+            val primaryMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtLeast(0.60f),
+                l = 0.35f
+            )
+            val lightMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.15f),
+                l = 0.97f
+            )
+            val surfaceMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.15f),
+                l = 0.99f
+            )
+            val surfaceVariantMediaColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.15f),
+                l = 0.92f
+            )
+            val mediaOutlineColor = ColorContrastUtils.hslToColor(
+                h = h,
+                s = s.coerceAtMost(0.20f),
+                l = 0.75f
+            )
+
+            adjustedBaseScheme.copy(
+                primary = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.primary, primaryMediaColor, 0.75f),
+                background = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.background, lightMediaColor, 0.5f),
+                surface = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surface, surfaceMediaColor, 0.5f),
+                surfaceVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.surfaceVariant, surfaceVariantMediaColor, 0.5f),
+                outline = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outline, mediaOutlineColor, 0.5f),
+                outlineVariant = androidx.compose.ui.graphics.lerp(adjustedBaseScheme.outlineVariant, mediaOutlineColor, 0.5f)
+            ).enforceAccessibleContrast(isDark = false)
+        }
     } else {
-        adjustedBaseScheme
+        adjustedBaseScheme.enforceAccessibleContrast(isDark = darkTheme)
     }
 
     val view = LocalView.current

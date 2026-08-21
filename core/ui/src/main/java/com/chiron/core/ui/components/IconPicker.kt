@@ -1,16 +1,14 @@
 package com.chiron.core.ui.components
 
 import android.content.Context
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -27,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
+import java.io.File
 
 private fun resolveFileName(iconName: String?): String {
     if (iconName == null) return "dumbell.svg"
@@ -35,7 +34,27 @@ private fun resolveFileName(iconName: String?): String {
     return "dumbell.svg"
 }
 
-fun getIconUrl(iconName: String?): String = "file:///android_asset/icons/${resolveFileName(iconName)}"
+fun getIconUrl(iconName: String?, context: Context? = null): String {
+    if (iconName.isNullOrBlank()) return "file:///android_asset/icons/dumbell.svg"
+
+    if (context != null) {
+        // Check filesDir/icons/
+        val iconsDir = File(context.filesDir, "icons")
+        val directFile = File(iconsDir, iconName)
+        if (directFile.exists() && directFile.isFile) return Uri.fromFile(directFile).toString()
+        val svgName = if (iconName.endsWith(".svg", ignoreCase = true)) iconName else "$iconName.svg"
+        val svgFile = File(iconsDir, svgName)
+        if (svgFile.exists() && svgFile.isFile) return Uri.fromFile(svgFile).toString()
+
+        // Check filesDir/images/exercises/
+        val imagesDir = File(context.filesDir, "images/exercises")
+        val imageFile = File(imagesDir, iconName)
+        if (imageFile.exists() && imageFile.isFile) return Uri.fromFile(imageFile).toString()
+    }
+
+    val resolved = resolveFileName(iconName)
+    return "file:///android_asset/icons/$resolved"
+}
 
 fun prefetchAllIcons(context: Context) {
     val loader = context.imageLoader
@@ -52,7 +71,7 @@ fun ExerciseAsyncIcon(
     tint: Color = Color.Unspecified
 ) {
     val context = LocalContext.current
-    val url = remember(iconName) { getIconUrl(iconName) }
+    val url = remember(iconName) { getIconUrl(iconName, context) }
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -107,7 +126,6 @@ fun IconPicker(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun IconPickerDropdown(
     selectedIcon: String?,
@@ -154,13 +172,13 @@ fun IconPickerDropdown(
                                     .background(Color.White)
                                     .border(
                                         width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF64B5F6) else MaterialTheme.colorScheme.outline,
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable {
-                                            onIconSelected(icon.name)
-                                            expanded = false
-                                        }
+                                        color = if (isSelected) Color(0xFF64B5F6) else MaterialTheme.colorScheme.outline,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        onIconSelected(icon.name)
+                                        expanded = false
+                                    }
                                     .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {

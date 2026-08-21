@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -25,7 +26,7 @@ class UserSettingsRepository(private val context: Context) {
         private val MATCH_THEME_WITH_MEDIA = booleanPreferencesKey("match_theme_with_media")
         private val DISTANCE_UNIT = stringPreferencesKey("distance_unit")
         private val CURRENT_TAB = stringPreferencesKey("current_tab")
-        private val EDITING_WORKOUT_ID = androidx.datastore.preferences.core.longPreferencesKey("editing_workout_id")
+        private val EDITING_WORKOUT_ID = longPreferencesKey("editing_workout_id")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -43,9 +44,19 @@ class UserSettingsRepository(private val context: Context) {
     }
 
     suspend fun addCustomLocation(location: String) {
+        if (location.isBlank()) return
         context.dataStore.edit { prefs ->
             val current = prefs[CUSTOM_LOCATIONS] ?: emptySet()
-            prefs[CUSTOM_LOCATIONS] = current + location
+            prefs[CUSTOM_LOCATIONS] = current + location.trim()
+        }
+    }
+
+    suspend fun addCustomLocations(locations: List<String>) {
+        val valid = locations.map { it.trim() }.filter { it.isNotBlank() }
+        if (valid.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val current = prefs[CUSTOM_LOCATIONS] ?: emptySet()
+            prefs[CUSTOM_LOCATIONS] = current + valid
         }
     }
 

@@ -131,13 +131,22 @@ fun WorkoutCreationDialog(
                         onCreate(finalDayTag, finalLocation, dateIso)
                     }
                 },
-                enabled = finalLocation.isNotBlank() && finalDayTag.isNotBlank()
+                enabled = finalLocation.isNotBlank() && finalDayTag.isNotBlank(),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
             ) {
-                Text("Create")
+                Text("Create", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancel")
             }
         }

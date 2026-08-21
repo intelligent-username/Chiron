@@ -262,7 +262,7 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     if (isImporting) return@Button
-                    filePickerLauncher.launch("application/octet-stream")
+                    filePickerLauncher.launch("*/*")
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImporting

@@ -137,15 +137,27 @@ fun CreateExerciseDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-if (name.isNotBlank() && config.isValid) {
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank() && config.isValid) {
                         onCreate(name, selectedIcon, description, config)
                         reset()
                     }
-            }) { Text("Create") }
+                },
+                enabled = name.isNotBlank() && config.isValid,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            ) { Text("Create", fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = { reset(); onDismiss() }) { Text("Cancel") }
+            TextButton(
+                onClick = { reset(); onDismiss() },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) { Text("Cancel") }
         }
     )
 }
@@ -185,15 +197,15 @@ fun ModernToggleCard(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(shadow = null),
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = textColor
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (checked) "Enabled" else "Disabled",
-                style = MaterialTheme.typography.bodySmall.copy(shadow = null),
-                color = textColor.copy(alpha = 0.7f)
+                style = MaterialTheme.typography.bodySmall,
+                color = textColor.copy(alpha = if (checked) 0.9f else 0.75f)
             )
         }
     }
@@ -237,8 +249,8 @@ fun ModernSegmentedSelector(
             ) {
                 Text(
                     text = option,
-                    style = MaterialTheme.typography.bodyMedium.copy(shadow = null),
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                     color = textColor
                 )
             }

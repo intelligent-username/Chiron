@@ -33,7 +33,8 @@ object ServiceLocator {
             timerPresetDao = database.timerPresetDao(),
             exercisePrDao = database.exercisePrDao(),
             exercise1rmEstimateDao = database.exercise1rmEstimateDao(),
-            goalDao = database.goalDao()
+            goalDao = database.goalDao(),
+            onImportLocations = { locations -> userSettingsRepository.addCustomLocations(locations) }
         )
     }
 

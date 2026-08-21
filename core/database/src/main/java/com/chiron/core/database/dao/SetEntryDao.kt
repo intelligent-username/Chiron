@@ -27,6 +27,9 @@ interface SetEntryDao {
     @Query("SELECT * FROM set_entry WHERE id = :id")
     suspend fun getById(id: Long): SetEntry?
 
+    @Query("SELECT * FROM set_entry WHERE exercise_entry_id = :entryId AND set_index = :setIndex LIMIT 1")
+    suspend fun findMatchingSet(entryId: Long, setIndex: Int): SetEntry?
+
     /**
      * Resolve the workout, exercise-entry, and set index that a given set belongs to.
      * Used to deep-link from a PR row to the exact workout/set where the PR was set.

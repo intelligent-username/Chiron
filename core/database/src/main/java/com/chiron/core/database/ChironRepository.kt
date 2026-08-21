@@ -58,7 +58,8 @@ class ChironRepository(
     private val timerPresetDao: TimerPresetDao,
     private val exercisePrDao: ExercisePrDao,
     private val exercise1rmEstimateDao: Exercise1rmEstimateDao,
-    private val goalDao: GoalDao
+    private val goalDao: GoalDao,
+    private val onImportLocations: (suspend (List<String>) -> Unit)? = null
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -130,7 +131,8 @@ class ChironRepository(
         timerPresetDao = timerPresetDao,
         exercisePrDao = exercisePrDao,
         goalDao = goalDao,
-        onRebuildPrs = { exerciseId -> prRepository.rebuildPrsForExercise(exerciseId) }
+        onRebuildPrs = { exerciseId -> prRepository.rebuildPrsForExercise(exerciseId) },
+        onImportLocations = onImportLocations
     )
 
     // ─────────────────────────────────────────────────────────────────────────

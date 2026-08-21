@@ -35,6 +35,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise WHERE name = :name AND archived = 0 LIMIT 1")
     suspend fun getByName(name: String): Exercise?
 
+    @Query("SELECT * FROM exercise WHERE TRIM(name) = TRIM(:name) COLLATE NOCASE LIMIT 1")
+    suspend fun getByNameAnyStatus(name: String): Exercise?
+
     @Query("UPDATE exercise SET archived = 1 WHERE id = :id")
     suspend fun archive(id: Long)
 

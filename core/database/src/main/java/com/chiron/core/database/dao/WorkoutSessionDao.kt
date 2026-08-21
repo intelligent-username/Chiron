@@ -29,6 +29,9 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_session WHERE id = :id")
     suspend fun getById(id: Long): WorkoutSession?
 
+    @Query("SELECT * FROM workout_session WHERE date_utc = :dateUtc AND date_iso = :dateIso AND day_tag = :dayTag LIMIT 1")
+    suspend fun findMatchingSession(dateUtc: Long, dateIso: String, dayTag: String): WorkoutSession?
+
     @Query("SELECT DISTINCT day_tag FROM workout_session WHERE archived = 0 ORDER BY day_tag ASC")
     fun getDistinctDayTagsFlow(): Flow<List<String>>
 
