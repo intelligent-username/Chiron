@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 data class HistoryUiState(
@@ -84,6 +85,34 @@ class HistoryViewModel(
                 ?: return@launch
             _scrollTarget.value = WorkoutScrollTarget(entryId = ctx.entryId, setIndex = ctx.setIndex)
             openEditor(ctx.workoutId)
+        }
+    }
+
+    /**
+     * Deep-link from a volume-graph tap on a day: resolve the last workout performed
+     * on [date] and open the workout editor for it.
+     */
+    fun openLastWorkoutOnDate(date: LocalDate, onFound: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            val zone = ZoneId.systemDefault()
+            val startUtc = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val endUtc = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val dateIso = date.toString()
+
+            val allWorkouts = _uiState.value.workouts.ifEmpty {
+                runCatching { repository.workoutsFlow.first() }.getOrDefault(emptyList())
+            }
+            val matchingWorkout = allWorkouts.filter {
+                it.dateIso == dateIso || (it.dateUtc in startUtc until endUtc)
+            }.maxByOrNull { it.endTimeUtc ?: it.dateUtc }
+                ?: _uiState.value.archivedWorkouts.filter {
+                    it.dateIso == dateIso || (it.dateUtc in startUtc until endUtc)
+                }.maxByOrNull { it.endTimeUtc ?: it.dateUtc }
+
+            if (matchingWorkout != null) {
+                onFound?.invoke()
+                openEditor(matchingWorkout.id)
+            }
         }
     }
 

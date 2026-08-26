@@ -77,6 +77,9 @@ fun PrScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = PrGold, modifier = Modifier.size(22.dp))

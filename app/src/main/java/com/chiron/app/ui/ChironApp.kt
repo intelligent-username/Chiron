@@ -166,6 +166,9 @@ fun ChironApp(
         Scaffold(
             topBar = {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
                     title = {
                         if (selectedTab == NavTab.HISTORY) {
                             androidx.compose.animation.AnimatedContent(
@@ -323,7 +326,6 @@ fun ChironApp(
             Box(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .padding(top = 16.dp)
             ) {
                 HorizontalPager(
                     state = pagerState,
@@ -337,6 +339,11 @@ fun ChironApp(
                                 VolumeScreen(
                                     viewModel = volumeViewModel,
                                     displayInKg = historyState.displayInKg,
+                                    onPointTap = { point ->
+                                        historyViewModel.openLastWorkoutOnDate(point.date) {
+                                            isVolumeMode = false
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -399,6 +406,7 @@ fun ChironApp(
                                             isExerciseDetailOpen = false
                                             activeExerciseId = null
                                             volumeViewModel.setExerciseFilter(null)
+                                            isVolumeMode = false
                                             scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                                             historyViewModel.openWorkoutFromDate(exerciseId, date)
                                         },

@@ -310,38 +310,39 @@ private fun VolumeLineGraph(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(points) {
-                    detectDragGestures(
-                        onDragEnd = { hoveredX = null },
-                        onDragCancel = { hoveredX = null }
-                    ) { change, _ ->
-                        hoveredX = change.position.x
-                    }
-                }
-                .pointerInput(points) {
                     awaitEachGesture {
-                        val down = awaitFirstDown()
+                        val down = awaitFirstDown(requireUnconsumed = false)
                         val startTime = down.uptimeMillis
-                        hoveredX = down.position.x
-                        val up = waitForUpOrCancellation()
-                        hoveredX = null
-                        if (up != null) {
-                            val pressDuration = up.uptimeMillis - startTime
-                            // Short tap (< 300ms) → redirect to that day's performance.
-                            // Longer press → just show the tooltip, no redirect.
-                            if (pressDuration < 300L) {
-                                if (points.isEmpty()) return@awaitEachGesture
-                                val n = points.size
-                                val padLeft = 100f
-                                val padRight = 10f
-                                val graphW = size.width - padLeft - padRight
-                                val rawIndex = ((down.position.x - padLeft) / graphW * (n - 1).coerceAtLeast(1))
-                                    .roundToInt()
-                                val index = rawIndex.coerceIn(0, n - 1)
-                                val point = points[index]
-                                // No volume that day → nothing to redirect to.
-                                if (point.volumeLbs > 0.0) {
-                                    onPointTap(point)
+                        val startPos = down.position
+                        hoveredX = startPos.x
+                        var isDrag = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) {
+                                hoveredX = null
+                                val duration = change.uptimeMillis - startTime
+                                val dist = (change.position - startPos).getDistance()
+                                if (!isDrag && duration < 500L && dist < 20f) {
+                                    if (points.isNotEmpty()) {
+                                        val n = points.size
+                                        val padLeft = 100f
+                                        val padRight = 10f
+                                        val graphW = size.width - padLeft - padRight
+                                        val rawIndex = ((startPos.x - padLeft) / graphW * (n - 1).coerceAtLeast(1))
+                                            .roundToInt()
+                                        val index = rawIndex.coerceIn(0, n - 1)
+                                        val point = points[index]
+                                        onPointTap(point)
+                                    }
                                 }
+                                break
+                            } else {
+                                val dist = (change.position - startPos).getDistance()
+                                if (dist >= 10f) {
+                                    isDrag = true
+                                }
+                                hoveredX = change.position.x
                             }
                         }
                     }
