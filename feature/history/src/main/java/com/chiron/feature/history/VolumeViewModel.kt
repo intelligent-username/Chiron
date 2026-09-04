@@ -71,6 +71,8 @@ class VolumeViewModel(
 
     private var exerciseFilter: Long? = null
 
+    private var volumeJob: kotlinx.coroutines.Job? = null
+
     init {
         load()
     }
@@ -87,71 +89,70 @@ class VolumeViewModel(
     }
 
     private fun load() {
-        viewModelScope.launch {
+        volumeJob?.cancel()
+        volumeJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
-            val rawRows: List<DailyVolume> = runCatching {
-                repository.getVolumeSummaryByDay(exerciseFilter)
-            }.getOrDefault(emptyList())
-
-            val zone = ZoneId.systemDefault()
-            val byDate = rawRows.associate { row ->
-                val date = Instant.ofEpochMilli(row.dateUtc).atZone(zone).toLocalDate()
-                date to row.volumeLbs
-            }
-            allDailyVolumes = byDate
-
-            // Compute the earliest week boundary
-            val earliestDate = byDate.keys.minOrNull() ?: LocalDate.now()
-            firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-
-            val weeklyTotals = mutableListOf<Double>()
-            var w = firstWeekStart
-            val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-            while (w <= todayWeek) {
-                var total = 0.0
-                for(d in 0..6) {
-                    total += byDate[w.plusDays(d.toLong())] ?: 0.0
+            repository.getVolumeSummaryByDayFlow(exerciseFilter).collect { rawRows ->
+                val zone = ZoneId.systemDefault()
+                val byDate = rawRows.associate { row ->
+                    val date = Instant.ofEpochMilli(row.dateUtc).atZone(zone).toLocalDate()
+                    date to row.volumeLbs
                 }
-                weeklyTotals.add(total)
-                w = w.plusWeeks(1)
-            }
+                allDailyVolumes = byDate
 
-            val thisWeek = weeklyTotals.lastOrNull() ?: 0.0
-            val lastWeek = if (weeklyTotals.size >= 2) weeklyTotals[weeklyTotals.size - 2] else 0.0
-            val allTimeTotal = weeklyTotals.sum()
-            val highestEver = weeklyTotals.maxOrNull() ?: 0.0
-            val lowestEver = weeklyTotals.filter { it > 0 }.minOrNull() ?: 0.0
-            val rollingWeeklyAvg = if (weeklyTotals.size >= 4) {
-                weeklyTotals.takeLast(4).average()
-            } else if (weeklyTotals.isNotEmpty()) {
-                weeklyTotals.average()
-            } else 0.0
+                // Compute the earliest week boundary
+                val earliestDate = byDate.keys.minOrNull() ?: LocalDate.now()
+                firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
-            val rollingVolChange = if (weeklyTotals.size >= 2) {
-                val last4 = weeklyTotals.takeLast(4)
-                val diffs = last4.zipWithNext { a, b -> b - a }
-                diffs.average()
-            } else 0.0
+                val weeklyTotals = mutableListOf<Double>()
+                var w = firstWeekStart
+                val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                while (w <= todayWeek) {
+                    var total = 0.0
+                    for(d in 0..6) {
+                        total += byDate[w.plusDays(d.toLong())] ?: 0.0
+                    }
+                    weeklyTotals.add(total)
+                    w = w.plusWeeks(1)
+                }
 
-            val stats = VolumeStats(
-                thisWeek = thisWeek,
-                lastWeek = lastWeek,
-                rollingWeeklyAvg = rollingWeeklyAvg,
-                rollingVolChange = rollingVolChange,
-                highestEver = highestEver,
-                lowestEver = lowestEver,
-                allTimeTotal = allTimeTotal
-            )
+                val thisWeek = weeklyTotals.lastOrNull() ?: 0.0
+                val lastWeek = if (weeklyTotals.size >= 2) weeklyTotals[weeklyTotals.size - 2] else 0.0
+                val allTimeTotal = weeklyTotals.sum()
+                val highestEver = weeklyTotals.maxOrNull() ?: 0.0
+                val lowestEver = weeklyTotals.filter { it > 0 }.minOrNull() ?: 0.0
+                val rollingWeeklyAvg = if (weeklyTotals.size >= 4) {
+                    weeklyTotals.takeLast(4).average()
+                } else if (weeklyTotals.isNotEmpty()) {
+                    weeklyTotals.average()
+                } else 0.0
 
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = false,
-                    points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps),
-                    isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
-                    isAtCurrentWeek = isCurrentWeek(state.currentWeekStart),
-                    stats = stats
+                val rollingVolChange = if (weeklyTotals.size >= 2) {
+                    val last4 = weeklyTotals.takeLast(4)
+                    val diffs = last4.zipWithNext { a, b -> b - a }
+                    diffs.average()
+                } else 0.0
+
+                val stats = VolumeStats(
+                    thisWeek = thisWeek,
+                    lastWeek = lastWeek,
+                    rollingWeeklyAvg = rollingWeeklyAvg,
+                    rollingVolChange = rollingVolChange,
+                    highestEver = highestEver,
+                    lowestEver = lowestEver,
+                    allTimeTotal = allTimeTotal
                 )
+
+                _uiState.update { state ->
+                    state.copy(
+                        isLoading = false,
+                        points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps),
+                        isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
+                        isAtCurrentWeek = isCurrentWeek(state.currentWeekStart),
+                        stats = stats
+                    )
+                }
             }
         }
     }

@@ -315,6 +315,7 @@ class ChironRepository(
         setEntryDao.getWorkoutContextForExerciseOnDate(exerciseId, startUtc, endUtc)
 
     suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDay(exerciseId)
+    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDayFlow(exerciseId)
 
     // ─────────────────────────────────────────────────────────────────────────
     // PR Detection

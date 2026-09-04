@@ -155,4 +155,8 @@ class SetEntryRepository(
     suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) =
         if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExercise(exerciseId)
         else setEntryDao.getVolumeSummaryByDay()
+
+    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null): Flow<List<com.chiron.core.database.dao.DailyVolume>> =
+        if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExerciseFlow(exerciseId)
+        else setEntryDao.getVolumeSummaryByDayFlow()
 }
