@@ -192,8 +192,14 @@ fun WorkoutEditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val timeOrDateTimeText = if (!isEditable) {
+                "${DateUtils.formatWorkoutCardDate(workout)}, ${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}"
+            } else {
+                "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}"
+            }
+
             Text(
-                text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                text = timeOrDateTimeText,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     textAlign = TextAlign.Start
