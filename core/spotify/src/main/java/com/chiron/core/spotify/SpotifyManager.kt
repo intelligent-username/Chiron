@@ -169,6 +169,7 @@ object SpotifyManager {
         _connectionError.value = null
         _playerState.value = null
         _albumArt.value = null
+        _dominantColor.value = null
         lastLoadedImageUri = null
         lastLoadedTrackUri = null
         appRemote = null
@@ -218,20 +219,20 @@ object SpotifyManager {
                         applyBitmap(bitmap)
                     } else {
                         // SDK getImage returned null, fallback to Web API
-                        fetchCoverFromWebApi(track.uri)
+                        fetchCoverFromWebApi()
                     }
                 }
                 ?.setErrorCallback {
                     // SDK getImage errored, fallback to Web API
-                    fetchCoverFromWebApi(track.uri)
+                    fetchCoverFromWebApi()
                 }
         } else {
             // imageUri was null on SDK track payload, fall back directly to Web API
-            fetchCoverFromWebApi(track.uri)
+            fetchCoverFromWebApi()
         }
     }
 
-    private fun fetchCoverFromWebApi(trackOrEpisodeUri: String?) {
+    private fun fetchCoverFromWebApi() {
         val token = accessToken
         if (token.isNullOrBlank()) {
             _albumArt.value = null
