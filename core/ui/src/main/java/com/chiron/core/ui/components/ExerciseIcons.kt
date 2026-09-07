@@ -70,12 +70,6 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("rings",                  "rings.svg"),
     ExerciseIcon("rto-hold",               "rto-hold.svg"),
 
-    ExerciseIcon("treadmill",              "treadmill.svg"),
-    ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
-    ExerciseIcon("air-bike",               "a-bike.svg"),
-    ExerciseIcon("row-cardio",             "row-cardio.svg"),
-    ExerciseIcon("heart-rate",             "heart-rate.svg"),
-
     ExerciseIcon("lateral-raise",          "lateral-raise.svg"),
     ExerciseIcon("cables",                 "cables.svg"),
     ExerciseIcon("bands",                  "bands.svg"),
@@ -84,6 +78,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("peck-deck",              "deck.svg"),
     ExerciseIcon("cable-crossover",        "cable-crossover.svg"),
 
+    ExerciseIcon("pallof",                 "pallof.svg"),
     ExerciseIcon("ab-twister",             "ab-twister.svg"),
     ExerciseIcon("landmine-rotation",      "landmine-rotation.svg"),
     ExerciseIcon("leg-raise",              "leg-raise.svg"),
@@ -105,15 +100,21 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("lateral-neck",           "lateral-neck.svg"),
     ExerciseIcon("be",                     "back-extension.svg"),
 
-
-    ExerciseIcon("dumbell",                "dumbell.svg"),
-    ExerciseIcon("barbell",                "barbell.svg"),
-    ExerciseIcon("smith",                  "smith.svg"),
+    ExerciseIcon("treadmill",              "treadmill.svg"),
+    ExerciseIcon("stationary-bike",        "stationary-bike.svg"),
+    ExerciseIcon("air-bike",               "a-bike.svg"),
+    ExerciseIcon("row-cardio",             "row-cardio.svg"),
+    ExerciseIcon("heart-rate",             "heart-rate.svg"),
 
     ExerciseIcon("kettlebell",             "kettlebell.svg"),
     ExerciseIcon("medicine-ball",          "medicine-ball.svg"),
 
     ExerciseIcon("link",                   "link.svg"),
     ExerciseIcon("smiley",                 "smiley.svg"),
+
+    ExerciseIcon("barbell",                "barbell.svg"),
+    ExerciseIcon("smith",                  "smith.svg"),
+    ExerciseIcon("dumbell",                "dumbell.svg"),
+
 
 )
