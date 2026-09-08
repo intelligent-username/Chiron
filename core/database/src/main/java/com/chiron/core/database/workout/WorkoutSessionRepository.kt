@@ -65,7 +65,8 @@ class WorkoutSessionRepository(
         val newSession = source.copy(
             id = 0L,
             dateIso = todayIso,
-            dateUtc = now.toEpochMilli()
+            dateUtc = now.toEpochMilli(),
+            endTimeUtc = null
         )
         val newWorkoutId = workoutSessionDao.insertWorkout(newSession)
 

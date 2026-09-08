@@ -110,8 +110,8 @@ class HistoryViewModel(
                 }.maxByOrNull { it.endTimeUtc ?: it.dateUtc }
 
             if (matchingWorkout != null) {
-                onFound?.invoke()
                 openEditor(matchingWorkout.id)
+                onFound?.invoke()
             }
         }
     }
@@ -199,6 +199,8 @@ class HistoryViewModel(
     fun filterByLocationTag(locationTag: String?) = _uiState.update { it.copy(selectedLocationTag = locationTag) }
     fun setShowArchivedWorkouts(show: Boolean) = _uiState.update { it.copy(showArchivedWorkouts = show, selectedDayTag = null, selectedLocationTag = null) }
     fun openEditor(workoutId: Long?) {
+        forceSync()
+        _uiState.update { it.copy(isEditorOpen = workoutId != null, editingWorkoutId = workoutId) }
         viewModelScope.launch {
             settingsRepository.setEditingWorkoutId(workoutId)
         }
@@ -206,14 +208,28 @@ class HistoryViewModel(
     fun closeEditor() {
         forceSync()
         _scrollTarget.value = null
+        _uiState.update { it.copy(isEditorOpen = false, editingWorkoutId = null) }
         viewModelScope.launch {
             settingsRepository.setEditingWorkoutId(null)
         }
     }
 
-    fun createNewWorkout(dayTag: String, locationTag: String) {
+    fun createNewWorkout(dayTag: String, locationTag: String, dateIso: String? = null) {
         viewModelScope.launch {
-            val id = repository.insertWorkout(WorkoutSession(dayTag = dayTag, dateIso = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE), dateUtc = Instant.now().toEpochMilli(), locationTag = locationTag))
+            val targetDateIso = dateIso ?: LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val targetDateUtc = try {
+                LocalDate.parse(targetDateIso).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            } catch (e: Exception) {
+                Instant.now().toEpochMilli()
+            }
+            val id = repository.insertWorkout(
+                WorkoutSession(
+                    dayTag = dayTag,
+                    dateIso = targetDateIso,
+                    dateUtc = targetDateUtc,
+                    locationTag = locationTag
+                )
+            )
             openEditor(id)
         }
     }

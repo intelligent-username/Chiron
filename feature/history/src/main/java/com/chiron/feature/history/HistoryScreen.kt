@@ -49,15 +49,17 @@ fun HistoryScreen(
 
     if (state.isEditorOpen && state.editingWorkoutId != null) {
         val workout = (state.workouts + state.archivedWorkouts).find { it.id == state.editingWorkoutId }
-        WorkoutEditor(
-            workout = workout,
-            viewModel = viewModel,
-            onClose = { viewModel.closeEditor() },
-            onOpenPrForExercise = onOpenPrForExercise,
-            onOpenExerciseDetail = onOpenExerciseDetail,
-            onOpenSetInWorkout = onOpenSetInWorkout,
-            modifier = modifier
-        )
+        key(state.editingWorkoutId) {
+            WorkoutEditor(
+                workout = workout,
+                viewModel = viewModel,
+                onClose = { viewModel.closeEditor() },
+                onOpenPrForExercise = onOpenPrForExercise,
+                onOpenExerciseDetail = onOpenExerciseDetail,
+                onOpenSetInWorkout = onOpenSetInWorkout,
+                modifier = modifier
+            )
+        }
         return
     }
 
@@ -195,7 +197,10 @@ fun HistoryScreen(
         if (showCreateDialog && !state.showArchivedWorkouts) {
             WorkoutCreationDialog(
                 onDismiss = { showCreateDialog = false },
-                onCreate = { dayTag, locationTag, _ -> viewModel.createNewWorkout(dayTag, locationTag); showCreateDialog = false },
+                onCreate = { dayTag, locationTag, dateIso -> 
+                    showCreateDialog = false
+                    viewModel.createNewWorkout(dayTag, locationTag, dateIso) 
+                },
                 settingsRepository = viewModel.getSettingsRepository(),
                 existingLocations = state.workouts.map { it.locationTag }.distinct(),
                 existingDayTags = state.dayTags

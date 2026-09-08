@@ -81,19 +81,28 @@ fun WorkoutEditor(
     // ── Finished workout logic ───────────────────────────────────────────────
     val now = System.currentTimeMillis()
     val endTimeUtc = workout.endTimeUtc
-    val isOldWorkout = remember(endTimeUtc) {
+    val isOldWorkout = remember(workout.id, endTimeUtc) {
         endTimeUtc != null && (now - endTimeUtc) > 60 * 60 * 1000
     }
-    var forceEditMode by remember { mutableStateOf(false) }
+    var forceEditMode by remember(workout.id) { mutableStateOf(false) }
     val isEditable = !isOldWorkout || forceEditMode
 
     // ── Header editable state ──────────────────────────────────────────────────
-    var editableDayTag by remember { mutableStateOf(workout.dayTag) }
-    var editableDateIso by remember { mutableStateOf(workout.dateIso) }
-    var editableDateUtc by remember { mutableStateOf(workout.dateUtc) }
-    var editableEndTimeUtc by remember { mutableStateOf(workout.endTimeUtc) }
-    var editableLocation by remember { mutableStateOf(workout.locationTag) }
-    var editableNotes by remember { mutableStateOf(workout.notes ?: "") }
+    var editableDayTag by remember(workout.id) { mutableStateOf(workout.dayTag) }
+    var editableDateIso by remember(workout.id) { mutableStateOf(workout.dateIso) }
+    var editableDateUtc by remember(workout.id) { mutableStateOf(workout.dateUtc) }
+    var editableEndTimeUtc by remember(workout.id) { mutableStateOf(workout.endTimeUtc) }
+    var editableLocation by remember(workout.id) { mutableStateOf(workout.locationTag) }
+    var editableNotes by remember(workout.id) { mutableStateOf(workout.notes ?: "") }
+
+    LaunchedEffect(workout.id, workout.dayTag, workout.dateIso, workout.dateUtc, workout.endTimeUtc, workout.locationTag, workout.notes) {
+        editableDayTag = workout.dayTag
+        editableDateIso = workout.dateIso
+        editableDateUtc = workout.dateUtc
+        editableEndTimeUtc = workout.endTimeUtc
+        editableLocation = workout.locationTag
+        editableNotes = workout.notes ?: ""
+    }
 
     val allLocations = remember(uiState.workouts) {
         uiState.workouts.map { it.locationTag }.distinct().sorted()
@@ -154,7 +163,7 @@ fun WorkoutEditor(
                     onDayTagChange = { 
                         if (!isEditable) return@WorkoutEditorHeader
                         editableDayTag = it 
-                        viewModel.updateWorkout(workout.copy(dayTag = it, locationTag = editableLocation, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                        viewModel.updateWorkout(workout.copy(dayTag = it))
                     },
                     onWorkoutTimeChange = { dateUtc, endTimeUtc, dateIso ->
                         if (!isEditable) return@WorkoutEditorHeader
@@ -165,10 +174,7 @@ fun WorkoutEditor(
                             workout.copy(
                                 dateIso = dateIso,
                                 dateUtc = dateUtc,
-                                endTimeUtc = endTimeUtc,
-                                dayTag = editableDayTag,
-                                locationTag = editableLocation,
-                                notes = editableNotes.ifBlank { null }
+                                endTimeUtc = endTimeUtc
                             )
                         )
                     },
@@ -176,12 +182,12 @@ fun WorkoutEditor(
                     onLocationChange = { 
                         if (!isEditable) return@WorkoutEditorHeader
                         editableLocation = it
-                        viewModel.updateWorkout(workout.copy(locationTag = it, dayTag = editableDayTag, notes = editableNotes.ifBlank { null }, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                        viewModel.updateWorkout(workout.copy(locationTag = it))
                     },
                     editableNotes = editableNotes,
                     onNotesChange = { 
                         editableNotes = it 
-                        viewModel.updateWorkout(workout.copy(notes = it.ifBlank { null }, dayTag = editableDayTag, locationTag = editableLocation, dateIso = editableDateIso, dateUtc = editableDateUtc, endTimeUtc = editableEndTimeUtc))
+                        viewModel.updateWorkout(workout.copy(notes = it.ifBlank { null }))
                     },
                     dayTags = uiState.dayTags,
                     allLocations = allLocations,
@@ -192,9 +198,6 @@ fun WorkoutEditor(
                         viewModel.saveWorkoutImmediate(
                             workout.copy(
                                 dayTag = editableDayTag,
-                                dateIso = editableDateIso,
-                                dateUtc = editableDateUtc,
-                                endTimeUtc = editableEndTimeUtc,
                                 locationTag = editableLocation,
                                 notes = editableNotes.ifBlank { null }
                             )
@@ -326,7 +329,6 @@ fun WorkoutEditor(
                 viewModel.duplicateWorkout(workout.id) { newId ->
                     viewModel.openEditor(newId)
                 }
-                onClose()
             },
             onDismiss = { showDuplicateConfirmation = false }
         )

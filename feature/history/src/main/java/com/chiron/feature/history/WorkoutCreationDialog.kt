@@ -33,6 +33,7 @@ fun WorkoutCreationDialog(
     // Location State
     var selectedLocation by remember { mutableStateOf("") }
     var customLocationInput by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -121,7 +122,8 @@ fun WorkoutCreationDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (finalLocation.isNotBlank() && finalDayTag.isNotBlank()) {
+                    if (!isSubmitting && finalLocation.isNotBlank() && finalDayTag.isNotBlank()) {
+                        isSubmitting = true
                         // Save custom location if it's new (Day tags are saved implicitly via usage)
                         if (selectedLocation == "Custom" && customLocationInput.isNotBlank()) {
                             scope.launch {
@@ -131,7 +133,7 @@ fun WorkoutCreationDialog(
                         onCreate(finalDayTag, finalLocation, dateIso)
                     }
                 },
-                enabled = finalLocation.isNotBlank() && finalDayTag.isNotBlank(),
+                enabled = !isSubmitting && finalLocation.isNotBlank() && finalDayTag.isNotBlank(),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary,
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)

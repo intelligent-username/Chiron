@@ -122,10 +122,10 @@ fun WorkoutEditorHeader(
 
             if (showNameDialog) {
                 val isKnownDayTag = dayTags.contains(editableDayTag)
-                var nameSelectedOption by remember {
+                var nameSelectedOption by remember(workout.id, editableDayTag) {
                     mutableStateOf(if (isKnownDayTag) editableDayTag else "Custom")
                 }
-                var nameCustomInput by remember {
+                var nameCustomInput by remember(workout.id, editableDayTag) {
                     mutableStateOf(if (isKnownDayTag) "" else editableDayTag)
                 }
 
