@@ -71,6 +71,22 @@ interface SetEntryDao {
     @Query("SELECT workout_id FROM exercise_entry WHERE id = :entryId LIMIT 1")
     suspend fun getWorkoutIdForEntry(entryId: Long): Long?
 
+    @Query("""
+        SELECT MAX(s.timestamp_utc)
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE e.workout_id = :workoutId
+    """)
+    suspend fun getLastSetTimestampForWorkout(workoutId: Long): Long?
+
+    @Query("""
+        SELECT MIN(s.timestamp_utc)
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        WHERE e.workout_id = :workoutId
+    """)
+    suspend fun getFirstSetTimestampForWorkout(workoutId: Long): Long?
+
     @Query("SELECT MAX(set_index) FROM set_entry WHERE exercise_entry_id = :entryId")
     suspend fun getMaxSetIndex(entryId: Long): Int?
 

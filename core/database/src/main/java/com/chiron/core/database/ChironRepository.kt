@@ -302,6 +302,12 @@ class ChironRepository(
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryRepository.getLastSetForExercise(exerciseId)
 
+    suspend fun getLastSetTimestampForWorkout(workoutId: Long): Long? =
+        setEntryRepository.getLastSetTimestampForWorkout(workoutId)
+
+    suspend fun getFirstSetTimestampForWorkout(workoutId: Long): Long? =
+        setEntryRepository.getFirstSetTimestampForWorkout(workoutId)
+
     /** Resolve the workout/entry/setIndex for a given set (used to deep-link from a PR row). */
     suspend fun getWorkoutContextForSet(setId: Long): SetWorkoutContext? =
         setEntryDao.getWorkoutContextForSet(setId)

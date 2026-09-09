@@ -38,7 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -86,6 +88,7 @@ fun WorkoutEditorHeader(
     allLocations: List<String>,
     onShowDeleteDialog: () -> Unit,
     onShowDuplicateDialog: () -> Unit,
+    onResetTimes: (suspend () -> HistoryViewModel.WorkoutTimingReset?)? = null,
     onDone: () -> Unit
 ) {
     var expandedLocation by remember { mutableStateOf(false) }
@@ -216,6 +219,7 @@ fun WorkoutEditorHeader(
                     initialStart = DateUtils.getStartStr(workout),
                     initialEndDate = DateUtils.getEndDateStr(workout),
                     initialEnd = DateUtils.getEndStr(workout),
+                    onReset = onResetTimes,
                     onDismiss = { isTimeDialogOpen = false },
                     onConfirm = { startDate, startTime, endDate, endTime ->
                         tryUpdateTimes(startDate, startTime, endDate, endTime)
@@ -331,6 +335,7 @@ fun WorkoutTimeDialog(
     initialStart: String,
     initialEndDate: String,
     initialEnd: String,
+    onReset: (suspend () -> HistoryViewModel.WorkoutTimingReset?)? = null,
     onDismiss: () -> Unit,
     onConfirm: (String, String, String, String) -> Unit
 ) {
@@ -338,6 +343,7 @@ fun WorkoutTimeDialog(
     var start by remember { mutableStateOf(initialStart) }
     var endDate by remember { mutableStateOf(initialEndDate) }
     var end by remember { mutableStateOf(initialEnd) }
+    val scope = rememberCoroutineScope()
 
     var isDateSectionExpanded by remember { mutableStateOf(false) }
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -521,8 +527,30 @@ fun WorkoutTimeDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onReset != null) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                val reset = onReset()
+                                if (reset != null) {
+                                    startDate = reset.startDate
+                                    start = reset.startTime
+                                    endDate = reset.endDate
+                                    end = reset.endTime
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Reset", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,

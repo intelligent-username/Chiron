@@ -193,6 +193,7 @@ fun WorkoutEditor(
                     allLocations = allLocations,
                     onShowDeleteDialog = { showDeleteConfirmation = true },
                     onShowDuplicateDialog = { showDuplicateConfirmation = true },
+                    onResetTimes = { viewModel.getResetTimingForWorkout(workout.id) },
                     onDone = {
                         if (!isEditable) return@WorkoutEditorHeader
                         viewModel.saveWorkoutImmediate(

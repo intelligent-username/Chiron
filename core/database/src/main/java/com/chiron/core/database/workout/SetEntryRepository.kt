@@ -26,15 +26,30 @@ class SetEntryRepository(
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> =
         setEntryDao.getSetsForEntry(entryId)
 
-    suspend fun insertSet(set: SetEntry): Long = setEntryDao.insertSet(set)
+    suspend fun insertSet(set: SetEntry): Long {
+        val newSetId = setEntryDao.insertSet(set)
+        updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
+        return newSetId
+    }
 
     suspend fun insertSetAndEvaluateHistoricalPr(set: SetEntry): Long {
         val newSetId = setEntryDao.insertSet(set)
-        updateSetAndEvaluateHistoricalPr(set.copy(id = newSetId))
+        updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
+        updateSetAndEvaluateHistoricalPrInternal(set.copy(id = newSetId), isNewSet = true)
         return newSetId
     }
 
     suspend fun updateSet(set: SetEntry) = setEntryDao.updateSet(set)
+
+    private suspend fun updateWorkoutEndTime(exerciseEntryId: Long, timestampUtc: Long) {
+        val workoutId = setEntryDao.getWorkoutIdForEntry(exerciseEntryId) ?: return
+        val workout = workoutSessionDao.getById(workoutId) ?: return
+        val currentEndTime = workout.endTimeUtc
+        val newEndTime = if (timestampUtc < workout.dateUtc) workout.dateUtc else timestampUtc
+        if (currentEndTime == null || newEndTime > currentEndTime) {
+            workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = newEndTime))
+        }
+    }
 
     /**
      * Update one set and evaluate its historical PR flag relative to what existed
@@ -44,7 +59,11 @@ class SetEntryRepository(
      * Does **not** rebuild or rewrite other sets' `is_pr` flags.
      */
     suspend fun updateSetAndEvaluateHistoricalPr(set: SetEntry) {
-        val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
+        updateSetAndEvaluateHistoricalPrInternal(set, isNewSet = false)
+    }
+
+    private suspend fun updateSetAndEvaluateHistoricalPrInternal(set: SetEntry, isNewSet: Boolean) {
+        val oldSet = if (!isNewSet && set.id > 0) setEntryDao.getById(set.id) else null
         setEntryDao.updateSet(set)
 
         // Config-driven placeholder detection: a set is newly completed if all
@@ -65,20 +84,9 @@ class SetEntryRepository(
             set.durationSeconds != null || set.distanceMeters != null
         )
 
-        // Only infer and update the workout's end time if a set is newly created or newly completed.
-        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
-
-        if (oldSet == null || isNowCompleted) {
-            if (workoutId != null) {
-                val workout = workoutSessionDao.getById(workoutId)
-                if (workout != null) {
-                    val isWithinSessionWindow = set.timestampUtc >= workout.dateUtc &&
-                                               (set.timestampUtc - workout.dateUtc) < 12 * 3600 * 1000L
-                    if (isWithinSessionWindow && (workout.endTimeUtc == null || set.timestampUtc > (workout.endTimeUtc ?: 0L))) {
-                        workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = set.timestampUtc))
-                    }
-                }
-            }
+        // Infer and update the workout's end time if a set is newly created or newly completed.
+        if (isNewSet || isNowCompleted) {
+            updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
         }
 
         // ── PR evaluation ──────────────────────────────────────────────────────
@@ -107,7 +115,8 @@ class SetEntryRepository(
             return
         }
 
-        val workout = workoutId?.let { workoutSessionDao.getById(it) } ?: return
+        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) ?: return
+        val workout = workoutSessionDao.getById(workoutId) ?: return
 
         val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
             exerciseId = exerciseId,
@@ -138,6 +147,7 @@ class SetEntryRepository(
         setId: Long,
         onDeletedSet: suspend (exerciseId: Long, reps: Int) -> Unit
     ) {
+        val workoutId = setEntryDao.getWorkoutIdForEntry(entryId)
         val set = setEntryDao.getById(setId)
         val entry = exerciseEntryDao.getById(entryId)
         setEntryDao.deleteAndReindex(entryId, setId)
@@ -145,7 +155,20 @@ class SetEntryRepository(
         if (entry != null && reps != null) {
             onDeletedSet(entry.exerciseId, reps)
         }
+        if (workoutId != null) {
+            val lastTimestamp = setEntryDao.getLastSetTimestampForWorkout(workoutId)
+            val workout = workoutSessionDao.getById(workoutId)
+            if (workout != null) {
+                workoutSessionDao.updateWorkout(workout.copy(endTimeUtc = lastTimestamp))
+            }
+        }
     }
+
+    suspend fun getLastSetTimestampForWorkout(workoutId: Long): Long? =
+        setEntryDao.getLastSetTimestampForWorkout(workoutId)
+
+    suspend fun getFirstSetTimestampForWorkout(workoutId: Long): Long? =
+        setEntryDao.getFirstSetTimestampForWorkout(workoutId)
 
     /** Get the last set recorded for an exercise (for autofill). */
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =

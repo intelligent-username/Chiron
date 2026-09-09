@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -216,11 +217,17 @@ class HistoryViewModel(
 
     fun createNewWorkout(dayTag: String, locationTag: String, dateIso: String? = null) {
         viewModelScope.launch {
-            val targetDateIso = dateIso ?: LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val targetDateUtc = try {
-                LocalDate.parse(targetDateIso).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            } catch (e: Exception) {
-                Instant.now().toEpochMilli()
+            val now = Instant.now()
+            val todayIso = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val targetDateIso = dateIso ?: todayIso
+            val targetDateUtc = if (targetDateIso == todayIso) {
+                now.toEpochMilli()
+            } else {
+                try {
+                    LocalDate.parse(targetDateIso).atTime(LocalTime.now()).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    now.toEpochMilli()
+                }
             }
             val id = repository.insertWorkout(
                 WorkoutSession(
@@ -232,6 +239,44 @@ class HistoryViewModel(
             )
             openEditor(id)
         }
+    }
+
+    data class WorkoutTimingReset(
+        val startDate: String,
+        val startTime: String,
+        val endDate: String,
+        val endTime: String
+    )
+
+    suspend fun getResetTimingForWorkout(workoutId: Long): WorkoutTimingReset? {
+        val workout = repository.getWorkoutById(workoutId) ?: return null
+        val firstSetTime = repository.getFirstSetTimestampForWorkout(workoutId)
+        val lastSetTime = repository.getLastSetTimestampForWorkout(workoutId)
+
+        val zone = ZoneId.systemDefault()
+        val creationZdt = Instant.ofEpochMilli(workout.dateUtc).atZone(zone)
+        val isMidnight = creationZdt.hour == 0 && creationZdt.minute == 0 && creationZdt.second == 0
+
+        val effectiveStartEpoch = if (isMidnight && firstSetTime != null) {
+            firstSetTime
+        } else {
+            workout.dateUtc
+        }
+
+        val effectiveEndEpoch = lastSetTime ?: workout.endTimeUtc ?: effectiveStartEpoch
+
+        val startZdt = Instant.ofEpochMilli(effectiveStartEpoch).atZone(zone)
+        val endZdt = Instant.ofEpochMilli(effectiveEndEpoch).atZone(zone)
+
+        val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+        return WorkoutTimingReset(
+            startDate = startZdt.format(dateFormatter),
+            startTime = startZdt.format(timeFormatter),
+            endDate = endZdt.format(dateFormatter),
+            endTime = endZdt.format(timeFormatter)
+        )
     }
 
     private var pendingWorkout: WorkoutSession? = null
