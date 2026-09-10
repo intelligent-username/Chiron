@@ -177,6 +177,9 @@ class HistoryViewModel(
 
     init {
         viewModelScope.launch {
+            repository.backfill1rmEstimates()
+        }
+        viewModelScope.launch {
             repository.workoutsFlow.collect { w ->
                 val locations = w.map { it.locationTag }.filter { it.isNotBlank() }.distinct().sorted()
                 _uiState.update { it.copy(workouts = w, locationTags = locations) }

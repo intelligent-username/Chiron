@@ -4,6 +4,8 @@ import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.ExerciseEntryDao
 import com.chiron.core.database.dao.SetEntryDao
 import com.chiron.core.database.dao.WorkoutSessionDao
+import com.chiron.core.database.pr.PrCategory
+import com.chiron.core.database.pr.prCategory
 import com.chiron.core.model.SetEntry
 import kotlinx.coroutines.flow.Flow
 
@@ -90,16 +92,19 @@ class SetEntryRepository(
         }
 
         // ── PR evaluation ──────────────────────────────────────────────────────
-        // Only weight+reps exercises are eligible for PR tracking.
-        val isPrEligible = exercise != null &&
-            exercise.isWeightBased == 1 &&
-            exercise.isRepBased == 1
+        if (exercise == null) return
 
-        if (!isPrEligible) {
-            // Ensure is_pr = 0 for non-eligible exercises
+        val category = exercise.prCategory()
+        if (category == PrCategory.NONE) {
             if (set.isPr != 0) {
                 setEntryDao.updateSet(set.copy(isPr = 0))
             }
+            return
+        }
+
+        if (category != PrCategory.WEIGHT_REPS) {
+            // For TIME_WEIGHT, DISTANCE_WEIGHT, and DISTANCE_TIME, PR evaluation
+            // and per-set is_pr flags are delegated to PrRepository.rebuildPrsForExercise.
             onSyncGlobalPrBucket(exerciseId, 0)
             return
         }
@@ -152,8 +157,8 @@ class SetEntryRepository(
         val entry = exerciseEntryDao.getById(entryId)
         setEntryDao.deleteAndReindex(entryId, setId)
         val reps = set?.reps
-        if (entry != null && reps != null) {
-            onDeletedSet(entry.exerciseId, reps)
+        if (entry != null) {
+            onDeletedSet(entry.exerciseId, reps ?: 0)
         }
         if (workoutId != null) {
             val lastTimestamp = setEntryDao.getLastSetTimestampForWorkout(workoutId)
