@@ -48,6 +48,7 @@ fun BottomNavBar(
     modifier: Modifier = Modifier,
     isVolumeMode: Boolean = false,
     isGoalsMode: Boolean = false,
+    isBodyweightMode: Boolean = false,
     drawBackgroundAndBorder: Boolean = true
 ) {
     BoxWithConstraints(
@@ -106,11 +107,13 @@ fun BottomNavBar(
                     val labelStr = when {
                         tab == NavTab.HISTORY && isVolumeMode -> "Volume"
                         tab == NavTab.EXERCISES && isGoalsMode -> "Goals"
+                        tab == NavTab.TIMER && isBodyweightMode -> "Stats"
                         else -> tab.label
                     }
                     val iconVec = when {
                         tab == NavTab.HISTORY && isVolumeMode -> Icons.Default.ShowChart
                         tab == NavTab.EXERCISES && isGoalsMode -> Icons.Default.Flag
+                        tab == NavTab.TIMER && isBodyweightMode -> Icons.Default.ShowChart
                         else -> tab.icon
                     }
                     val isSelected = selectedTab == tab
