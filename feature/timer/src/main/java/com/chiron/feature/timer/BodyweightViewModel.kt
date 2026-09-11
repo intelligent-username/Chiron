@@ -2,26 +2,20 @@ package com.chiron.feature.timer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.chiron.core.database.ChironRepository
+import com.chiron.core.model.BodyWeightEntry
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-
-// ── Public data types ─────────────────────────────────────────────────────────
-
-// UI-only weigh-in row. Canonical lbs, mirrors future BodyWeightEntry shape.
-// TODO(DB): replace with foundation BodyWeightEntry and observe via
-// ChironRepository.observeBodyweights() after Tier-1 lifted.
-data class BodyweightEntry(
-    val id: Long,
-    val timestampUtc: Long,
-    val weightLbs: Double
-)
+import kotlinx.coroutines.launch
 
 /** A single point on the bodyweight line graph. */
 data class BodyweightPoint(
@@ -52,42 +46,51 @@ data class BodyweightUiState(
     val isAtCurrentWeek: Boolean = true,
     val abridgeGaps: Boolean = true,
     val stats: BodyweightStats = BodyweightStats(),
-    val entries: List<BodyweightEntry> = emptyList(),
+    val entries: List<BodyWeightEntry> = emptyList(),
     val error: String? = null
 )
 
-// ── ViewModel (UI-shell stub, memory only) ────────────────────────────────────
-
-/**
- * In-memory stub for the bodyweight stats tab.
- * Holds hardcoded preview entries in canonical lbs. No persistence.
- * TODO(DB): collect ChironRepository.observeBodyweights() here after Tier-1 lifted.
- */
-class BodyweightViewModel : ViewModel() {
+/** Real ViewModel over ChironRepository.observeBodyWeights. Canonical lbs. */
+class BodyweightViewModel(
+    private val repository: ChironRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BodyweightUiState())
     val uiState: StateFlow<BodyweightUiState> = _uiState.asStateFlow()
 
-    private val allEntries = mutableListOf<BodyweightEntry>()
-    private var nextId = 1L
+    private var allEntries: List<BodyWeightEntry> = emptyList()
     private var firstWeekStart: LocalDate = LocalDate.now()
         .with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    private var loadJob: Job? = null
 
     init {
-        loadPreview()
+        load()
     }
 
-    /** Rebuild stub state. TODO(DB): replace with re-collect of observeBodyweights(). */
+    /** Re-collect repository flow. */
     fun refresh() {
-        rebuild { it.copy(isLoading = false, error = null) }
+        load()
     }
 
     fun setMode(mode: BodyweightMode) {
-        rebuild { it.copy(mode = mode) }
+        _uiState.update { state ->
+            state.copy(
+                mode = mode,
+                points = buildPoints(mode, state.currentWeekStart, state.weekCount, state.abridgeGaps),
+                stats = computeStats(buildPoints(mode, state.currentWeekStart, state.weekCount, state.abridgeGaps))
+            )
+        }
     }
 
     fun setWeekCount(count: Int) {
-        rebuild { it.copy(weekCount = count.coerceIn(2, 10)) }
+        val clamped = count.coerceIn(2, 10)
+        _uiState.update { state ->
+            state.copy(
+                weekCount = clamped,
+                points = buildPoints(state.mode, state.currentWeekStart, clamped, state.abridgeGaps),
+                stats = computeStats(buildPoints(state.mode, state.currentWeekStart, clamped, state.abridgeGaps))
+            )
+        }
     }
 
     fun goToPreviousWeek() {
@@ -95,9 +98,11 @@ class BodyweightViewModel : ViewModel() {
             val step = if (state.mode == BodyweightMode.BY_DAY) 1 else state.weekCount
             val newWeek = state.currentWeekStart.minusWeeks(step.toLong())
             if (newWeek < firstWeekStart) return@update state
+            val pts = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps)
             state.copy(
                 currentWeekStart = newWeek,
-                points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
+                points = pts,
+                stats = computeStats(pts),
                 isAtFirstWeek = newWeek <= firstWeekStart,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
             )
@@ -110,9 +115,11 @@ class BodyweightViewModel : ViewModel() {
             val step = if (state.mode == BodyweightMode.BY_DAY) 1 else state.weekCount
             val newWeek = state.currentWeekStart.plusWeeks(step.toLong())
             if (newWeek > todayWeek) return@update state
+            val pts = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps)
             state.copy(
                 currentWeekStart = newWeek,
-                points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
+                points = pts,
+                stats = computeStats(pts),
                 isAtFirstWeek = newWeek <= firstWeekStart,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
             )
@@ -122,39 +129,63 @@ class BodyweightViewModel : ViewModel() {
     fun toggleAbridgeGaps() {
         _uiState.update { state ->
             val abridged = !state.abridgeGaps
-            state.copy(
-                abridgeGaps = abridged,
-                points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, abridged)
-            )
+            val pts = buildPoints(state.mode, state.currentWeekStart, state.weekCount, abridged)
+            state.copy(abridgeGaps = abridged, points = pts, stats = computeStats(pts))
         }
     }
 
-    /** Log a weigh-in stamped now. TODO(DB): delegate to insertBodyweight() after Tier-1 lifted. */
+    /** Log a weigh-in stamped now. */
     fun logWeight(weightLbs: Double) {
-        val err = validate(weightLbs) ?: run {
-            allEntries.add(BodyweightEntry(nextId++, System.currentTimeMillis(), weightLbs))
-            sortAndClampFirstWeek()
-            null
+        val err = validate(weightLbs)
+        if (err != null) {
+            _uiState.update { it.copy(error = err) }
+            return
         }
-        rebuild { it.copy(error = err) }
-    }
-
-    /** Edit weight, keep original timestamp. TODO(DB): delegate to updateBodyweight(). */
-    fun updateEntry(id: Long, weightLbs: Double) {
-        val err = validate(weightLbs) ?: run {
-            val idx = allEntries.indexOfFirst { it.id == id }
-            if (idx < 0) "Entry not found" else {
-                allEntries[idx] = allEntries[idx].copy(weightLbs = weightLbs)
-                null
+        viewModelScope.launch {
+            runCatching {
+                repository.insertBodyWeight(
+                    BodyWeightEntry(timestampUtc = System.currentTimeMillis(), weightLbs = weightLbs)
+                )
+            }.onSuccess {
+                _uiState.update { it.copy(error = null) }
+            }.onFailure { e ->
+                _uiState.update { it.copy(error = e.message ?: "Save failed") }
             }
         }
-        rebuild { it.copy(error = err) }
     }
 
-    /** Delete a weigh-in. TODO(DB): delegate to deleteBodyweight(). */
+    /** Edit weight, keep original timestamp. */
+    fun updateEntry(id: Long, weightLbs: Double) {
+        val err = validate(weightLbs)
+        if (err != null) {
+            _uiState.update { it.copy(error = err) }
+            return
+        }
+        val existing = allEntries.firstOrNull { it.id == id }
+        if (existing == null) {
+            _uiState.update { it.copy(error = "Entry not found") }
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                repository.updateBodyWeight(existing.copy(weightLbs = weightLbs))
+            }.onSuccess {
+                _uiState.update { it.copy(error = null) }
+            }.onFailure { e ->
+                _uiState.update { it.copy(error = e.message ?: "Update failed") }
+            }
+        }
+    }
+
+    /** Delete a weigh-in. */
     fun deleteEntry(id: Long) {
-        allEntries.removeAll { it.id == id }
-        rebuild { it.copy(error = null) }
+        viewModelScope.launch {
+            runCatching { repository.deleteBodyWeightById(id) }
+                .onSuccess { _uiState.update { it.copy(error = null) } }
+                .onFailure { e ->
+                    _uiState.update { it.copy(error = e.message ?: "Delete failed") }
+                }
+        }
     }
 
     fun clearError() {
@@ -163,26 +194,40 @@ class BodyweightViewModel : ViewModel() {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    private fun load() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            runCatching { repository.observeBodyWeights() }
+                .onSuccess { flow ->
+                    flow.collect { rows -> onRows(rows) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    private fun onRows(rows: List<BodyWeightEntry>) {
+        allEntries = rows.sortedBy { it.timestampUtc }
+        updateFirstWeekStart()
+        _uiState.update { state ->
+            val pts = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
+            state.copy(
+                isLoading = false,
+                points = pts,
+                stats = computeStats(pts),
+                entries = allEntries.sortedByDescending { it.timestampUtc },
+                isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
+                isAtCurrentWeek = isCurrentWeek(state.currentWeekStart)
+            )
+        }
+    }
+
     private fun validate(weightLbs: Double): String? = when {
         !weightLbs.isFinite() || weightLbs <= 0.0 -> "Enter a weight above 0"
         weightLbs < 20.0 || weightLbs > 1500.0 -> "Enter a weight between 20 and 1500 lbs"
         else -> null
-    }
-
-    private fun rebuild(transform: (BodyweightUiState) -> BodyweightUiState) {
-        _uiState.update { state ->
-            val points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
-            transform(
-                state.copy(
-                    isLoading = false,
-                    points = points,
-                    stats = computeStats(points),
-                    entries = allEntries.sortedByDescending { it.timestampUtc },
-                    isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
-                    isAtCurrentWeek = isCurrentWeek(state.currentWeekStart)
-                )
-            )
-        }
     }
 
     private fun computeStats(points: List<BodyweightPoint>): BodyweightStats {
@@ -211,7 +256,7 @@ class BodyweightViewModel : ViewModel() {
         return if (abridgeGaps) pts.filter { it.weightLbs > 0.0 } else pts
     }
 
-    private fun lastEntryOn(date: LocalDate): BodyweightEntry? {
+    private fun lastEntryOn(date: LocalDate): BodyWeightEntry? {
         val zone = ZoneId.systemDefault()
         return allEntries.filter {
             Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate() == date
@@ -236,14 +281,14 @@ class BodyweightViewModel : ViewModel() {
             for (d in 0..6) {
                 val date = current.plusDays(d.toLong())
                 val hit = lastEntryOn(date)
-                out.add(BodyweightPoint(if (d == 0) current.format(fmt) else "", hit?.weightLbs ?: 0.0, hit?.timestampUtc ?: 0L, date))
+                val label = if (d == 0) current.format(fmt) else ""
+                out.add(BodyweightPoint(label, hit?.weightLbs ?: 0.0, hit?.timestampUtc ?: 0L, date))
             }
         }
         return out
     }
 
-    private fun sortAndClampFirstWeek() {
-        allEntries.sortBy { it.timestampUtc }
+    private fun updateFirstWeekStart() {
         val zone = ZoneId.systemDefault()
         val earliest = allEntries.minOfOrNull {
             Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate()
@@ -251,27 +296,16 @@ class BodyweightViewModel : ViewModel() {
         firstWeekStart = earliest.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     }
 
-    private fun loadPreview() {
-        val day = 24L * 60L * 60L * 1000L
-        val now = System.currentTimeMillis()
-        // Hardcoded preview entries, canonical lbs internally.
-        val previewLbs = listOf(182.5, 181.0, 183.2, 180.4, 179.8, 181.6, 180.1)
-        val daysAgo = listOf(20L, 16L, 13L, 9L, 6L, 3L, 1L)
-        previewLbs.zip(daysAgo).forEach { (lbs, ago) ->
-            allEntries.add(BodyweightEntry(nextId++, now - ago * day, lbs))
-        }
-        sortAndClampFirstWeek()
-        rebuild { it.copy() }
-    }
-
     private fun todayWeekStart(): LocalDate =
         LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
     private fun isCurrentWeek(weekStart: LocalDate): Boolean = weekStart >= todayWeekStart()
 
-    class Factory : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: ChironRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            BodyweightViewModel() as T
+            BodyweightViewModel(repository) as T
     }
 }
