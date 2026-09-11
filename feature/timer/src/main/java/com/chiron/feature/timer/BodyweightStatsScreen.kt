@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.ui.components.WeekNavigator
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.ElectricBlue
@@ -78,8 +79,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
-// UI-shell stub only. Entries are hardcoded previews in the ViewModel (lbs).
-// TODO(DB): bind log/edit/delete/import to ChironRepository facade after Tier-1 lifted.
+// Real wiring: log/edit/delete delegate to BodyweightViewModel repository intents.
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -158,7 +158,6 @@ fun BodyweightContent(
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(8.dp))
-        // TODO(DB): route onImportClick to Aspect 3 importer dialog after Tier-1 lifted.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             OutlinedButton(onClick = onImportClick) { Text("Import") }
         }
@@ -180,7 +179,6 @@ fun BodyweightContent(
         Spacer(modifier = Modifier.height(16.dp))
         StatsSection(stats = state.stats, displayInKg = displayInKg, unit = unit)
         Spacer(modifier = Modifier.height(16.dp))
-        // TODO(DB): rows come from observeBodyweights(); edit/delete hit update/delete facade.
         HistoryList(entries = state.entries, displayInKg = displayInKg, onEdit = onEdit, onDelete = onDelete)
         Spacer(modifier = Modifier.height(120.dp))
     }
@@ -196,15 +194,26 @@ fun LogInput(
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastSubmitMs by rememberSaveable { mutableStateOf(0L) }
     val unit = if (displayInKg) "kg" else "lbs"
     fun submit() {
+        val now = System.currentTimeMillis()
+        if (now - lastSubmitMs < 500L) return
         val parsed = text.trim().toDoubleOrNull()
-        if (parsed == null) {
+        if (parsed == null || !parsed.isFinite()) {
             localError = "Enter a valid number"
             return
         }
-        // TODO(DB): onLog persists via insertBodyweight(timestampUtc = now) after Tier-1 lifted.
         val lbs = if (displayInKg) UnitConversion.kgToLbs(parsed) else parsed
+        if (lbs <= 0.0) {
+            localError = "Enter a weight above 0"
+            return
+        }
+        if (lbs < 20.0 || lbs > 1500.0) {
+            localError = "Enter a weight between 20 and 1500 lbs"
+            return
+        }
+        lastSubmitMs = now
         localError = null
         onLog(lbs)
         text = ""
@@ -230,7 +239,7 @@ fun LogInput(
                     keyboardActions = KeyboardActions(onDone = { submit() }),
                     modifier = Modifier.weight(1f)
                 )
-                Button(onClick = { submit() }) { Text("Log") }
+                Button(onClick = { submit() }, enabled = text.trim().isNotEmpty()) { Text("Log") }
             }
             val msg = localError ?: error
             if (msg != null) {
@@ -629,13 +638,15 @@ private fun StatRow(label: String, value: String) {
 
 @Composable
 fun HistoryList(
-    entries: List<BodyweightEntry>,
+    entries: List<BodyWeightEntry>,
     displayInKg: Boolean,
     onEdit: (Long, Double) -> Unit,
     onDelete: (Long) -> Unit
 ) {
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
+    var editInKg by rememberSaveable { mutableStateOf(displayInKg) }
+    var editError by rememberSaveable { mutableStateOf<String?>(null) }
     val unit = if (displayInKg) "kg" else "lbs"
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -652,8 +663,9 @@ fun HistoryList(
             entries.forEach { entry ->
                 val display = if (displayInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
                 if (editingId == entry.id) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -666,13 +678,29 @@ fun HistoryList(
                         )
                         TextButton(onClick = {
                             val parsed = editText.trim().toDoubleOrNull()
-                            if (parsed != null) {
-                                // TODO(DB): onEdit persists via updateBodyweight() after Tier-1 lifted.
-                                onEdit(entry.id, if (displayInKg) UnitConversion.kgToLbs(parsed) else parsed)
-                                editingId = null
+                            if (parsed == null || !parsed.isFinite()) {
+                                editError = "Enter a valid number"
+                                return@TextButton
                             }
+                            val lbs = if (editInKg) UnitConversion.kgToLbs(parsed) else parsed
+                            if (lbs <= 0.0) {
+                                editError = "Enter a weight above 0"
+                                return@TextButton
+                            }
+                            if (lbs < 20.0 || lbs > 1500.0) {
+                                editError = "Enter a weight between 20 and 1500 lbs"
+                                return@TextButton
+                            }
+                            editError = null
+                            onEdit(entry.id, lbs)
+                            editingId = null
                         }) { Text("Save") }
-                        TextButton(onClick = { editingId = null }) { Text("Cancel") }
+                        TextButton(onClick = { editingId = null; editError = null }) { Text("Cancel") }
+                    }
+                    if (editError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
                     }
                 } else {
                     Row(
@@ -691,9 +719,10 @@ fun HistoryList(
                         }
                         TextButton(onClick = {
                             editingId = entry.id
+                            editInKg = displayInKg
+                            editError = null
                             editText = UnitConversion.formatNumber(display)
                         }) { Text("Edit") }
-                        // TODO(DB): onDelete persists via deleteBodyweight() after Tier-1 lifted.
                         TextButton(onClick = { onDelete(entry.id) }) { Text("Delete") }
                     }
                 }
