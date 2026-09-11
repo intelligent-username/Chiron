@@ -45,6 +45,8 @@ import com.chiron.feature.history.HistoryViewModel
 import com.chiron.feature.history.VolumeScreen
 import com.chiron.feature.history.VolumeViewModel
 import com.chiron.feature.timer.AddPresetDialog
+import com.chiron.feature.timer.BodyweightStatsScreen
+import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.PresetsSheet
 import com.chiron.feature.timer.TimerScreenHost
 import com.chiron.feature.timer.TimerTab
@@ -72,12 +74,15 @@ fun ChironApp(
     var exercisesSearchHasText by remember { mutableStateOf(false) }
     var isVolumeMode by rememberSaveable { mutableStateOf(false) }
     var isGoalsMode by rememberSaveable { mutableStateOf(false) }
+    var isBodyweightMode by rememberSaveable { mutableStateOf(false) }
 
     val exercisesState by exercisesViewModel.uiState.collectAsState()
     val historyState by historyViewModel.uiState.collectAsState()
     val timerState by timerViewModel.uiState.collectAsState()
     val volumeViewModel: VolumeViewModel = viewModel(factory = ServiceLocator.volumeViewModelFactory)
     val goalsViewModel: GoalsViewModel = viewModel(factory = ServiceLocator.goalsViewModelFactory)
+    // UI-shell stub: in-memory only, no repository. TODO(DB): wire ServiceLocator factory after Tier-1 lifted.
+    val bodyweightViewModel: BodyweightViewModel = viewModel(factory = BodyweightViewModel.Factory())
 
     val tabs = NavTab.entries.toTypedArray()
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
@@ -109,6 +114,9 @@ fun ChironApp(
 
     androidx.activity.compose.BackHandler(enabled = true) {
         when {
+            isBodyweightMode -> {
+                isBodyweightMode = false
+            }
             isGoalsMode -> {
                 isGoalsMode = false
                 goalsViewModel.closeDetail()
@@ -205,6 +213,21 @@ fun ChironApp(
                                     ) { isGoalsMode = !isGoalsMode }
                                 )
                             }
+                        } else if (selectedTab == NavTab.TIMER) {
+                            androidx.compose.animation.AnimatedContent(
+                                targetState = isBodyweightMode,
+                                label = "bodyweight_toggle"
+                            ) { mode ->
+                                Text(
+                                    text = if (mode) "Stats" else "Timer",
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    modifier = Modifier.clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                    ) { isBodyweightMode = !isBodyweightMode }
+                                )
+                            }
                         } else {
                             Text(
                                 text = when (selectedTab) { NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer"; else -> "" },
@@ -263,6 +286,7 @@ fun ChironApp(
                             selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                             isVolumeMode = isVolumeMode,
                             isGoalsMode = isGoalsMode,
+                            isBodyweightMode = isBodyweightMode,
                             drawBackgroundAndBorder = false,
                             onTabSelected = { tab ->
                                 if (tab == selectedTab) {
@@ -295,6 +319,7 @@ fun ChironApp(
                         selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                         isVolumeMode = isVolumeMode,
                         isGoalsMode = isGoalsMode,
+                        isBodyweightMode = isBodyweightMode,
                         drawBackgroundAndBorder = true,
                         onTabSelected = { tab ->
                             if (tab == selectedTab) {
@@ -424,7 +449,19 @@ fun ChironApp(
                                 }
                             }
                         }
-                        NavTab.TIMER -> TimerScreenHost(viewModel = timerViewModel)
+                        NavTab.TIMER -> {
+                            if (isBodyweightMode) {
+                                BodyweightStatsScreen(
+                                    viewModel = bodyweightViewModel,
+                                    displayInKg = historyState.displayInKg,
+                                    // TODO(DB): route to Aspect 3 importer dialog after Tier-1 lifted.
+                                    onImportClick = { },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                TimerScreenHost(viewModel = timerViewModel)
+                            }
+                        }
                     }
                 }
 
