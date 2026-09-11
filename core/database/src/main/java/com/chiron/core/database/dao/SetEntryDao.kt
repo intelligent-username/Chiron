@@ -219,6 +219,7 @@ interface SetEntryDao {
         WHERE s.weight_lbs IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
+          AND ex.is_bodyweight = 0
         GROUP BY w.id
         ORDER BY w.date_utc ASC
     """)
@@ -242,6 +243,7 @@ interface SetEntryDao {
         WHERE s.weight_lbs IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
+          AND ex.is_bodyweight = 0
         GROUP BY w.id
         ORDER BY w.date_utc ASC
     """)
@@ -265,6 +267,7 @@ interface SetEntryDao {
         WHERE s.weight_lbs IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
+          AND ex.is_bodyweight = 0
           AND e.exercise_id = :exerciseId
         GROUP BY w.id
         ORDER BY w.date_utc ASC
@@ -289,11 +292,94 @@ interface SetEntryDao {
         WHERE s.weight_lbs IS NOT NULL
           AND s.is_failed = 0
           AND w.archived = 0
+          AND ex.is_bodyweight = 0
           AND e.exercise_id = :exerciseId
         GROUP BY w.id
         ORDER BY w.date_utc ASC
     """)
     fun getVolumeSummaryByDayForExerciseFlow(exerciseId: Long): Flow<List<DailyVolume>>
+
+    /**
+     * Unaggregated bodyweight component rows for the Kotlin dynamic-volume pipeline.
+     * No SUM/GROUP BY here; aggregation happens in SetEntryRepository.
+     */
+    @Query("""
+        SELECT e.workout_id AS workoutId,
+               w.date_utc AS dateUtc,
+               ex.percent_bodyweight AS percentBodyweight,
+               s.weight_lbs AS addedWeightLbs,
+               s.reps AS reps,
+               s.duration_seconds AS durationSeconds,
+               s.distance_meters AS distanceMeters
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE ex.is_bodyweight = 1
+          AND s.is_failed = 0
+          AND w.archived = 0
+        ORDER BY w.date_utc ASC
+    """)
+    suspend fun getBodyweightSetRows(): List<BodyweightSetRow>
+
+    @Query("""
+        SELECT e.workout_id AS workoutId,
+               w.date_utc AS dateUtc,
+               ex.percent_bodyweight AS percentBodyweight,
+               s.weight_lbs AS addedWeightLbs,
+               s.reps AS reps,
+               s.duration_seconds AS durationSeconds,
+               s.distance_meters AS distanceMeters
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE ex.is_bodyweight = 1
+          AND s.is_failed = 0
+          AND w.archived = 0
+        ORDER BY w.date_utc ASC
+    """)
+    fun getBodyweightSetRowsFlow(): Flow<List<BodyweightSetRow>>
+
+    @Query("""
+        SELECT e.workout_id AS workoutId,
+               w.date_utc AS dateUtc,
+               ex.percent_bodyweight AS percentBodyweight,
+               s.weight_lbs AS addedWeightLbs,
+               s.reps AS reps,
+               s.duration_seconds AS durationSeconds,
+               s.distance_meters AS distanceMeters
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE ex.is_bodyweight = 1
+          AND s.is_failed = 0
+          AND w.archived = 0
+          AND e.exercise_id = :exerciseId
+        ORDER BY w.date_utc ASC
+    """)
+    suspend fun getBodyweightSetRowsForExercise(exerciseId: Long): List<BodyweightSetRow>
+
+    @Query("""
+        SELECT e.workout_id AS workoutId,
+               w.date_utc AS dateUtc,
+               ex.percent_bodyweight AS percentBodyweight,
+               s.weight_lbs AS addedWeightLbs,
+               s.reps AS reps,
+               s.duration_seconds AS durationSeconds,
+               s.distance_meters AS distanceMeters
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE ex.is_bodyweight = 1
+          AND s.is_failed = 0
+          AND w.archived = 0
+          AND e.exercise_id = :exerciseId
+        ORDER BY w.date_utc ASC
+    """)
+    fun getBodyweightSetRowsForExerciseFlow(exerciseId: Long): Flow<List<BodyweightSetRow>>
 
     /**
      * Returns true if any set_entry row exists for the given exercise (via exercise_entry join).
@@ -312,6 +398,17 @@ interface SetEntryDao {
 data class DailyVolume(
     val dateUtc: Long,
     val volumeLbs: Double
+)
+
+/** Unaggregated bodyweight set for Kotlin volume aggregation. */
+data class BodyweightSetRow(
+    val workoutId: Long,
+    val dateUtc: Long,
+    val percentBodyweight: Double,
+    val addedWeightLbs: Double?,
+    val reps: Int?,
+    val durationSeconds: Int?,
+    val distanceMeters: Double?
 )
 
 /** Resolved location of a set within a workout (for deep-linking from a PR row). */
