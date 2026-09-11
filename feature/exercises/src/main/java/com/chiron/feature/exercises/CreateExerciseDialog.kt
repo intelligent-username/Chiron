@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chiron.core.ui.components.IconPicker
 
@@ -22,7 +23,9 @@ data class TrackingConfig(
     val isWeightBased: Boolean = true,
     val isRepBased: Boolean = true,   // mutually exclusive with isTimeBased
     val isTimeBased: Boolean = false,
-    val isDistanceBased: Boolean = false
+    val isDistanceBased: Boolean = false,
+    val isBodyweight: Boolean = false,
+    val percentBodyweight: Double = 100.0
 ) {
     /** True when the config is logically valid (at least one metric enabled). */
     val isValid: Boolean get() = isRepBased || isTimeBased
@@ -43,6 +46,8 @@ fun CreateExerciseDialog(
     var distanceEnabled by remember { mutableStateOf(false) }
     // true = reps, false = time
     var useReps by remember { mutableStateOf(true) }
+    var bodyweightEnabled by remember { mutableStateOf(false) }
+    var percentText by remember { mutableStateOf("100") }
 
     fun reset() {
         name = ""
@@ -51,13 +56,22 @@ fun CreateExerciseDialog(
         weightEnabled = true
         distanceEnabled = false
         useReps = true
+        bodyweightEnabled = false
+        percentText = "100"
     }
+
+    val percentValue = percentText.trim().toDoubleOrNull()
+    val percentError = if (!bodyweightEnabled) null
+        else if (percentValue == null || percentValue <= 0 || percentValue > 200) "Enter a percentage between 1 and 200"
+        else null
 
     val config = TrackingConfig(
         isWeightBased = weightEnabled,
         isRepBased = useReps,
         isTimeBased = !useReps,
-        isDistanceBased = distanceEnabled
+        isDistanceBased = distanceEnabled,
+        isBodyweight = bodyweightEnabled,
+        percentBodyweight = if (bodyweightEnabled) (percentValue ?: 100.0) else 100.0
     )
 
     AlertDialog(
@@ -127,6 +141,42 @@ fun CreateExerciseDialog(
                     )
                 }
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Track Bodyweight", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = bodyweightEnabled, onCheckedChange = { bodyweightEnabled = it })
+                }
+
+                if (bodyweightEnabled) {
+                    Text(
+                        "Weight you log on sets counts as EXTRA (vest/belt). Leave empty for plain bodyweight sets.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = percentText,
+                        onValueChange = { percentText = it },
+                        label = { Text("% of bodyweight") },
+                        suffix = { Text("%") },
+                        singleLine = true,
+                        isError = percentError != null,
+                        supportingText = { if (percentError != null) Text(percentError) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("50", "60", "80", "100").forEach { preset ->
+                            AssistChip(
+                                onClick = { percentText = preset },
+                                label = { Text("$preset%") }
+                            )
+                        }
+                    }
+                }
+
                 HorizontalDivider()
                 Box(modifier = Modifier.height(300.dp)) {
                     IconPicker(
@@ -139,12 +189,12 @@ fun CreateExerciseDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (name.isNotBlank() && config.isValid) {
+                    if (name.isNotBlank() && config.isValid && percentError == null) {
                         onCreate(name, selectedIcon, description, config)
                         reset()
                     }
                 },
-                enabled = name.isNotBlank() && config.isValid,
+                enabled = name.isNotBlank() && config.isValid && percentError == null,
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary,
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
