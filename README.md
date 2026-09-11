@@ -57,6 +57,15 @@ Dedicated pacing tools to keep your workouts on schedule:
 *   **Import / Export:** Clean database backup and recovery utilities to export or restore all workout metrics and history.
 *   **Unit Preferences:** Seamless conversions between Metric (Kg, Meters) and Imperial (Lbs, Feet/Inches).
 
+---
+
+## Bodyweight Tracking
+
+The Timer tab includes a "Stats over time" sub-tab (tap the Timer title) where you can log your weight for any moment. Weights are stored in canonical lbs and displayed in kg or lbs based on your settings. The graph abridges gaps by default (no fake 0 kg points) and updates reactively when you edit or delete past weigh-ins.
+
+In the Exercises tab, any exercise can be marked as a bodyweight exercise with a percentage (e.g., pull-ups at 100%, Australian pull-ups at 60%). The volume pipeline computes `bodyweight-on-that-day × percent + added load` dynamically, so editing a past weight updates historic volume automatically. The weight field on sets counts as extra load (vest/belt) for bodyweight exercises.
+
+A systematic file importer is available from the Stats tab: describe your file format (unit, stride, start character, date pattern), preview the parsed rows, and confirm to upsert them transactionally. Re-importing the same file is idempotent; malformed lines are reported without corrupting existing data.
 
 ---
 
