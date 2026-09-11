@@ -116,7 +116,7 @@ fun BodyweightImportDialog(
         },
         confirmButton = {
             Button(
-                // TODO(DB): wire onConfirm to BodyweightViewModel preview-confirm upsert path.
+                // TODO(DB): wire onConfirm to BodyweightViewModel preview-confirm persist path.
                 onClick = { onConfirm(config) },
                 enabled = canConfirm,
                 shape = RoundedCornerShape(12.dp)
