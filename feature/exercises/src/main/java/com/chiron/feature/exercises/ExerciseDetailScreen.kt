@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
@@ -58,9 +59,16 @@ fun ExerciseDetailScreen(
     var weightEnabled by remember(exercise.id) { mutableStateOf(exercise.isWeightBased == 1) }
     var distanceEnabled by remember(exercise.id) { mutableStateOf(exercise.isDistanceBased == 1) }
     var useReps by remember(exercise.id) { mutableStateOf(exercise.isTimeBased != 1) }
+    var bodyweightEnabled by remember(exercise.id) { mutableStateOf(exercise.isBodyweight == 1) }
+    var percentText by remember(exercise.id) { mutableStateOf(formatBodyweightPercent(exercise.percentBodyweight)) }
 
-    // Whether this exercise is eligible for PR / volume tracking (weight + reps)
-    val isPrEligible = exercise.isWeightBased == 1 && exercise.isRepBased == 1
+    // Volume Trend visible for weight+reps or bodyweight+reps (graph only, PR logic untouched)
+    val isPrEligible = (exercise.isWeightBased == 1 && exercise.isRepBased == 1) ||
+        (exercise.isBodyweight == 1 && exercise.isRepBased == 1)
+    val percentValue = percentText.trim().toDoubleOrNull()
+    val percentError = if (!bodyweightEnabled) null
+        else if (percentValue == null || percentValue <= 0 || percentValue > 200) "Enter a percentage between 1 and 200"
+        else null
 
     Scaffold(
         modifier = modifier,
@@ -126,7 +134,9 @@ fun ExerciseDetailScreen(
                                 isWeightBased = if (weightEnabled) 1 else 0,
                                 isRepBased = if (useReps) 1 else 0,
                                 isTimeBased = if (!useReps) 1 else 0,
-                                isDistanceBased = if (distanceEnabled) 1 else 0
+                                isDistanceBased = if (distanceEnabled) 1 else 0,
+                                isBodyweight = if (bodyweightEnabled) 1 else 0,
+                                percentBodyweight = if (bodyweightEnabled) (percentValue ?: exercise.percentBodyweight) else exercise.percentBodyweight
                             )
                             scope.launch {
                                 try {
@@ -137,7 +147,7 @@ fun ExerciseDetailScreen(
                                 }
                             }
                         },
-                        enabled = nameState.trim().isNotBlank(),
+                        enabled = nameState.trim().isNotBlank() && percentError == null,
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary,
                             disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -273,6 +283,42 @@ fun ExerciseDetailScreen(
                 }
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Track Bodyweight", style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = bodyweightEnabled, onCheckedChange = { bodyweightEnabled = it })
+            }
+
+            if (bodyweightEnabled) {
+                Text(
+                    "Weight you log on sets counts as EXTRA (vest/belt). Leave empty for plain bodyweight sets.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = percentText,
+                    onValueChange = { percentText = it },
+                    label = { Text("% of bodyweight") },
+                    suffix = { Text("%") },
+                    singleLine = true,
+                    isError = percentError != null,
+                    supportingText = { if (percentError != null) Text(percentError) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("50", "60", "80", "100").forEach { preset ->
+                        AssistChip(
+                            onClick = { percentText = preset },
+                            label = { Text("$preset%") }
+                        )
+                    }
+                }
+            }
+
             // ── Volume Trend — only for weight+reps ───────────────────────────
             if (isPrEligible) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -351,4 +397,10 @@ fun ExerciseDetailScreen(
             )
         }
     }
+}
+
+// Formats stored percent for the text field (100.0 becomes 100).
+private fun formatBodyweightPercent(value: Double): String {
+    if (value <= 0 || value > 200) return "100"
+    return if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
 }
