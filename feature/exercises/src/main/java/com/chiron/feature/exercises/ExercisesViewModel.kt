@@ -132,7 +132,9 @@ class ExercisesViewModel(
                 isWeightBased = if (config.isWeightBased) 1 else 0,
                 isRepBased = if (config.isRepBased) 1 else 0,
                 isTimeBased = if (config.isTimeBased) 1 else 0,
-                isDistanceBased = if (config.isDistanceBased) 1 else 0
+                isDistanceBased = if (config.isDistanceBased) 1 else 0,
+                isBodyweight = if (config.isBodyweight) 1 else 0,
+                percentBodyweight = config.percentBodyweight
             )
             repository.insertExercise(exercise)
         }
