@@ -42,5 +42,13 @@ data class Exercise(
 
     /** 1 = exercise tracks distance (meters stored, display-converted). */
     @ColumnInfo(name = "is_distance_based", defaultValue = "0")
-    val isDistanceBased: Int = 0
+    val isDistanceBased: Int = 0,
+
+    /** 1 = set load derives from bodyweight (pull-ups 100, Australian rows 60). */
+    @ColumnInfo(name = "is_bodyweight", defaultValue = "0")
+    val isBodyweight: Int = 0,
+
+    /** Percent of bodyweight applied when isBodyweight is 1. Vest work can exceed 100. */
+    @ColumnInfo(name = "percent_bodyweight", defaultValue = "100.0")
+    val percentBodyweight: Double = 100.0
 )
