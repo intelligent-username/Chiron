@@ -31,6 +31,10 @@ class ExerciseRepository(
      *
      * If the tracking configuration fields differ from the currently persisted exercise
      * AND history exists, this throws [IllegalStateException] with the canonical message.
+     *
+     * Bodyweight flags [Exercise.isBodyweight] and [Exercise.percentBodyweight] are
+     * EXCLUDED by design: they are a live scalar multiplier, not structural tracking
+     * config (see volume plan section 2.3). Flipping them with history present succeeds.
      */
     suspend fun updateExercise(exercise: Exercise) {
         val current = exerciseDao.getById(exercise.id)
