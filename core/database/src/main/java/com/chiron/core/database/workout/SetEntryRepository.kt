@@ -1,13 +1,21 @@
 package com.chiron.core.database.workout
 
+import com.chiron.core.database.bodyweight.BodyweightResolver
+import com.chiron.core.database.dao.BodyWeightDao
+import com.chiron.core.database.dao.BodyweightSetRow
+import com.chiron.core.database.dao.DailyVolume
 import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.ExerciseEntryDao
 import com.chiron.core.database.dao.SetEntryDao
 import com.chiron.core.database.dao.WorkoutSessionDao
 import com.chiron.core.database.pr.PrCategory
 import com.chiron.core.database.pr.prCategory
+import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.model.SetEntry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 
 /**
  * Handles CRUD for [SetEntry] records and drives per-set historical PR evaluation.
@@ -23,7 +31,8 @@ class SetEntryRepository(
     private val exerciseEntryDao: ExerciseEntryDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val exerciseDao: ExerciseDao,
-    private val onSyncGlobalPrBucket: suspend (exerciseId: Long, reps: Int) -> Unit
+    private val onSyncGlobalPrBucket: suspend (exerciseId: Long, reps: Int) -> Unit,
+    private val bodyWeightDao: BodyWeightDao? = null
 ) {
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> =
         setEntryDao.getSetsForEntry(entryId)
@@ -179,12 +188,89 @@ class SetEntryRepository(
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryDao.getLastSetForExercise(exerciseId)
 
-    /** Returns total volume (weight * reps) grouped by workout day. */
-    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) =
+    /**
+     * Total volume grouped by workout day, including dynamic bodyweight share.
+     *
+     * Base aggregates come from the bodyweight-excluded DAO queries; bodyweight
+     * component rows are resolved in Kotlin per day via [BodyweightResolver] and
+     * merged in. No stored volume column exists anywhere (Option C rejected);
+     * the per-day cache is built once per emission then discarded.
+     */
+    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null): List<DailyVolume> {
+        val bwDao = bodyWeightDao ?: return baseVolumeSync(exerciseId)
+        val weights = bwDao.getAllFlow().first()
+        val base = baseVolumeSync(exerciseId)
+        val rows = bodyweightRowsSync(exerciseId)
+        return mergeVolumes(base, rows, weights)
+    }
+
+    /** Flow variant combining weights with base volume, re-emitting on edits. */
+    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null): Flow<List<DailyVolume>> {
+        val bwDao = bodyWeightDao ?: return baseVolumeFlow(exerciseId)
+        val weightsFlow = bwDao.getAllFlow()
+        return if (exerciseId != null) {
+            combine(
+                weightsFlow,
+                setEntryDao.getVolumeSummaryByDayForExerciseFlow(exerciseId),
+                setEntryDao.getBodyweightSetRowsForExerciseFlow(exerciseId)
+            ) { weights, base, rows -> mergeVolumes(base, rows, weights) }
+                .distinctUntilChanged()
+        } else {
+            combine(
+                weightsFlow,
+                setEntryDao.getVolumeSummaryByDayFlow(),
+                setEntryDao.getBodyweightSetRowsFlow()
+            ) { weights, base, rows -> mergeVolumes(base, rows, weights) }
+                .distinctUntilChanged()
+        }
+    }
+
+    private suspend fun baseVolumeSync(exerciseId: Long?): List<DailyVolume> =
         if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExercise(exerciseId)
         else setEntryDao.getVolumeSummaryByDay()
 
-    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null): Flow<List<com.chiron.core.database.dao.DailyVolume>> =
+    private fun baseVolumeFlow(exerciseId: Long?): Flow<List<DailyVolume>> =
         if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExerciseFlow(exerciseId)
         else setEntryDao.getVolumeSummaryByDayFlow()
+
+    private suspend fun bodyweightRowsSync(exerciseId: Long?): List<BodyweightSetRow> =
+        if (exerciseId != null) setEntryDao.getBodyweightSetRowsForExercise(exerciseId)
+        else setEntryDao.getBodyweightSetRows()
+
+    private fun mergeVolumes(
+        base: List<DailyVolume>,
+        rows: List<BodyweightSetRow>,
+        weights: List<BodyWeightEntry>
+    ): List<DailyVolume> {
+        if (rows.isEmpty()) return base
+        val sorted = weights.sortedBy { it.timestampUtc }
+        val cache = rows.map { it.dateUtc }.toSet()
+            .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, sorted) }
+        val extra = rows.groupBy { it.dateUtc }
+            .mapValues { (_, dayRows) -> dayRows.sumOf { effectiveVolume(it, cache[it.dateUtc]) } }
+        val totals = base.associate { it.dateUtc to it.volumeLbs }.toMutableMap()
+        for ((day, volume) in extra) totals[day] = (totals[day] ?: 0.0) + volume
+        return totals.entries.sortedBy { it.key }
+            .map { DailyVolume(it.key, it.value) }
+    }
+
+    private fun effectiveVolume(row: BodyweightSetRow, bwLbs: Double?): Double {
+        val repEq = repEquivalent(row) ?: return 0.0
+        if (bwLbs == null) return (row.addedWeightLbs ?: return 0.0) * repEq
+        val pct = if (row.percentBodyweight <= 0) 100.0 else row.percentBodyweight
+        return (bwLbs * pct / 100.0 + (row.addedWeightLbs ?: 0.0)) * repEq
+    }
+
+    private fun repEquivalent(row: BodyweightSetRow): Double? {
+        val reps = row.reps
+        val duration = row.durationSeconds
+        val distance = row.distanceMeters
+        return when {
+            distance != null && reps != null -> reps * (distance * 2.0)
+            distance != null -> distance / 5.0
+            duration != null -> duration / 3.0
+            reps != null -> reps.toDouble()
+            else -> null
+        }
+    }
 }

@@ -116,8 +116,12 @@ fun BodyweightImportDialog(
         },
         confirmButton = {
             Button(
-                // TODO(DB): wire onConfirm to BodyweightViewModel preview-confirm persist path.
-                onClick = { onConfirm(config) },
+                onClick = {
+                    // TODO(DB): wire file picker to provide real fileUri; for now
+                    // the repository facade importBodyWeights is available
+                    // (non-destructive upsert only) once a file URI is selected.
+                    onConfirm(config)
+                },
                 enabled = canConfirm,
                 shape = RoundedCornerShape(12.dp)
             ) { Text("Confirm") }

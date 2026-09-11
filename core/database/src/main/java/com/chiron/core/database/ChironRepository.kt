@@ -24,8 +24,7 @@ import com.chiron.core.model.SetEntry
 import com.chiron.core.model.TimerPreset
 import com.chiron.core.model.WorkoutSession
 import com.chiron.core.database.exercise.ExerciseRepository
-import com.chiron.core.database.exercise.ImageRepository
-import com.chiron.core.database.pr.PrRepository
+import com.chiron.core.database.exercise.ImageRepositoryimport com.chiron.core.database.pr.PrRepository
 import com.chiron.core.database.timer.TimerPresetRepository
 import com.chiron.core.database.transfer.DataTransferRepository
 import com.chiron.core.database.workout.ExerciseEntryRepository
@@ -106,7 +105,8 @@ class ChironRepository(
         exerciseEntryDao = exerciseEntryDao,
         workoutSessionDao = workoutSessionDao,
         exerciseDao = exerciseDao,
-        onSyncGlobalPrBucket = { exerciseId, reps -> prRepository.syncGlobalPrBucket(exerciseId, reps) }
+        onSyncGlobalPrBucket = { exerciseId, reps -> prRepository.syncGlobalPrBucket(exerciseId, reps) },
+        bodyWeightDao = bodyWeightDao
     )
 
     private val exerciseEntryRepository = ExerciseEntryRepository(
@@ -323,6 +323,10 @@ class ChironRepository(
     ): SetWorkoutContext? =
         setEntryDao.getWorkoutContextForExerciseOnDate(exerciseId, startUtc, endUtc)
 
+    /**
+     * Volume passthroughs with identical signatures. Bodyweight share is derived
+     * live in [SetEntryRepository]; no stored volume column (Option C banned).
+     */
     suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDay(exerciseId)
     fun getVolumeSummaryByDayFlow(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDayFlow(exerciseId)
 
@@ -461,4 +465,22 @@ class ChironRepository(
 
     suspend fun importDataFromFile(fileUri: Uri): Result<String> =
         dataTransferRepository.importDataFromFile(fileUri)
+
+    /** Bulk import of bodyweight entries from a parsed file. Non-destructive: upsert only. */
+    suspend fun importBodyWeights(
+        fileUri: Uri,
+        config: com.chiron.core.database.bodyweight.BodyweightImportConfig
+    ): Result<com.chiron.core.database.dao.BodyweightUpsertCounts> {
+        return try {
+            val stream = context.contentResolver.openInputStream(fileUri)
+                ?: return Result.failure(IllegalArgumentException("Cannot open file"))
+            val lines = stream.bufferedReader().use { it.readLines() }.asSequence()
+            val parseResult = com.chiron.core.database.bodyweight.BodyweightFileParser.parse(lines, config)
+            val rows = parseResult.rows
+            val counts = requireBodyWeightDao().upsertBodyweights(rows, config.duplicateRule)
+            Result.success(counts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
