@@ -81,8 +81,7 @@ fun ChironApp(
     val timerState by timerViewModel.uiState.collectAsState()
     val volumeViewModel: VolumeViewModel = viewModel(factory = ServiceLocator.volumeViewModelFactory)
     val goalsViewModel: GoalsViewModel = viewModel(factory = ServiceLocator.goalsViewModelFactory)
-    // UI-shell stub: in-memory only, no repository. TODO(DB): wire ServiceLocator factory after Tier-1 lifted.
-    val bodyweightViewModel: BodyweightViewModel = viewModel(factory = BodyweightViewModel.Factory())
+    val bodyweightViewModel: BodyweightViewModel = viewModel(factory = ServiceLocator.bodyweightViewModelFactory)
 
     val tabs = NavTab.entries.toTypedArray()
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
@@ -253,7 +252,13 @@ fun ChironApp(
                                     }
                                 }
                             }
-                            NavTab.TIMER -> IconButton(onClick = { isPresetsOpen = true }) { Icon(Icons.Default.Tune, contentDescription = "Presets") }
+                            NavTab.TIMER -> {
+                                if (isBodyweightMode) {
+                                    IconButton(onClick = { bodyweightViewModel.refresh() }) { Icon(Icons.Default.Refresh, "Refresh") }
+                                } else {
+                                    IconButton(onClick = { isPresetsOpen = true }) { Icon(Icons.Default.Tune, contentDescription = "Presets") }
+                                }
+                            }
                             else -> {
                                 if (selectedTab == NavTab.HISTORY && isVolumeMode) {
                                     IconButton(onClick = { volumeViewModel.refresh() }) { Icon(Icons.Default.Refresh, "Refresh") }
@@ -454,7 +459,7 @@ fun ChironApp(
                                 BodyweightStatsScreen(
                                     viewModel = bodyweightViewModel,
                                     displayInKg = historyState.displayInKg,
-                                    // TODO(DB): route to Aspect 3 importer dialog after Tier-1 lifted.
+                                    // Batch 3 owns importer dialog; keep no-op until it lands.
                                     onImportClick = { },
                                     modifier = Modifier.fillMaxSize()
                                 )

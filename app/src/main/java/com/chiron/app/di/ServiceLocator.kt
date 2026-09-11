@@ -8,6 +8,7 @@ import com.chiron.feature.exercises.ExercisesViewModel
 import com.chiron.feature.goals.GoalsViewModel
 import com.chiron.feature.history.HistoryViewModel
 import com.chiron.feature.history.VolumeViewModel
+import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.MetronomeController
 import com.chiron.feature.timer.TimerViewModel
 
@@ -70,6 +71,10 @@ object ServiceLocator {
 
     val goalsViewModelFactory: GoalsViewModel.Factory by lazy {
         GoalsViewModel.Factory(repository)
+    }
+
+    val bodyweightViewModelFactory: BodyweightViewModel.Factory by lazy {
+        BodyweightViewModel.Factory(repository)
     }
 }
 
