@@ -3,6 +3,7 @@ package com.chiron.core.database
 import android.content.Context
 import android.net.Uri
 import com.chiron.core.database.dao.ExerciseDao
+import com.chiron.core.database.dao.BodyWeightDao
 import com.chiron.core.database.dao.ExerciseEntryDao
 import com.chiron.core.database.dao.ExercisePrDao
 import com.chiron.core.database.dao.Exercise1rmEstimateDao
@@ -14,6 +15,7 @@ import com.chiron.core.model.Exercise1rmEstimate
 import com.chiron.core.database.dao.TimerPresetDao
 import com.chiron.core.database.dao.WorkoutSessionDao
 import com.chiron.core.model.Exercise
+import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.model.ExerciseEntry
 import com.chiron.core.model.ExercisePr
 import com.chiron.core.model.Goal
@@ -59,7 +61,8 @@ class ChironRepository(
     private val exercisePrDao: ExercisePrDao,
     private val exercise1rmEstimateDao: Exercise1rmEstimateDao,
     private val goalDao: GoalDao,
-    private val onImportLocations: (suspend (List<String>) -> Unit)? = null
+    private val onImportLocations: (suspend (List<String>) -> Unit)? = null,
+    private val bodyWeightDao: BodyWeightDao? = null
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -413,6 +416,34 @@ class ChironRepository(
     /** Inserts or updates a goal and replaces its junction rows in one transaction. */
     suspend fun saveGoalWithExercises(goal: Goal, exerciseIds: List<Long>) =
         goalDao.saveGoalWithExercises(goal, exerciseIds)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bodyweight operations
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun requireBodyWeightDao(): BodyWeightDao =
+        requireNotNull(bodyWeightDao) { "BodyWeightDao not provided to ChironRepository" }
+
+    fun observeBodyWeights(): Flow<List<BodyWeightEntry>> =
+        requireBodyWeightDao().getAllFlow()
+
+    suspend fun getAllBodyWeightsSync(): List<BodyWeightEntry> =
+        requireBodyWeightDao().getAllSync()
+
+    suspend fun getLatestBodyWeightAtOrBefore(timestampUtc: Long): BodyWeightEntry? =
+        requireBodyWeightDao().getLatestAtOrBefore(timestampUtc)
+
+    suspend fun insertBodyWeight(entry: BodyWeightEntry): Long =
+        requireBodyWeightDao().insert(entry)
+
+    suspend fun upsertBodyWeight(entry: BodyWeightEntry): Long =
+        requireBodyWeightDao().upsert(entry)
+
+    suspend fun updateBodyWeight(entry: BodyWeightEntry) =
+        requireBodyWeightDao().update(entry)
+
+    suspend fun deleteBodyWeightById(id: Long) =
+        requireBodyWeightDao().deleteById(id)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Data export / import
