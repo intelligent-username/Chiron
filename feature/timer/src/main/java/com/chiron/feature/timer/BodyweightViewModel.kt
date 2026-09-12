@@ -22,7 +22,8 @@ data class BodyweightPoint(
     val label: String,
     val weightLbs: Double,
     val timestampUtc: Long,
-    val date: LocalDate
+    val date: LocalDate,
+    val isActualInput: Boolean = false
 )
 
 data class BodyweightStats(
@@ -249,11 +250,13 @@ class BodyweightViewModel(
         weekCount: Int,
         abridgeGaps: Boolean
     ): List<BodyweightPoint> {
+        // Semi-abridged: always include all days; gaps extrapolate via LOCF forward.
+        // Actual input days marked isActualInput=true; gap days false.
         val pts = when (mode) {
             BodyweightMode.BY_DAY -> buildDayPoints(weekStart)
             BodyweightMode.BY_WEEK -> buildLongTermPoints(weekStart, weekCount)
         }
-        return if (abridgeGaps) pts.filter { it.weightLbs > 0.0 } else pts
+        return pts
     }
 
     private fun lastEntryOn(date: LocalDate): BodyWeightEntry? {
@@ -265,10 +268,22 @@ class BodyweightViewModel(
 
     private fun buildDayPoints(weekStart: LocalDate): List<BodyweightPoint> {
         val labels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+        val sortedWeights = allEntries.sortedBy { it.timestampUtc }
         return (0..6).map { offset ->
             val date = weekStart.plusDays(offset.toLong())
             val hit = lastEntryOn(date)
-            BodyweightPoint(labels[offset], hit?.weightLbs ?: 0.0, hit?.timestampUtc ?: 0L, date)
+            val dayStartMs = java.time.Instant.ofEpochMilli(
+                date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            ).toEpochMilli()
+            val resolvedLbs = if (hit != null) hit.weightLbs else BodyweightResolver.getWeightForTimestamp(dayStartMs, sortedWeights)
+            val isActual = hit != null
+            BodyweightPoint(
+                label = labels[offset],
+                weightLbs = resolvedLbs ?: 0.0,
+                timestampUtc = hit?.timestampUtc ?: 0L,
+                date = date,
+                isActualInput = isActual
+            )
         }
     }
 
@@ -276,13 +291,19 @@ class BodyweightViewModel(
         val clusterStart = weekStart.minusWeeks((weekCount - 1).toLong())
         val fmt = java.time.format.DateTimeFormatter.ofPattern("M/d")
         val out = mutableListOf<BodyweightPoint>()
+        val sortedWeights = allEntries.sortedBy { it.timestampUtc }
         for (w in 0 until weekCount) {
             val current = clusterStart.plusWeeks(w.toLong())
             for (d in 0..6) {
                 val date = current.plusDays(d.toLong())
                 val hit = lastEntryOn(date)
+                val dayStartMs = java.time.Instant.ofEpochMilli(
+                    date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                ).toEpochMilli()
+                val resolvedLbs = if (hit != null) hit.weightLbs else BodyweightResolver.getWeightForTimestamp(dayStartMs, sortedWeights)
+                val isActual = hit != null
                 val label = if (d == 0) current.format(fmt) else ""
-                out.add(BodyweightPoint(label, hit?.weightLbs ?: 0.0, hit?.timestampUtc ?: 0L, date))
+                out.add(BodyweightPoint(label, resolvedLbs ?: 0.0, hit?.timestampUtc ?: 0L, date, isActual))
             }
         }
         return out

@@ -98,7 +98,7 @@ private fun formatStamp(timestampUtc: Long): String {
 @Composable
 fun BodyweightStatsScreen(
     viewModel: BodyweightViewModel,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     onImportClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -112,12 +112,11 @@ fun BodyweightStatsScreen(
         } else {
             BodyweightContent(
                 state = state,
-                displayInKg = displayInKg,
+                localInKg = localInKg,
                 onModeChange = viewModel::setMode,
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
                 onNextWeek = viewModel::goToNextWeek,
-                onToggleAbridgeGaps = viewModel::toggleAbridgeGaps,
                 onLog = viewModel::logWeight,
                 onEdit = viewModel::updateEntry,
                 onDelete = viewModel::deleteEntry,
@@ -135,13 +134,14 @@ fun BodyweightContent(
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
-    onToggleAbridgeGaps: () -> Unit,
     onLog: (Double) -> Unit,
     onEdit: (Long, Double) -> Unit,
     onDelete: (Long) -> Unit,
     onImportClick: () -> Unit = {}
 ) {
-    val unit = if (displayInKg) "kg" else "lbs"
+    // Direct kg/lbs toggle in sub-tab (not Settings menu)
+    var localInKg by rememberSaveable { mutableStateOf(displayInKg) }
+    val unit = if (localInKg) "kg" else "lbs"
     val weekLabel = remember(state.currentWeekStart, state.mode, state.weekCount) {
         val fmt = DateTimeFormatter.ofPattern("MMM d")
         if (state.mode == BodyweightMode.BY_DAY) {
@@ -158,16 +158,22 @@ fun BodyweightContent(
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             OutlinedButton(onClick = onImportClick) { Text("Import") }
+            // Direct kg/lbs toggle in sub-tab (not Settings menu)
+            OutlinedButton(
+                onClick = { localInKg = !localInKg },
+                modifier = Modifier.padding(start = 8.dp)
+            ) { Text(if (localInKg) "kg" else "lbs") }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        LogInput(displayInKg = displayInKg, onLog = onLog, error = state.error)
+        LogInput(displayInKg = localInKg, onLog = onLog, error = state.error)
         Spacer(modifier = Modifier.height(12.dp))
         ModeSelector(selected = state.mode, onSelect = onModeChange)
-        AbridgeRow(checked = state.abridgeGaps, onToggle = onToggleAbridgeGaps)
+        // Semi-abridged by design: gaps extrapolate from last known weight (LOCF forward);
+        // actual input days show a dot. No toggle — always on.
         Spacer(modifier = Modifier.height(8.dp))
-        GraphCard(state = state, displayInKg = displayInKg, unit = unit, onWeekCountChange = onWeekCountChange)
+        GraphCard(state = state, displayInKg = localInKg, unit = unit, onWeekCountChange = onWeekCountChange)
         Spacer(modifier = Modifier.height(12.dp))
         WeekNavigator(
             weekLabel = weekLabel,
@@ -177,9 +183,9 @@ fun BodyweightContent(
             onNext = onNextWeek
         )
         Spacer(modifier = Modifier.height(16.dp))
-        StatsSection(stats = state.stats, displayInKg = displayInKg, unit = unit)
+        StatsSection(stats = state.stats, displayInKg = localInKg, unit = unit)
         Spacer(modifier = Modifier.height(16.dp))
-        HistoryList(entries = state.entries, displayInKg = displayInKg, onEdit = onEdit, onDelete = onDelete)
+        HistoryList(entries = state.entries, displayInKg = localInKg, onEdit = onEdit, onDelete = onDelete)
         Spacer(modifier = Modifier.height(120.dp))
     }
 }
@@ -188,14 +194,14 @@ fun BodyweightContent(
 
 @Composable
 fun LogInput(
-    displayInKg: Boolean,
+    localInKg: Boolean,
     onLog: (Double) -> Unit,
     error: String?
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSubmitMs by rememberSaveable { mutableStateOf(0L) }
-    val unit = if (displayInKg) "kg" else "lbs"
+    val unit = if (localInKg) "kg" else "lbs"
     fun submit() {
         val now = System.currentTimeMillis()
         if (now - lastSubmitMs < 500L) return
@@ -204,7 +210,7 @@ fun LogInput(
             localError = "Enter a valid number"
             return
         }
-        val lbs = if (displayInKg) UnitConversion.kgToLbs(parsed) else parsed
+        val lbs = if (localInKg) UnitConversion.kgToLbs(parsed) else parsed
         if (lbs <= 0.0) {
             localError = "Enter a weight above 0"
             return
@@ -318,7 +324,7 @@ private fun AbridgeRow(checked: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun GraphCard(
     state: BodyweightUiState,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     unit: String,
     onWeekCountChange: (Int) -> Unit
 ) {
@@ -332,7 +338,7 @@ private fun GraphCard(
             Box(modifier = Modifier.fillMaxWidth()) {
                 val current = state.stats.current
                 Text(
-                    text = if (current != null) "${current.formatBodyweight(displayInKg)} $unit" else "-- $unit",
+                    text = if (current != null) "${current.formatBodyweight(localInKg)} $unit" else "-- $unit",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -356,7 +362,7 @@ private fun GraphCard(
             } else {
                 BodyweightLineGraph(
                     points = state.points,
-                    displayInKg = displayInKg,
+                    localInKg = localInKg,
                     mode = state.mode,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -383,7 +389,7 @@ private fun GraphCard(
 @Composable
 fun BodyweightLineGraph(
     points: List<BodyweightPoint>,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     mode: BodyweightMode,
     onPointTap: (BodyweightPoint) -> Unit = {},
     modifier: Modifier = Modifier
@@ -397,7 +403,7 @@ fun BodyweightLineGraph(
     LaunchedEffect(points) { triggered = true }
     val maxW = points.maxOfOrNull { it.weightLbs }?.takeIf { it > 0.0 } ?: 1.0
     val minW = points.filter { it.weightLbs > 0.0 }.minOfOrNull { it.weightLbs } ?: 0.0
-    val unit = if (displayInKg) "kg" else "lbs"
+    val unit = if (localInKg) "kg" else "lbs"
     val textMeasurer = rememberTextMeasurer()
     var hoveredX by remember { mutableStateOf<Float?>(null) }
     val lineColor = ElectricBlue
@@ -420,7 +426,7 @@ fun BodyweightLineGraph(
                                 hoveredX = null
                                 val dist = (change.position - down.position).getDistance()
                                 if (dist < 20f && points.isNotEmpty()) {
-                                    onPointTap(nearestPoint(points, down.position.x, size.width))
+                                    onPointTap(nearestPoint(points, down.position.x, size.width.toFloat()))
                                 }
                                 break
                             }
@@ -435,12 +441,12 @@ fun BodyweightLineGraph(
             val padBottom = 40f
             val graphW = size.width - padLeft - padRight
             val graphH = size.height - padTop - padBottom
-            drawGrid(textMeasurer, maxW, minW, displayInKg, padLeft, padRight, padTop, graphH, labelColor, tipBorder)
+            drawGrid(textMeasurer, maxW, minW, localInKg, padLeft, padRight, padTop, graphH, labelColor, tipBorder)
             if (points.isEmpty()) return@Canvas
             drawLine(points, maxW, minW, animProgress, padLeft, graphW, padTop, graphH, lineColor)
             drawDots(textMeasurer, points, mode, maxW, minW, animProgress, padLeft, graphW, padTop, graphH, lineColor, labelColor)
             hoveredX?.let { hx ->
-                drawTooltip(textMeasurer, hx, points, displayInKg, unit, maxW, minW, animProgress, padLeft, padRight, padTop, graphW, graphH, labelColor, lineColor, tipBg, tipBorder, onSurface)
+                drawTooltip(textMeasurer, hx, points, localInKg, unit, maxW, minW, animProgress, padLeft, padRight, padTop, graphW, graphH, labelColor, lineColor, tipBg, tipBorder, onSurface)
             }
         }
     }
@@ -459,7 +465,7 @@ private fun DrawScope.drawGrid(
     measurer: androidx.compose.ui.text.TextMeasurer,
     maxW: Double,
     minW: Double,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     padLeft: Float,
     padRight: Float,
     padTop: Float,
@@ -476,7 +482,7 @@ private fun DrawScope.drawGrid(
             strokeWidth = 0.5.dp.toPx()
         )
         val raw = minW + (maxW - minW) * ratio
-        val v = if (displayInKg) UnitConversion.lbsToKg(raw) else raw
+        val v = if (localInKg) UnitConversion.lbsToKg(raw) else raw
         drawText(
             textLayoutResult = measurer.measure(
                 UnitConversion.formatNumber(v),
@@ -533,7 +539,7 @@ private fun DrawScope.drawDots(
     points.forEachIndexed { i, p ->
         val x = padLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * graphW
         val y = padTop + graphH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
-        if (p.weightLbs > 0.0 && (mode == BodyweightMode.BY_DAY || i % 7 == 0 || i == n - 1)) {
+        if (p.weightLbs > 0.0 && p.isActualInput && (mode == BodyweightMode.BY_DAY || i % 7 == 0 || i == n - 1)) {
             drawCircle(color = dotColor, radius = 3f, center = Offset(x, y))
         }
         if (p.label.isNotEmpty()) {
@@ -550,7 +556,7 @@ private fun DrawScope.drawTooltip(
     measurer: androidx.compose.ui.text.TextMeasurer,
     hx: Float,
     points: List<BodyweightPoint>,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     unit: String,
     maxW: Double,
     minW: Double,
@@ -582,7 +588,7 @@ private fun DrawScope.drawTooltip(
     drawCircle(color = lineColor, radius = 5f, center = Offset(px, py))
     val dateStr = Instant.ofEpochMilli(p.timestampUtc).atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("EEEE MMM d"))
-    val text = "$dateStr, ${p.weightLbs.formatBodyweight(displayInKg)} $unit"
+    val text = "$dateStr, ${p.weightLbs.formatBodyweight(localInKg)} $unit"
     val layout = measurer.measure(
         text,
         TextStyle(color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = MonospaceFamily)
@@ -602,7 +608,7 @@ private fun DrawScope.drawTooltip(
 @Composable
 fun StatsSection(
     stats: BodyweightStats,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     unit: String
 ) {
     Card(
@@ -612,12 +618,12 @@ fun StatsSection(
         border = androidx.compose.foundation.BorderStroke(1.dp, ThinOutline)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            StatRow("Current", stats.current?.let { "${it.formatBodyweight(displayInKg)} $unit" } ?: "--")
+            StatRow("Current", stats.current?.let { "${it.formatBodyweight(localInKg)} $unit" } ?: "--")
             val sign = if ((stats.change ?: 0.0) > 0) "+" else ""
-            StatRow("Change", stats.change?.let { "$sign${it.formatBodyweight(displayInKg)} $unit" } ?: "--")
-            StatRow("Average", stats.average?.let { "${it.formatBodyweight(displayInKg)} $unit" } ?: "--")
-            StatRow("Min", stats.min?.let { "${it.formatBodyweight(displayInKg)} $unit" } ?: "--")
-            StatRow("Max", stats.max?.let { "${it.formatBodyweight(displayInKg)} $unit" } ?: "--")
+            StatRow("Change", stats.change?.let { "$sign${it.formatBodyweight(localInKg)} $unit" } ?: "--")
+            StatRow("Average", stats.average?.let { "${it.formatBodyweight(localInKg)} $unit" } ?: "--")
+            StatRow("Min", stats.min?.let { "${it.formatBodyweight(localInKg)} $unit" } ?: "--")
+            StatRow("Max", stats.max?.let { "${it.formatBodyweight(localInKg)} $unit" } ?: "--")
             StatRow("Entries", "${stats.count}")
         }
     }
@@ -639,15 +645,15 @@ private fun StatRow(label: String, value: String) {
 @Composable
 fun HistoryList(
     entries: List<BodyWeightEntry>,
-    displayInKg: Boolean,
+    localInKg: Boolean,
     onEdit: (Long, Double) -> Unit,
     onDelete: (Long) -> Unit
 ) {
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
-    var editInKg by rememberSaveable { mutableStateOf(displayInKg) }
+    var editInKg by rememberSaveable { mutableStateOf(localInKg) }
     var editError by rememberSaveable { mutableStateOf<String?>(null) }
-    val unit = if (displayInKg) "kg" else "lbs"
+    val unit = if (localInKg) "kg" else "lbs"
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SolidSlate),
@@ -661,7 +667,7 @@ fun HistoryList(
                 Text("No weigh-ins yet", color = CoolGray, fontSize = 14.sp)
             }
             entries.forEach { entry ->
-                val display = if (displayInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
+                val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
                 if (editingId == entry.id) {
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Row(
@@ -719,7 +725,7 @@ fun HistoryList(
                         }
                         TextButton(onClick = {
                             editingId = entry.id
-                            editInKg = displayInKg
+                            editInKg = localInKg
                             editError = null
                             editText = UnitConversion.formatNumber(display)
                         }) { Text("Edit") }
