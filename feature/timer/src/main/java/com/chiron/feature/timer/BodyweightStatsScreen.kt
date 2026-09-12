@@ -370,7 +370,7 @@ private fun GraphCard(
                 )
             }
             // Week-range slider: 2 weeks min, max from first log to today.
-            val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
+            val maxWeeks = kotlin.math.max(2, state.maxWeekCount)
             Spacer(modifier = Modifier.height(8.dp))
             Slider(
                 value = state.weekCount.toFloat(),
