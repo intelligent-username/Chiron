@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
@@ -37,8 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -80,7 +80,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-enum class ImportSourceMode { FILE, PASTE }
+enum class ImportSourceMode { PASTE, FILE }
 
 private val HighlightYellow = Color(0xFFFDE047)
 private val HighlightTextDark = Color(0xFF18181B)
@@ -93,6 +93,7 @@ fun BodyweightImportDialog(
     displayInKg: Boolean = false
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
 
     var sourceMode by remember { mutableStateOf(ImportSourceMode.PASTE) }
@@ -179,25 +180,41 @@ fun BodyweightImportDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Source Selector Tab
-                TabRow(
-                    selectedTabIndex = sourceMode.ordinal,
-                    containerColor = SolidSlate,
-                    contentColor = MaterialTheme.colorScheme.primary,
+                // Source Selector: Instant Segmented Button Row (Zero Lag)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
+                        .background(SolidSlate)
+                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
                 ) {
-                    Tab(
-                        selected = sourceMode == ImportSourceMode.PASTE,
-                        onClick = { sourceMode = ImportSourceMode.PASTE },
-                        text = { Text("Paste Text") }
-                    )
-                    Tab(
-                        selected = sourceMode == ImportSourceMode.FILE,
-                        onClick = { sourceMode = ImportSourceMode.FILE },
-                        text = { Text("Pick File") }
-                    )
+                    listOf(
+                        ImportSourceMode.PASTE to "Paste Text",
+                        ImportSourceMode.FILE to "Pick File"
+                    ).forEach { (mode, label) ->
+                        val isSelected = sourceMode == mode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    focusManager.clearFocus()
+                                    sourceMode = mode
+                                }
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                    else Color.Transparent
+                                )
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else CoolGray,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
                 }
 
                 // Header Bar above text box
@@ -208,11 +225,18 @@ fun BodyweightImportDialog(
                 ) {
                     val lineCount = effectiveLines.size
                     val validCount = previewResult?.rows?.size ?: 0
+                    val headerLabel = if (sourceMode == ImportSourceMode.FILE) {
+                        selectedFileName?.let { "$it ($validCount weights)" } ?: "No file selected"
+                    } else {
+                        if (lineCount == 0) "Input Text" else "$lineCount lines ($validCount weights)"
+                    }
+
                     Text(
-                        text = if (lineCount == 0) "Input Text" else "$lineCount lines ($validCount weights)",
+                        text = headerLabel,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = CoolGray
+                        color = CoolGray,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
 
                     Row(
@@ -265,6 +289,22 @@ fun BodyweightImportDialog(
                                 Text("Paste", fontSize = 11.sp)
                             }
                         } else {
+                            if (fileLines.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        selectedFileName = null
+                                        fileLines = emptyList()
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                             OutlinedButton(
                                 onClick = { launcher.launch("*/*") },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -285,7 +325,21 @@ fun BodyweightImportDialog(
                         .background(DefaultDeepCharcoal)
                         .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
                 ) {
-                    if (sourceMode == ImportSourceMode.PASTE && (isEditingRaw || pastedText.isEmpty())) {
+                    if (sourceMode == ImportSourceMode.FILE && fileLines.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Button(
+                                onClick = { launcher.launch("*/*") },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Choose .txt File")
+                            }
+                        }
+                    } else if (sourceMode == ImportSourceMode.PASTE && (isEditingRaw || pastedText.isEmpty())) {
                         OutlinedTextField(
                             value = pastedText,
                             onValueChange = { newText ->
@@ -328,7 +382,7 @@ fun BodyweightImportDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (sourceMode == ImportSourceMode.FILE) "Select a .txt file to view highlights" else "Paste weight lines to view highlights",
+                                text = "No lines found to parse",
                                 color = CoolGray,
                                 fontSize = 12.sp
                             )
