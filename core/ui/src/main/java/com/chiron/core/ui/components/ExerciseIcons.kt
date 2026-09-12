@@ -55,15 +55,14 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("overhead-extension",     "overhead-extension.svg"),
     ExerciseIcon("skull-crusher",          "skull-crusher.svg"),
 
-    ExerciseIcon("45-plate",               "plate-ta.svg"),
-    ExerciseIcon("25-plate",               "plate-tb.svg"),
-    ExerciseIcon("20-plate",               "plate-tc.svg"),
-    ExerciseIcon("10-plate",               "plate-td.svg"),
-
+    ExerciseIcon("deadhang",               "deadhang.svg"),
     ExerciseIcon("pull-up",                "pull-up.svg"),
     ExerciseIcon("neutral-pullup",         "neutral-pull.svg"),
     ExerciseIcon("ring-pullup",            "ring-pullup.svg"),
+    ExerciseIcon("ring-front-lever",       "ring-fl.svg"),
+
     ExerciseIcon("push-up",                "push-up.svg"),
+    ExerciseIcon("ring-pushup",            "ring-pu.svg"),
     ExerciseIcon("dip",                    "dip.svg"),
 
     ExerciseIcon("ring-dip",               "ring-dip.svg"),
@@ -81,9 +80,11 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("pallof",                 "pallof.svg"),
     ExerciseIcon("ab-twister",             "ab-twister.svg"),
     ExerciseIcon("landmine-rotation",      "landmine-rotation.svg"),
+    ExerciseIcon("crunch-machine",         "crunch-machine.svg"),
     ExerciseIcon("leg-raise",              "leg-raise.svg"),
     ExerciseIcon("leg-raises",             "leg-raise2.svg"),
     ExerciseIcon("sit-up",                 "sit-up.svg"),
+    ExerciseIcon("hyper-situp",            "hyper-situp.svg"),
 
     ExerciseIcon("machine-row",            "machine-row.svg"),
     ExerciseIcon("single-arm-row-machine", "single-arm-row-machine.svg"),
@@ -95,6 +96,7 @@ val AVAILABLE_ICONS = listOf(
     ExerciseIcon("snatch",                  "snatch.svg"),
 
     ExerciseIcon("itrot",                  "internal-rotation.svg"),
+    ExerciseIcon("lying-rotation",         "lying-er.svg"),
     ExerciseIcon("face-pulls",             "facepulls.svg"),
     ExerciseIcon("neck-curl",              "neck-curl.svg"),
     ExerciseIcon("lateral-neck",           "lateral-neck.svg"),
@@ -111,6 +113,12 @@ val AVAILABLE_ICONS = listOf(
 
     ExerciseIcon("link",                   "link.svg"),
     ExerciseIcon("smiley",                 "smiley.svg"),
+
+    ExerciseIcon("45-plate",               "plate-ta.svg"),
+    ExerciseIcon("25-plate",               "plate-tb.svg"),
+    ExerciseIcon("20-plate",               "plate-tc.svg"),
+    ExerciseIcon("10-plate",               "plate-td.svg"),
+
 
     ExerciseIcon("barbell",                "barbell.svg"),
     ExerciseIcon("smith",                  "smith.svg"),

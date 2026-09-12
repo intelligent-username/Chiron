@@ -6,22 +6,22 @@ This file structure was made to ensure parallel (multi-core) compilation works w
 Chiron/
 ├── app/                                  # Main Android application module
 │   └── src/main/
-│       ├── java/                         # App entry, DI wiring, background services (timer/metronome), and root UI
-│       └── res/                          # Android resources (launcher icons, drawables, strings, themes)
+│       ├── java/                         # App entry, DI wiring, background services, and root UI
+│       └── res/                          # Android resources
 │
 ├── core/                                 # Shared foundational modules
 │   ├── common/                           # Utilities (date math, 1RM estimation, unit conversions)
 │   ├── database/                         # Room SQLite database, DAOs, repositories, and export/import
 │   ├── model/                            # Shared domain data models and Room entities
 │   └── ui/                               # Design system components, colors, and Compose theme
-│       └── src/main/assets/icons/        # Exercise icons in .svg format (94 SVGs)
+│       └── src/main/assets/icons/        # Exercise icons in .svg format
 │
 ├── feature/                              # Feature-specific modules
 │   ├── exercises/                        # Exercise library, search, detail screens, and tracking setup
 │   ├── history/                          # Workout history logs, calendars, and volume analytics
 │   ├── timer/                            # Workout interval timer, metronome, and bodyweight stats
 │   │   └── src/main/
-│   │       ├── assets/audio/             # Metronome tick sounds (Tick1.mp3, Tick2.mp3, Tick3.mp3)
+│   │       ├── assets/audio/             # Metronome tick sounds
 │   │       └── res/raw/                  # Timer countdown sound effect (beep.mp3)
 │   └── workouts/                         # Active workout logger and session execution
 │
