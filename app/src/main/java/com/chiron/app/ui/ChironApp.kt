@@ -45,6 +45,7 @@ import com.chiron.feature.history.HistoryViewModel
 import com.chiron.feature.history.VolumeScreen
 import com.chiron.feature.history.VolumeViewModel
 import com.chiron.feature.timer.AddPresetDialog
+import com.chiron.feature.timer.BodyweightImportDialog
 import com.chiron.feature.timer.BodyweightStatsScreen
 import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.PresetsSheet
@@ -75,6 +76,7 @@ fun ChironApp(
     var isVolumeMode by rememberSaveable { mutableStateOf(false) }
     var isGoalsMode by rememberSaveable { mutableStateOf(false) }
     var isBodyweightMode by rememberSaveable { mutableStateOf(false) }
+    var showBodyweightImportDialog by rememberSaveable { mutableStateOf(false) }
 
     val exercisesState by exercisesViewModel.uiState.collectAsState()
     val historyState by historyViewModel.uiState.collectAsState()
@@ -301,6 +303,8 @@ fun ChironApp(
                                         isExerciseDetailOpen = false
                                         isPrScreenOpen = false
                                         prTargetExerciseId = null
+                                    } else if (tab == NavTab.TIMER) {
+                                        isBodyweightMode = !isBodyweightMode
                                     }
                                 } else {
                                     if (selectedTab == NavTab.EXERCISES) {
@@ -334,6 +338,8 @@ fun ChironApp(
                                     isExerciseDetailOpen = false
                                     isPrScreenOpen = false
                                     prTargetExerciseId = null
+                                } else if (tab == NavTab.TIMER) {
+                                    isBodyweightMode = !isBodyweightMode
                                 }
                             } else {
                                 if (selectedTab == NavTab.EXERCISES) {
@@ -459,8 +465,7 @@ fun ChironApp(
                                 BodyweightStatsScreen(
                                     viewModel = bodyweightViewModel,
                                     displayInKg = historyState.displayInKg,
-                                    // Batch 3 owns importer dialog; keep no-op until it lands.
-                                    onImportClick = { },
+                                    onImportClick = { showBodyweightImportDialog = true },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -520,6 +525,17 @@ fun ChironApp(
         AddPresetDialog(
             onDismiss = { showAddPresetDialog = false },
             onSave = { label, secs -> scope.launch { timerViewModel.addPreset(label, secs) }; showAddPresetDialog = false }
+        )
+    }
+
+    if (showBodyweightImportDialog) {
+        BodyweightImportDialog(
+            onDismiss = { showBodyweightImportDialog = false },
+            onConfirm = { lines, config ->
+                bodyweightViewModel.importWeightsFromLines(lines, config) { _ -> }
+                showBodyweightImportDialog = false
+            },
+            displayInKg = historyState.displayInKg
         )
     }
 }

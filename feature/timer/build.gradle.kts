@@ -42,4 +42,5 @@ dependencies {
 
     implementation(libs.androidx.core.ktx) // ContextCompat in MetronomeController
     implementation(libs.androidx.media) // MediaStyle/MediaSessionCompat in MetronomeService
+    implementation(libs.androidx.activity.compose) // rememberLauncherForActivityResult in BodyweightImportDialog
 }

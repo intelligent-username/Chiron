@@ -113,6 +113,7 @@ object BodyweightFileParser {
             return
         }
         val rawValue = token.toDoubleOrNull()
+            ?: Regex("""\d+(?:[.,]\d+)?""").find(token)?.value?.replace(',', '.')?.toDoubleOrNull()
         if (rawValue == null) {
             errors.add(ImportParseError(lineNo, excerpt(line), REASON_NOT_A_NUMBER))
             return

@@ -467,6 +467,21 @@ class ChironRepository(
     suspend fun importDataFromFile(fileUri: Uri): Result<String> =
         dataTransferRepository.importDataFromFile(fileUri)
 
+    /** Bulk import of bodyweight entries from a sequence of text lines. Non-destructive: upsert only. */
+    suspend fun importBodyWeightsFromLines(
+        lines: Sequence<String>,
+        config: com.chiron.core.database.bodyweight.BodyweightImportConfig
+    ): Result<com.chiron.core.database.dao.BodyweightUpsertCounts> {
+        return try {
+            val parseResult = com.chiron.core.database.bodyweight.BodyweightFileParser.parse(lines, config)
+            val rows = parseResult.rows
+            val counts = requireBodyWeightDao().upsertBodyweights(rows, config.duplicateRule)
+            Result.success(counts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Bulk import of bodyweight entries from a parsed file. Non-destructive: upsert only. */
     suspend fun importBodyWeights(
         fileUri: Uri,
@@ -476,10 +491,7 @@ class ChironRepository(
             val stream = context.contentResolver.openInputStream(fileUri)
                 ?: return Result.failure(IllegalArgumentException("Cannot open file"))
             val lines = stream.bufferedReader().use { it.readLines() }.asSequence()
-            val parseResult = com.chiron.core.database.bodyweight.BodyweightFileParser.parse(lines, config)
-            val rows = parseResult.rows
-            val counts = requireBodyWeightDao().upsertBodyweights(rows, config.duplicateRule)
-            Result.success(counts)
+            importBodyWeightsFromLines(lines, config)
         } catch (e: Exception) {
             Result.failure(e)
         }
