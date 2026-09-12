@@ -84,7 +84,8 @@ fun BodyweightLineGraph(
                 .fillMaxSize()
                 .pointerInput(points) {
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        down.consume()
                         hoveredX = down.position.x
                         while (true) {
                             val event = awaitPointerEvent()
@@ -93,7 +94,7 @@ fun BodyweightLineGraph(
                                 hoveredX = null
                                 val dist = (change.position - down.position).getDistance()
                                 if (dist < 20f && points.isNotEmpty()) {
-                                    val padLeft = 70f
+                                    val padLeft = 105f
                                     val padRight = 16f
                                     val plotInsetX = 14f
                                     val plotLeft = padLeft + plotInsetX
@@ -102,15 +103,16 @@ fun BodyweightLineGraph(
                                 }
                                 break
                             }
+                            change.consume()
                             hoveredX = change.position.x
                         }
                     }
                 }
         ) {
-            val padLeft = 70f
+            val padLeft = 105f
             val padRight = 16f
             val padTop = 22f
-            val padBottom = 34f
+            val padBottom = 38f
             val graphW = size.width - padLeft - padRight
             val graphH = size.height - padTop - padBottom
 
@@ -178,7 +180,7 @@ private fun DrawScope.drawGrid(
         )
         drawText(
             textLayoutResult = layout,
-            topLeft = Offset(padLeft - layout.size.width - 8f, y - layout.size.height / 2f)
+            topLeft = Offset(padLeft - layout.size.width - 10f, y - layout.size.height / 2f)
         )
     }
 

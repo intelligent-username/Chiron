@@ -81,7 +81,7 @@ fun BodyweightGraphCard(
                     mode = state.mode,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(240.dp)
                 )
             }
 
