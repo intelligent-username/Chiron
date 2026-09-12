@@ -21,8 +21,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
@@ -65,6 +67,8 @@ import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
 import com.chiron.core.database.bodyweight.BodyweightFileParser
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
+import com.chiron.core.database.bodyweight.ImportDateStrategy
+import com.chiron.core.database.bodyweight.ImportDelimiter
 import com.chiron.core.database.bodyweight.ImportFileOrder
 import com.chiron.core.database.bodyweight.ImportParseError
 import com.chiron.core.database.bodyweight.ParsedWeightRow
@@ -77,7 +81,9 @@ import com.chiron.core.ui.theme.PrGold
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 enum class ImportSourceMode { PASTE, FILE }
@@ -95,18 +101,37 @@ fun BodyweightImportDialog(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
+    val dialogScrollState = rememberScrollState()
 
     var sourceMode by remember { mutableStateOf(ImportSourceMode.PASTE) }
+    var delimiter by remember { mutableStateOf(ImportDelimiter.AUTO) }
     var unit by remember { mutableStateOf(if (displayInKg) WeightImportUnit.KG else WeightImportUnit.LBS) }
+    var startRowText by remember { mutableStateOf("1") }
     var lineStrideText by remember { mutableStateOf("1") }
     var startColText by remember { mutableStateOf("1") }
+    var fieldLengthText by remember { mutableStateOf("") }
     var fileOrder by remember { mutableStateOf(ImportFileOrder.OLDEST_FIRST) }
-    var stepDaysText by remember { mutableStateOf("1") }
+    var stepDaysText by remember { mutableStateOf("7") }
+    var autoDetectDates by remember { mutableStateOf(true) }
+    var refYearText by remember { mutableStateOf(LocalDate.now().year.toString()) }
 
     var selectedFileName by remember { mutableStateOf<String?>(null) }
-    var fileLines by remember { mutableStateOf<List<String>>(emptyList()) }
+    var rawFileText by remember { mutableStateOf("") }
     var pastedText by remember { mutableStateOf("") }
     var isEditingRaw by remember { mutableStateOf(true) }
+
+    fun tryAutoConfigure(text: String) {
+        if (text.isNotBlank()) {
+            val items = BodyweightFileParser.splitText(text, delimiter, ignoreBlank = true)
+            val pattern = BodyweightFileParser.detectPattern(items)
+            if (pattern != null) {
+                startRowText = pattern.startRow.toString()
+                lineStrideText = pattern.stride.toString()
+                unit = pattern.unit
+                stepDaysText = pattern.stepDays.toString()
+            }
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -119,40 +144,55 @@ fun BodyweightImportDialog(
                     }
                 }
                 selectedFileName = name ?: uri.lastPathSegment ?: "weights.txt"
-                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readLines() } ?: emptyList()
-            }.onSuccess { lines ->
-                fileLines = lines
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+            }.onSuccess { text ->
+                rawFileText = text
+                tryAutoConfigure(text)
             }
         }
     }
 
-    val effectiveLines: List<String> = remember(sourceMode, fileLines, pastedText) {
-        if (sourceMode == ImportSourceMode.FILE) {
-            fileLines
-        } else {
-            pastedText.lineSequence().toList()
-        }
+    val rawInput = if (sourceMode == ImportSourceMode.FILE) rawFileText else pastedText
+
+    val effectiveItems: List<String> = remember(rawInput, delimiter) {
+        BodyweightFileParser.splitText(rawInput, delimiter, ignoreBlank = true)
     }
 
     val stride = lineStrideText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val startRow = startRowText.toIntOrNull()?.coerceAtLeast(1) ?: 1
     val col1Based = startColText.toIntOrNull()?.coerceAtLeast(1) ?: 1
     val startChar = (col1Based - 1).coerceAtLeast(0)
+    val fieldLength = fieldLengthText.toIntOrNull()?.takeIf { it > 0 }
     val stepDays = stepDaysText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val refYear = refYearText.toIntOrNull() ?: LocalDate.now().year
+    val anchorDateUtc = remember(refYear) {
+        LocalDate.of(refYear, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    }
 
-    val config = remember(unit, stride, startChar, fileOrder, stepDays) {
+    val config = remember(
+        unit, stride, startChar, fieldLength, startRow, delimiter,
+        fileOrder, stepDays, autoDetectDates, anchorDateUtc
+    ) {
         BodyweightImportConfig(
             unit = unit,
             lineStride = stride,
             startChar = startChar,
+            fieldLength = fieldLength,
+            startRow = startRow,
+            headerSkipLines = (startRow - 1).coerceAtLeast(0),
+            delimiter = delimiter,
             fileOrder = fileOrder,
-            stepDays = stepDays
+            dateStrategy = if (autoDetectDates) ImportDateStrategy.AUTO_DETECT else ImportDateStrategy.ONE_PER_DAY_BACKWARDS,
+            stepDays = stepDays,
+            autoDetectDates = autoDetectDates,
+            anchorDateUtc = anchorDateUtc
         )
     }
 
-    val previewResult = remember(effectiveLines, config) {
-        if (effectiveLines.isNotEmpty()) {
+    val previewResult = remember(effectiveItems, config) {
+        if (effectiveItems.isNotEmpty()) {
             runCatching {
-                BodyweightFileParser.parse(effectiveLines.asSequence(), config)
+                BodyweightFileParser.parse(effectiveItems.asSequence(), config)
             }.getOrNull()
         } else null
     }
@@ -165,6 +205,7 @@ fun BodyweightImportDialog(
     }
 
     val canConfirm = previewResult != null && previewResult.rows.isNotEmpty()
+    val validCount = previewResult?.rows?.size ?: 0
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -177,10 +218,12 @@ fun BodyweightImportDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(dialogScrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Source Selector: Instant Segmented Button Row (Zero Lag)
+                // Source Selector: Instant Segmented Button Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -204,14 +247,14 @@ fun BodyweightImportDialog(
                                     if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                                     else Color.Transparent
                                 )
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
                                 color = if (isSelected) MaterialTheme.colorScheme.primary else CoolGray,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 14.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
@@ -223,12 +266,11 @@ fun BodyweightImportDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val lineCount = effectiveLines.size
-                    val validCount = previewResult?.rows?.size ?: 0
+                    val itemCount = effectiveItems.size
                     val headerLabel = if (sourceMode == ImportSourceMode.FILE) {
-                        selectedFileName?.let { "$it ($validCount weights)" } ?: "No file selected"
+                        selectedFileName?.let { "$it • $itemCount items ($validCount weights)" } ?: "No file selected"
                     } else {
-                        if (lineCount == 0) "Input Text" else "$lineCount lines ($validCount weights)"
+                        if (itemCount == 0) "Input Text" else "$itemCount items ($validCount weights)"
                     }
 
                     Text(
@@ -279,6 +321,7 @@ fun BodyweightImportDialog(
                                     if (!clip.isNullOrBlank()) {
                                         pastedText = clip
                                         isEditingRaw = false
+                                        tryAutoConfigure(clip)
                                     }
                                 },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -289,11 +332,11 @@ fun BodyweightImportDialog(
                                 Text("Paste", fontSize = 11.sp)
                             }
                         } else {
-                            if (fileLines.isNotEmpty()) {
+                            if (rawFileText.isNotEmpty()) {
                                 IconButton(
                                     onClick = {
                                         selectedFileName = null
-                                        fileLines = emptyList()
+                                        rawFileText = ""
                                     },
                                     modifier = Modifier.size(28.dp)
                                 ) {
@@ -325,7 +368,7 @@ fun BodyweightImportDialog(
                         .background(DefaultDeepCharcoal)
                         .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
                 ) {
-                    if (sourceMode == ImportSourceMode.FILE && fileLines.isEmpty()) {
+                    if (sourceMode == ImportSourceMode.FILE && rawFileText.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -345,11 +388,14 @@ fun BodyweightImportDialog(
                             onValueChange = { newText ->
                                 val wasEmpty = pastedText.isEmpty()
                                 pastedText = newText
-                                if (wasEmpty && newText.length > 5 && newText.contains('\n')) {
-                                    isEditingRaw = false
+                                if (wasEmpty && newText.length > 5) {
+                                    tryAutoConfigure(newText)
+                                    if (newText.contains('\n') || newText.contains('|')) {
+                                        isEditingRaw = false
+                                    }
                                 }
                             },
-                            placeholder = { Text("Paste weight lines here...", color = CoolGray.copy(alpha = 0.6f)) },
+                            placeholder = { Text("Paste weights or logs here...", color = CoolGray.copy(alpha = 0.6f)) },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(4.dp),
@@ -366,6 +412,7 @@ fun BodyweightImportDialog(
                                     if (!clip.isNullOrBlank()) {
                                         pastedText = clip
                                         isEditingRaw = false
+                                        tryAutoConfigure(clip)
                                     }
                                 },
                                 modifier = Modifier.align(Alignment.Center),
@@ -376,19 +423,19 @@ fun BodyweightImportDialog(
                                 Text("Paste from Clipboard")
                             }
                         }
-                    } else if (effectiveLines.isEmpty()) {
+                    } else if (effectiveItems.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "No lines found to parse",
+                                text = "No items found to parse",
                                 color = CoolGray,
                                 fontSize = 12.sp
                             )
                         }
                     } else {
-                        // Scrollable Highlighted Line Preview
+                        // Scrollable Highlighted Item Preview
                         val dFmt = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
                         val zone = remember { ZoneId.systemDefault() }
 
@@ -398,10 +445,10 @@ fun BodyweightImportDialog(
                                 .padding(vertical = 4.dp, horizontal = 6.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            itemsIndexed(effectiveLines) { idx, line ->
-                                val lineNo = idx + 1
-                                val row = rowsByLineNumber[lineNo]
-                                val error = errorsByLineNumber[lineNo]
+                            itemsIndexed(effectiveItems) { idx, itemText ->
+                                val itemNo = idx + 1
+                                val row = rowsByLineNumber[itemNo]
+                                val error = errorsByLineNumber[itemNo]
 
                                 val dateStr = row?.let {
                                     runCatching {
@@ -409,25 +456,25 @@ fun BodyweightImportDialog(
                                     }.getOrNull()
                                 }
 
-                                val annotatedLine = remember(line, lineNo, config, row, error) {
-                                    buildAnnotatedLine(line, config, row, error)
+                                val annotatedLine = remember(itemText, itemNo, config, row, error) {
+                                    buildAnnotatedLine(itemText, config, row, error)
                                 }
 
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (row != null) SolidSlate.copy(alpha = 0.45f) else Color.Transparent)
+                                        .background(if (row != null) SolidSlate.copy(alpha = 0.5f) else Color.Transparent)
                                         .padding(horizontal = 4.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Line Number
+                                    // Item Number
                                     Text(
-                                        text = "$lineNo",
+                                        text = "#$itemNo",
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace,
-                                        color = CoolGray.copy(alpha = 0.5f),
-                                        modifier = Modifier.width(26.dp)
+                                        color = CoolGray.copy(alpha = 0.6f),
+                                        modifier = Modifier.width(32.dp)
                                     )
 
                                     // Assigned Date Badge
@@ -465,7 +512,7 @@ fun BodyweightImportDialog(
 
                                     Spacer(modifier = Modifier.width(6.dp))
 
-                                    // Annotated Line Text with Yellow Highlight
+                                    // Annotated Item Text with Yellow Highlight
                                     Text(
                                         text = annotatedLine,
                                         fontSize = 11.sp,
@@ -492,15 +539,23 @@ fun BodyweightImportDialog(
                     }
                 }
 
-                // Options: Stride and Start Column
+                // Controls Section 1: Item & Column Navigation (Primary User Request)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    OutlinedTextField(
+                        value = startRowText,
+                        onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) startRowText = it },
+                        label = { Text("Start item #", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
                     OutlinedTextField(
                         value = lineStrideText,
                         onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) lineStrideText = it },
-                        label = { Text("Every X lines", fontSize = 12.sp) },
+                        label = { Text("Every X items", fontSize = 11.sp) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -508,65 +563,70 @@ fun BodyweightImportDialog(
                     OutlinedTextField(
                         value = startColText,
                         onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) startColText = it },
-                        label = { Text("Start column", fontSize = 12.sp) },
+                        label = { Text("Start char", fontSize = 11.sp) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
 
-                // Options: Unit and Date Order
+                // Controls Section 2: Delimiter & Unit
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Unit selector
+                    // Delimiter Segmented Selector
                     Row(
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(1.4f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(SolidSlate)
                             .border(1.dp, ThinOutline, RoundedCornerShape(8.dp)),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        listOf(WeightImportUnit.LBS, WeightImportUnit.KG).forEach { u ->
+                        listOf(
+                            ImportDelimiter.AUTO to "Auto",
+                            ImportDelimiter.PIPES to "| Pipes",
+                            ImportDelimiter.LINES to "\\n Lines",
+                            ImportDelimiter.COMMAS to ", Commas"
+                        ).forEach { (d, label) ->
+                            val isSelected = delimiter == d
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { delimiter = d }
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else CoolGray,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Unit Selector
+                    Row(
+                        modifier = Modifier
+                            .weight(0.8f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SolidSlate)
+                            .border(1.dp, ThinOutline, RoundedCornerShape(8.dp)),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        listOf(WeightImportUnit.KG to "kg", WeightImportUnit.LBS to "lbs").forEach { (u, label) ->
                             val isSelected = unit == u
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { unit = u }
                                     .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (u == WeightImportUnit.LBS) "in lbs" else "in kg",
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else CoolGray,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-
-                    // Order selector
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SolidSlate)
-                            .border(1.dp, ThinOutline, RoundedCornerShape(8.dp)),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        listOf(ImportFileOrder.OLDEST_FIRST to "Oldest ↑", ImportFileOrder.NEWEST_FIRST to "Newest ↑").forEach { (ord, label) ->
-                            val isSelected = fileOrder == ord
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { fileOrder = ord }
-                                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
-                                    .padding(vertical = 10.dp),
+                                    .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -580,29 +640,103 @@ fun BodyweightImportDialog(
                     }
                 }
 
-                // Summary status
-                if (effectiveLines.isNotEmpty() && previewResult != null) {
-                    val found = previewResult.rows.size
-                    val skipped = previewResult.errors.size + (effectiveLines.size - previewResult.rows.size - previewResult.errors.size).coerceAtLeast(0)
-                    Text(
-                        text = "Found $found valid weights • $skipped skipped",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (found > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 2.dp)
+                // Controls Section 3: Dates & Ordering
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = stepDaysText,
+                        onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) stepDaysText = it },
+                        label = { Text("Days step", fontSize = 11.sp) },
+                        modifier = Modifier.weight(0.9f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
+
+                    OutlinedTextField(
+                        value = refYearText,
+                        onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) refYearText = it },
+                        label = { Text("Year", fontSize = 11.sp) },
+                        modifier = Modifier.weight(0.9f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    // Order selector
+                    Row(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SolidSlate)
+                            .border(1.dp, ThinOutline, RoundedCornerShape(8.dp)),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        listOf(ImportFileOrder.OLDEST_FIRST to "Oldest ↑", ImportFileOrder.NEWEST_FIRST to "Newest ↑").forEach { (ord, label) ->
+                            val isSelected = fileOrder == ord
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { fileOrder = ord }
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else CoolGray,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Controls Section 4: Auto-detect dates toggle & Status Summary
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { autoDetectDates = !autoDetectDates }
+                            .background(if (autoDetectDates) ElectricBlue.copy(alpha = 0.2f) else SolidSlate)
+                            .border(1.dp, if (autoDetectDates) ElectricBlue else ThinOutline, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (autoDetectDates) "✓ Auto-detect dates" else "Manual step dates",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (autoDetectDates) ElectricBlue else CoolGray
+                        )
+                    }
+
+                    if (effectiveItems.isNotEmpty() && previewResult != null) {
+                        val skipped = previewResult.errors.size + (effectiveItems.size - previewResult.rows.size - previewResult.errors.size).coerceAtLeast(0)
+                        Text(
+                            text = "$validCount valid • $skipped skipped",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (validCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(effectiveLines.asSequence(), config)
+                    onConfirm(effectiveItems.asSequence(), config)
                 },
                 enabled = canConfirm,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Confirm Import")
+                Text(if (validCount > 0) "Import $validCount Weights" else "Confirm Import")
             }
         },
         dismissButton = {
@@ -645,19 +779,20 @@ private fun buildAnnotatedLine(
     var matchEndInLine: Int? = null
 
     if (slice != null) {
-        val matches = Regex("""\d+(?:[.,]\d+)?""").findAll(slice).toList()
+        val matches = BodyweightFileParser.WEIGHT_NUMBER_REGEX.findAll(slice).toList()
         val targetMatch = matches.firstOrNull { m ->
-            val v = m.value.replace(',', '.').toDoubleOrNull()
+            val v = m.groupValues[1].replace(',', '.').toDoubleOrNull()
             if (v == null) false
             else {
                 val lbs = if (config.unit == WeightImportUnit.KG) UnitConversion.kgToLbs(v) else v
-                kotlin.math.abs(lbs - row.weightLbs) < 0.01
+                kotlin.math.abs(lbs - row.weightLbs) < 0.05
             }
         } ?: matches.firstOrNull()
 
         if (targetMatch != null) {
-            matchStartInLine = startChar + targetMatch.range.first
-            matchEndInLine = startChar + targetMatch.range.last + 1
+            val grp = targetMatch.groups[1] ?: targetMatch.groups[0]!!
+            matchStartInLine = startChar + grp.range.first
+            matchEndInLine = startChar + grp.range.last + 1
         }
     }
 

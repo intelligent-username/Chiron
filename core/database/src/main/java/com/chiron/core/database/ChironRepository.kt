@@ -490,8 +490,9 @@ class ChironRepository(
         return try {
             val stream = context.contentResolver.openInputStream(fileUri)
                 ?: return Result.failure(IllegalArgumentException("Cannot open file"))
-            val lines = stream.bufferedReader().use { it.readLines() }.asSequence()
-            importBodyWeightsFromLines(lines, config)
+            val text = stream.bufferedReader().use { it.readText() }
+            val items = com.chiron.core.database.bodyweight.BodyweightFileParser.splitText(text, config.delimiter)
+            importBodyWeightsFromLines(items.asSequence(), config)
         } catch (e: Exception) {
             Result.failure(e)
         }
