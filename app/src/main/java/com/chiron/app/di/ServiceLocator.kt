@@ -74,7 +74,7 @@ object ServiceLocator {
     }
 
     val bodyweightViewModelFactory: BodyweightViewModel.Factory by lazy {
-        BodyweightViewModel.Factory(repository)
+        BodyweightViewModel.Factory(repository, userSettingsRepository)
     }
 }
 

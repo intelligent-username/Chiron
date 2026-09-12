@@ -4,14 +4,13 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.chiron.core.common.UserSettingsRepository
 import com.chiron.core.database.ChironRepository
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
 import com.chiron.core.database.dao.BodyweightUpsertCounts
 import com.chiron.core.model.BodyWeightEntry
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.TemporalAdjusters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,18 +22,26 @@ import kotlinx.coroutines.withContext
 
 /** Real ViewModel over ChironRepository.observeBodyWeights. Canonical lbs. */
 class BodyweightViewModel(
-    private val repository: ChironRepository
+    private val repository: ChironRepository,
+    private val userSettingsRepository: UserSettingsRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BodyweightUiState())
     val uiState: StateFlow<BodyweightUiState> = _uiState.asStateFlow()
 
     private var allEntries: List<BodyWeightEntry> = emptyList()
-    private var firstWeekStart: LocalDate = LocalDate.now()
-        .with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    private var earliestDate: LocalDate? = null
     private var loadJob: Job? = null
 
     init {
+        // Observe persistent unit preference if repository provided
+        userSettingsRepository?.let { settings ->
+            viewModelScope.launch {
+                settings.displayInKgFlow.collect { isKg ->
+                    _uiState.update { it.copy(displayInKg = isKg) }
+                }
+            }
+        }
         load()
     }
 
@@ -43,58 +50,99 @@ class BodyweightViewModel(
         load()
     }
 
-    fun setMode(mode: BodyweightMode) {
-        val current = _uiState.value
-        val pts = BodyweightPointCalculator.buildPoints(mode, current.currentWeekStart, current.weekCount, allEntries)
-        val stats = BodyweightPointCalculator.computeStats(pts)
-        _uiState.update { state ->
-            state.copy(mode = mode, points = pts, stats = stats)
+    fun setDisplayInKg(value: Boolean) {
+        _uiState.update { it.copy(displayInKg = value) }
+        viewModelScope.launch {
+            userSettingsRepository?.setDisplayInKg(value)
         }
+    }
+
+    fun setMode(mode: BodyweightMode) {
+        _uiState.update { it.copy(mode = mode) }
     }
 
     fun setWeekCount(count: Int) {
         val current = _uiState.value
-        val clamped = count.coerceIn(2, current.maxWeekCount.coerceAtLeast(2))
-        val pts = BodyweightPointCalculator.buildPoints(current.mode, current.currentWeekStart, clamped, allEntries)
+        val clamped = count.coerceIn(1, current.maxWeekCount.coerceAtLeast(1))
+        val pts = BodyweightPointCalculator.buildPoints(
+            periodEnd = current.currentPeriodEnd,
+            weekCount = clamped,
+            earliestDate = earliestDate,
+            allEntries = allEntries
+        )
         val stats = BodyweightPointCalculator.computeStats(pts)
+        val windowStart = current.currentPeriodEnd.minusDays((clamped * 7 - 1).toLong())
+        val isAtFirst = earliestDate == null || windowStart <= earliestDate
         _uiState.update { state ->
-            state.copy(weekCount = clamped, points = pts, stats = stats)
+            state.copy(
+                weekCount = clamped,
+                points = pts,
+                stats = stats,
+                isAtFirstWeek = isAtFirst
+            )
         }
     }
 
     fun goToPreviousWeek() {
         val current = _uiState.value
-        val step = if (current.mode == BodyweightMode.BY_DAY) 1 else current.weekCount
-        val newWeek = current.currentWeekStart.minusWeeks(step.toLong())
-        if (newWeek < firstWeekStart) return
-        val pts = BodyweightPointCalculator.buildPoints(current.mode, newWeek, current.weekCount, allEntries)
+        val windowStart = current.currentPeriodEnd.minusDays((current.weekCount * 7 - 1).toLong())
+        if (earliestDate != null && windowStart <= earliestDate) {
+            return // Strictly at earliest date
+        }
+
+        val tentativeEnd = current.currentPeriodEnd.minusWeeks(1)
+        val tentativeStart = tentativeEnd.minusDays((current.weekCount * 7 - 1).toLong())
+        val newEnd = if (earliestDate != null && tentativeStart < earliestDate) {
+            // Clamp so earliest date is the first visible date
+            earliestDate!!.plusDays((current.weekCount * 7 - 1).toLong()).coerceAtMost(LocalDate.now())
+        } else {
+            tentativeEnd
+        }
+
+        if (newEnd == current.currentPeriodEnd) return
+
+        val pts = BodyweightPointCalculator.buildPoints(
+            periodEnd = newEnd,
+            weekCount = current.weekCount,
+            earliestDate = earliestDate,
+            allEntries = allEntries
+        )
         val stats = BodyweightPointCalculator.computeStats(pts)
+        val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
+
         _uiState.update { state ->
             state.copy(
-                currentWeekStart = newWeek,
+                currentPeriodEnd = newEnd,
                 points = pts,
                 stats = stats,
-                isAtFirstWeek = newWeek <= firstWeekStart,
-                isAtCurrentWeek = BodyweightPointCalculator.isCurrentWeek(newWeek)
+                isAtFirstWeek = earliestDate == null || newStart <= earliestDate,
+                isAtCurrentWeek = newEnd >= LocalDate.now()
             )
         }
     }
 
     fun goToNextWeek() {
         val current = _uiState.value
-        val todayWeek = BodyweightPointCalculator.todayWeekStart()
-        val step = if (current.mode == BodyweightMode.BY_DAY) 1 else current.weekCount
-        val newWeek = current.currentWeekStart.plusWeeks(step.toLong())
-        if (newWeek > todayWeek) return
-        val pts = BodyweightPointCalculator.buildPoints(current.mode, newWeek, current.weekCount, allEntries)
+        val today = LocalDate.now()
+        if (current.currentPeriodEnd >= today) return
+
+        val newEnd = current.currentPeriodEnd.plusWeeks(1).coerceAtMost(today)
+        val pts = BodyweightPointCalculator.buildPoints(
+            periodEnd = newEnd,
+            weekCount = current.weekCount,
+            earliestDate = earliestDate,
+            allEntries = allEntries
+        )
         val stats = BodyweightPointCalculator.computeStats(pts)
+        val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
+
         _uiState.update { state ->
             state.copy(
-                currentWeekStart = newWeek,
+                currentPeriodEnd = newEnd,
                 points = pts,
                 stats = stats,
-                isAtFirstWeek = newWeek <= firstWeekStart,
-                isAtCurrentWeek = BodyweightPointCalculator.isCurrentWeek(newWeek)
+                isAtFirstWeek = earliestDate == null || newStart <= earliestDate,
+                isAtCurrentWeek = newEnd >= today
             )
         }
     }
@@ -153,6 +201,17 @@ class BodyweightViewModel(
         }
     }
 
+    /** Mass delete weigh-ins between [startUtc] and [endUtc] inclusive. */
+    fun deleteEntriesInRange(startUtc: Long, endUtc: Long) {
+        viewModelScope.launch {
+            runCatching { repository.deleteBodyWeightBetween(startUtc, endUtc) }
+                .onSuccess { _uiState.update { it.copy(error = null) } }
+                .onFailure { e ->
+                    _uiState.update { it.copy(error = e.message ?: "Failed to delete entries in range") }
+                }
+        }
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
@@ -197,30 +256,37 @@ class BodyweightViewModel(
 
     private suspend fun onRows(rows: List<BodyWeightEntry>) = withContext(Dispatchers.Default) {
         allEntries = rows.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }.sortedBy { it.timestampUtc }
-        firstWeekStart = BodyweightPointCalculator.computeFirstWeekStart(allEntries)
-        val rawWeeks = runCatching {
-            java.time.temporal.ChronoUnit.WEEKS.between(
-                firstWeekStart.atStartOfDay(ZoneId.systemDefault()).toInstant(),
-                BodyweightPointCalculator.todayWeekStart().atStartOfDay(ZoneId.systemDefault()).toInstant()
-            ).toInt() + 1
-        }.getOrDefault(10)
-        val maxWeeks = rawWeeks.coerceIn(2, 520)
+        earliestDate = BodyweightPointCalculator.computeEarliestInputDate(allEntries)
+        val today = LocalDate.now()
+        val maxWeeks = BodyweightPointCalculator.computeMaxWeeks(earliestDate, today)
 
         val current = _uiState.value
-        val clampedWeekCount = current.weekCount.coerceIn(2, maxWeeks)
-        val pts = BodyweightPointCalculator.buildPoints(current.mode, current.currentWeekStart, clampedWeekCount, allEntries)
+        val clampedWeekCount = current.weekCount.coerceIn(1, maxWeeks)
+        val periodEnd = current.currentPeriodEnd.coerceAtMost(today)
+
+        val pts = BodyweightPointCalculator.buildPoints(
+            periodEnd = periodEnd,
+            weekCount = clampedWeekCount,
+            earliestDate = earliestDate,
+            allEntries = allEntries
+        )
         val stats = BodyweightPointCalculator.computeStats(pts)
+        val windowStart = periodEnd.minusDays((clampedWeekCount * 7 - 1).toLong())
+        val isAtFirst = earliestDate == null || windowStart <= earliestDate
+        val isAtCurrent = periodEnd >= today
 
         _uiState.update { state ->
             state.copy(
                 isLoading = false,
+                earliestDate = earliestDate,
+                currentPeriodEnd = periodEnd,
                 weekCount = clampedWeekCount,
+                maxWeekCount = maxWeeks,
                 points = pts,
                 stats = stats,
                 entries = allEntries.sortedByDescending { it.timestampUtc },
-                maxWeekCount = maxWeeks,
-                isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
-                isAtCurrentWeek = BodyweightPointCalculator.isCurrentWeek(state.currentWeekStart)
+                isAtFirstWeek = isAtFirst,
+                isAtCurrentWeek = isAtCurrent
             )
         }
     }
@@ -232,10 +298,11 @@ class BodyweightViewModel(
     }
 
     class Factory(
-        private val repository: ChironRepository
+        private val repository: ChironRepository,
+        private val userSettingsRepository: UserSettingsRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            BodyweightViewModel(repository) as T
+            BodyweightViewModel(repository, userSettingsRepository) as T
     }
 }

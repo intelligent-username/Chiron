@@ -1,8 +1,10 @@
 package com.chiron.feature.timer
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import kotlin.math.roundToInt
@@ -82,14 +85,32 @@ fun BodyweightGraphCard(
                 )
             }
 
-            // Week-range slider: 2 weeks min, max from first log to today.
-            val maxWeeks = kotlin.math.max(3, state.maxWeekCount)
-            val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
+            // Week-range slider: from 1 week up to total weeks spanning earliest entry to today
+            val maxWeeks = kotlin.math.max(2, state.maxWeekCount)
+            val currentWeekVal = state.weekCount.toFloat().coerceIn(1f, maxWeeks.toFloat())
             Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Range: ${state.weekCount} week${if (state.weekCount == 1) "" else "s"}",
+                    color = CoolGray,
+                    fontSize = 12.sp
+                )
+                if (state.earliestDate != null) {
+                    Text(
+                        text = "First log: ${state.earliestDate}",
+                        color = CoolGray,
+                        fontSize = 11.sp
+                    )
+                }
+            }
             Slider(
                 value = currentWeekVal,
                 onValueChange = { onWeekCountChange(it.roundToInt()) },
-                valueRange = 2f..maxWeeks.toFloat(),
+                valueRange = 1f..maxWeeks.toFloat(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)

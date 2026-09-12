@@ -8,10 +8,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -34,12 +40,15 @@ import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
 import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.ui.theme.CoolGray
+import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.max
 
 @Composable
 fun BodyweightHistoryList(
@@ -47,17 +56,27 @@ fun BodyweightHistoryList(
     localInKg: Boolean,
     onEdit: (Long, Double) -> Unit,
     onDelete: (Long) -> Unit,
+    onDeleteRange: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
     var editInKg by rememberSaveable { mutableStateOf(localInKg) }
     var editError by rememberSaveable { mutableStateOf<String?>(null) }
-    var displayLimit by remember { mutableIntStateOf(30) }
+
+    // Pagination state: customizable page size bounded 5..50, default 10
+    var pageSize by rememberSaveable { mutableIntStateOf(10) }
+    var currentPage by rememberSaveable { mutableIntStateOf(0) }
+
+    // Mass-delete dialog state
+    var showDeleteRangeDialog by rememberSaveable { mutableStateOf(false) }
+
     val unit = if (localInKg) "kg" else "lbs"
 
-    val displayedEntries = remember(entries, displayLimit) {
-        if (displayLimit >= entries.size) entries else entries.take(displayLimit)
+    val totalPages = max(1, (entries.size + pageSize - 1) / pageSize)
+    val safePage = currentPage.coerceIn(0, totalPages - 1)
+    val displayedEntries = remember(entries, safePage, pageSize) {
+        entries.drop(safePage * pageSize).take(pageSize)
     }
 
     Card(
@@ -67,23 +86,40 @@ fun BodyweightHistoryList(
         border = BorderStroke(1.dp, ThinOutline)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // Header: Title, Count, and Mass-Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Column {
+                    Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    if (entries.isNotEmpty()) {
+                        Text("${entries.size} total weigh-in logs", color = CoolGray, fontSize = 12.sp)
+                    }
+                }
+
                 if (entries.isNotEmpty()) {
-                    Text("${entries.size} logs", color = CoolGray, fontSize = 12.sp)
+                    TextButton(onClick = { showDeleteRangeDialog = true }) {
+                        Text("Delete Range", color = Color(0xFFFF7B72), fontSize = 13.sp)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = ThinOutline, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(6.dp))
 
             if (entries.isEmpty()) {
-                Text("No weigh-ins yet", color = CoolGray, fontSize = 14.sp)
+                Text(
+                    "No weigh-ins recorded yet",
+                    color = CoolGray,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
             }
 
+            // Paginated log rows
             displayedEntries.forEach { entry ->
                 val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
 
@@ -133,7 +169,9 @@ fun BodyweightHistoryList(
                     }
                 } else {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -142,6 +180,7 @@ fun BodyweightHistoryList(
                                 "${UnitConversion.formatNumber(display)} $unit",
                                 color = Color.White,
                                 fontFamily = MonospaceFamily,
+                                fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp
                             )
                             Text(formatHistoryTimestamp(entry.timestampUtc), color = CoolGray, fontSize = 12.sp)
@@ -155,22 +194,191 @@ fun BodyweightHistoryList(
                             Text("Edit")
                         }
                         TextButton(onClick = { onDelete(entry.id) }) {
-                            Text("Delete")
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             }
 
-            if (entries.size > displayLimit) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { displayLimit += 50 },
-                    modifier = Modifier.fillMaxWidth()
+            // Pagination Controls Footer
+            if (entries.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = ThinOutline, thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Show more (${entries.size - displayLimit} remaining)")
+                    // Page Size Stepper: [ - ] 10 rows [ + ]
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("Show:", color = CoolGray, fontSize = 12.sp)
+                        IconButton(
+                            onClick = {
+                                val nextSize = (pageSize - 5).coerceIn(5, 50)
+                                pageSize = nextSize
+                                currentPage = 0
+                            },
+                            enabled = pageSize > 5,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Text("-", color = if (pageSize > 5) Color.White else CoolGray.copy(alpha = 0.4f), fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "$pageSize",
+                            color = ElectricBlue,
+                            fontFamily = MonospaceFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        IconButton(
+                            onClick = {
+                                val nextSize = (pageSize + 5).coerceIn(5, 50)
+                                pageSize = nextSize
+                                currentPage = 0
+                            },
+                            enabled = pageSize < 50,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Text("+", color = if (pageSize < 50) Color.White else CoolGray.copy(alpha = 0.4f), fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Back & Forth Navigator: < Page X of Y >
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        TextButton(
+                            onClick = { if (safePage > 0) currentPage = safePage - 1 },
+                            enabled = safePage > 0
+                        ) {
+                            Text("<", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "${safePage + 1} / $totalPages",
+                            color = Color.White,
+                            fontFamily = MonospaceFamily,
+                            fontSize = 12.sp
+                        )
+                        TextButton(
+                            onClick = { if (safePage < totalPages - 1) currentPage = safePage + 1 },
+                            enabled = safePage < totalPages - 1
+                        ) {
+                            Text(">", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Mass-Delete Date Range Dialog
+    if (showDeleteRangeDialog) {
+        val zone = ZoneId.systemDefault()
+        val defaultStart = remember(entries) {
+            val minUtc = entries.minOfOrNull { it.timestampUtc }
+            if (minUtc != null) {
+                Instant.ofEpochMilli(minUtc).atZone(zone).toLocalDate().toString()
+            } else {
+                LocalDate.now().minusMonths(1).toString()
+            }
+        }
+        val defaultEnd = remember { LocalDate.now().toString() }
+
+        var startInput by rememberSaveable { mutableStateOf(defaultStart) }
+        var endInput by rememberSaveable { mutableStateOf(defaultEnd) }
+        var rangeError by rememberSaveable { mutableStateOf<String?>(null) }
+
+        val parsedStart = runCatching { LocalDate.parse(startInput.trim()) }.getOrNull()
+        val parsedEnd = runCatching { LocalDate.parse(endInput.trim()) }.getOrNull()
+
+        val matchingCount = remember(parsedStart, parsedEnd, entries) {
+            if (parsedStart != null && parsedEnd != null && !parsedStart.isAfter(parsedEnd)) {
+                val sUtc = parsedStart.atStartOfDay(zone).toInstant().toEpochMilli()
+                val eUtc = parsedEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+                entries.count { it.timestampUtc in sUtc..eUtc }
+            } else 0
+        }
+
+        AlertDialog(
+            onDismissRequest = { showDeleteRangeDialog = false },
+            containerColor = SolidSlate,
+            title = {
+                Text("Delete Logs by Date Range", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Delete all weigh-in entries between the start and end dates (inclusive).",
+                        color = CoolGray,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = startInput,
+                        onValueChange = { startInput = it },
+                        label = { Text("Start Date (YYYY-MM-DD)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = endInput,
+                        onValueChange = { endInput = it },
+                        label = { Text("End Date (YYYY-MM-DD)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    if (parsedStart == null || parsedEnd == null) {
+                        Text("Please use YYYY-MM-DD format", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    } else if (parsedStart.isAfter(parsedEnd)) {
+                        Text("Start date must be on or before end date", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    } else {
+                        Text(
+                            "$matchingCount log${if (matchingCount == 1) "" else "s"} will be deleted",
+                            color = if (matchingCount > 0) Color(0xFFFF7B72) else CoolGray,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    if (rangeError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(rangeError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (parsedStart == null || parsedEnd == null || parsedStart.isAfter(parsedEnd)) {
+                            rangeError = "Invalid date range"
+                            return@TextButton
+                        }
+                        val sUtc = parsedStart.atStartOfDay(zone).toInstant().toEpochMilli()
+                        val eUtc = parsedEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+                        onDeleteRange(sUtc, eUtc)
+                        showDeleteRangeDialog = false
+                    },
+                    enabled = parsedStart != null && parsedEnd != null && !parsedStart.isAfter(parsedEnd) && matchingCount > 0,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF7B72))
+                ) {
+                    Text("Delete $matchingCount Logs")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteRangeDialog = false }) {
+                    Text("Cancel", color = CoolGray)
+                }
+            }
+        )
     }
 }
 

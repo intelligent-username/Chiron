@@ -450,6 +450,9 @@ class ChironRepository(
     suspend fun deleteBodyWeightById(id: Long) =
         requireBodyWeightDao().deleteById(id)
 
+    suspend fun deleteBodyWeightBetween(startUtc: Long, endUtc: Long): Int =
+        requireBodyWeightDao().deleteBetween(startUtc, endUtc)
+
     // ─────────────────────────────────────────────────────────────────────────
     // Data export / import
     // ─────────────────────────────────────────────────────────────────────────

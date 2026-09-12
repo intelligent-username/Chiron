@@ -61,6 +61,9 @@ interface BodyWeightDao {
     @Query("DELETE FROM body_weight_entry WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM body_weight_entry WHERE timestamp_utc >= :startUtc AND timestamp_utc <= :endUtc")
+    suspend fun deleteBetween(startUtc: Long, endUtc: Long): Int
+
     @Query("SELECT * FROM body_weight_entry ORDER BY timestamp_utc ASC, id ASC")
     fun getAllFlow(): Flow<List<BodyWeightEntry>>
 

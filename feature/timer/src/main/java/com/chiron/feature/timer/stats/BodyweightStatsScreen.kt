@@ -13,10 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -40,13 +37,14 @@ fun BodyweightStatsScreen(
         } else {
             BodyweightContent(
                 state = state,
-                displayInKg = displayInKg,
+                onToggleUnit = { viewModel.setDisplayInKg(!state.displayInKg) },
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
                 onNextWeek = viewModel::goToNextWeek,
                 onLog = viewModel::logWeight,
                 onEdit = viewModel::updateEntry,
                 onDelete = viewModel::deleteEntry,
+                onDeleteRange = viewModel::deleteEntriesInRange,
                 onImportClick = onImportClick
             )
         }
@@ -56,27 +54,30 @@ fun BodyweightStatsScreen(
 @Composable
 fun BodyweightContent(
     state: BodyweightUiState,
-    displayInKg: Boolean,
+    onToggleUnit: () -> Unit,
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onLog: (Double) -> Unit,
     onEdit: (Long, Double) -> Unit,
     onDelete: (Long) -> Unit,
+    onDeleteRange: (Long, Long) -> Unit,
     onImportClick: () -> Unit = {}
 ) {
-    // Direct kg/lbs toggle in sub-tab (overrides default setting locally)
-    var localInKg by rememberSaveable { mutableStateOf(displayInKg) }
+    val localInKg = state.displayInKg
     val unit = if (localInKg) "kg" else "lbs"
 
-    val weekLabel = remember(state.currentWeekStart, state.weekCount) {
+    // Date range label strictly bounded by earliest date
+    val weekLabel = remember(state.currentPeriodEnd, state.weekCount, state.earliestDate) {
         val fmt = DateTimeFormatter.ofPattern("MMM d")
-        if (state.weekCount <= 1) {
-            "${state.currentWeekStart.format(fmt)} - ${state.currentWeekStart.plusDays(6).format(fmt)}"
+        val daysSpan = (state.weekCount * 7 - 1).toLong()
+        val tentativeStart = state.currentPeriodEnd.minusDays(daysSpan)
+        val actualStart = if (state.earliestDate != null && tentativeStart < state.earliestDate) {
+            state.earliestDate!!
         } else {
-            val start = state.currentWeekStart.minusWeeks((state.weekCount - 1).toLong())
-            "${start.format(fmt)} - ${state.currentWeekStart.plusDays(6).format(fmt)}"
+            tentativeStart
         }
+        "${actualStart.format(fmt)} - ${state.currentPeriodEnd.format(fmt)}"
     }
 
     Column(
@@ -87,10 +88,10 @@ fun BodyweightContent(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Header controls (Import & Unit toggle)
+        // Header controls (Import & Persistent Unit toggle)
         BodyweightTopBar(
             localInKg = localInKg,
-            onToggleUnit = { localInKg = !localInKg },
+            onToggleUnit = onToggleUnit,
             onImportClick = onImportClick
         )
 
@@ -105,7 +106,7 @@ fun BodyweightContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Interactive Line Graph Card
+        // Interactive Line Graph Card (Smooth S-curve, prominent input dots, unbounded scale)
         BodyweightGraphCard(
             state = state,
             localInKg = localInKg,
@@ -115,7 +116,7 @@ fun BodyweightContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Week Navigation Bar
+        // Week/Period Navigation Bar (Strict earliest input date boundary)
         WeekNavigator(
             weekLabel = weekLabel,
             canGoPrev = !state.isAtFirstWeek,
@@ -126,7 +127,7 @@ fun BodyweightContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Numerical Statistics Section
+        // Polished Numerical Statistics Dashboard Section
         BodyweightStatsSection(
             stats = state.stats,
             localInKg = localInKg,
@@ -135,12 +136,13 @@ fun BodyweightContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Historical Logs List
+        // Historical Logs List with 5-50 Row Pagination and Date Range Mass-Delete
         BodyweightHistoryList(
             entries = state.entries,
             localInKg = localInKg,
             onEdit = onEdit,
-            onDelete = onDelete
+            onDelete = onDelete,
+            onDeleteRange = onDeleteRange
         )
 
         Spacer(modifier = Modifier.height(120.dp))
