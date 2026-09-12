@@ -73,13 +73,18 @@ class VolumeViewModel(
                 val earliestDate = if (rawEarliestDate.isBefore(minAllowedDate)) minAllowedDate else rawEarliestDate
                 firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
-                val daysSinceFirstWorkout = ChronoUnit.DAYS.between(earliestDate, today).coerceAtLeast(0L)
-                val maxDays = maxOf(90.0, daysSinceFirstWorkout / 3.0)
-                val maxWeekCount = ceil(maxDays / 7.0).toInt().coerceAtLeast(2)
+                val todayWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                val maxWeekCount = if (exerciseFilter != null) {
+                    val totalWeeks = ChronoUnit.WEEKS.between(firstWeekStart, todayWeek).toInt() + 1
+                    maxOf(2, totalWeeks)
+                } else {
+                    val daysSinceFirstWorkout = ChronoUnit.DAYS.between(earliestDate, today).coerceAtLeast(0L)
+                    val maxDays = maxOf(90.0, daysSinceFirstWorkout / 3.0)
+                    ceil(maxDays / 7.0).toInt().coerceAtLeast(2)
+                }
 
                 val weeklyTotals = mutableListOf<Double>()
                 var w = firstWeekStart
-                val todayWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
                 var loopGuard = 0
                 while (w <= todayWeek && loopGuard < 500) {
                     var total = 0.0

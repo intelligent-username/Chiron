@@ -29,6 +29,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -85,8 +86,6 @@ fun ExerciseDetailScreen(
     val initialIsBodyweight = remember(exercise.id) { exercise.isBodyweight == 1 }
     var showPresets by remember(exercise.id) { mutableStateOf(false) }
 
-    val isPrEligible = (exercise.isWeightBased == 1 && exercise.isRepBased == 1) ||
-        (exercise.isBodyweight == 1 && exercise.isRepBased == 1)
     val percentValue = percentText.trim().toDoubleOrNull()
     val percentError = if (!bodyweightEnabled) null
         else if (percentValue == null || percentValue <= 0 || percentValue > 200) "Enter a percentage between 1 and 200"
@@ -182,8 +181,11 @@ fun ExerciseDetailScreen(
     ) { padding ->
         val focusManager = LocalFocusManager.current
 
-        LaunchedEffect(exercise.id) {
+        DisposableEffect(exercise.id) {
             volumeViewModel.setExerciseFilter(exercise.id)
+            onDispose {
+                volumeViewModel.setExerciseFilter(null)
+            }
         }
         val volumeState by volumeViewModel.uiState.collectAsState()
 
@@ -261,15 +263,13 @@ fun ExerciseDetailScreen(
                 }
             )
 
-            if (isPrEligible) {
-                ExerciseVolumeSection(
-                    exerciseId = exercise.id,
-                    volumeViewModel = volumeViewModel,
-                    volumeState = volumeState,
-                    displayInKg = displayInKg,
-                    onOpenWorkoutFromDate = onOpenWorkoutFromDate
-                )
-            }
+            ExerciseVolumeSection(
+                exerciseId = exercise.id,
+                volumeViewModel = volumeViewModel,
+                volumeState = volumeState,
+                displayInKg = displayInKg,
+                onOpenWorkoutFromDate = onOpenWorkoutFromDate
+            )
         }
 
         if (showDeleteConfirmation) {
