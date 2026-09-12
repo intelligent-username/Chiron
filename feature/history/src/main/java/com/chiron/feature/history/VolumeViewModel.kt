@@ -95,26 +95,33 @@ class VolumeViewModel(
 
             repository.getVolumeSummaryByDayFlow(exerciseFilter).collect { rawRows ->
                 val zone = ZoneId.systemDefault()
-                val byDate = rawRows.associate { row ->
-                    val date = Instant.ofEpochMilli(row.dateUtc).atZone(zone).toLocalDate()
+                val today = LocalDate.now()
+                val minAllowedDate = today.minusYears(5)
+                val byDate = rawRows.filter { it.dateUtc > 0L }.associate { row ->
+                    val date = runCatching {
+                        Instant.ofEpochMilli(row.dateUtc).atZone(zone).toLocalDate()
+                    }.getOrDefault(today)
                     date to row.volumeLbs
                 }
                 allDailyVolumes = byDate
 
-                // Compute the earliest week boundary
-                val earliestDate = byDate.keys.minOrNull() ?: LocalDate.now()
+                // Compute the earliest week boundary (clamped to at most 5 years ago)
+                val rawEarliestDate = byDate.keys.minOrNull() ?: today
+                val earliestDate = if (rawEarliestDate.isBefore(minAllowedDate)) minAllowedDate else rawEarliestDate
                 firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
                 val weeklyTotals = mutableListOf<Double>()
                 var w = firstWeekStart
-                val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-                while (w <= todayWeek) {
+                val todayWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                var loopGuard = 0
+                while (w <= todayWeek && loopGuard < 500) {
                     var total = 0.0
-                    for(d in 0..6) {
+                    for (d in 0..6) {
                         total += byDate[w.plusDays(d.toLong())] ?: 0.0
                     }
                     weeklyTotals.add(total)
                     w = w.plusWeeks(1)
+                    loopGuard++
                 }
 
                 val thisWeek = weeklyTotals.lastOrNull() ?: 0.0

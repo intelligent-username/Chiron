@@ -212,16 +212,21 @@ class BodyweightViewModel(
     }
 
     private fun onRows(rows: List<BodyWeightEntry>) {
-        allEntries = rows.sortedBy { it.timestampUtc }
+        allEntries = rows.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }.sortedBy { it.timestampUtc }
         updateFirstWeekStart()
-        val maxWeeks = kotlin.math.max(2, java.time.temporal.ChronoUnit.WEEKS.between(
-            firstWeekStart.atStartOfDay(ZoneId.systemDefault()).toInstant(),
-            todayWeekStart().atStartOfDay(ZoneId.systemDefault()).toInstant()
-        ).toInt() + 1)
+        val rawWeeks = runCatching {
+            java.time.temporal.ChronoUnit.WEEKS.between(
+                firstWeekStart.atStartOfDay(ZoneId.systemDefault()).toInstant(),
+                todayWeekStart().atStartOfDay(ZoneId.systemDefault()).toInstant()
+            ).toInt() + 1
+        }.getOrDefault(10)
+        val maxWeeks = rawWeeks.coerceIn(2, 520)
         _uiState.update { state ->
-            val pts = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
+            val clampedWeekCount = state.weekCount.coerceIn(2, maxWeeks)
+            val pts = buildPoints(state.mode, state.currentWeekStart, clampedWeekCount, state.abridgeGaps)
             state.copy(
                 isLoading = false,
+                weekCount = clampedWeekCount,
                 points = pts,
                 stats = computeStats(pts),
                 entries = allEntries.sortedByDescending { it.timestampUtc },
@@ -239,14 +244,14 @@ class BodyweightViewModel(
     }
 
     private fun computeStats(points: List<BodyweightPoint>): BodyweightStats {
-        val weights = points.map { it.weightLbs }
+        val weights = points.map { it.weightLbs }.filter { it > 0.0 }
         if (weights.isEmpty()) return BodyweightStats()
         return BodyweightStats(
             current = weights.last(),
             change = if (weights.size >= 2) weights.last() - weights[weights.size - 2] else 0.0,
             average = weights.average(),
-            min = weights.min(),
-            max = weights.max(),
+            min = weights.minOrNull() ?: 0.0,
+            max = weights.maxOrNull() ?: 0.0,
             count = weights.size
         )
     }
@@ -268,9 +273,15 @@ class BodyweightViewModel(
 
     private fun lastEntryOn(date: LocalDate): BodyWeightEntry? {
         val zone = ZoneId.systemDefault()
-        return allEntries.filter {
-            Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate() == date
-        }.maxByOrNull { it.timestampUtc }
+        for (i in allEntries.indices.reversed()) {
+            val entry = allEntries[i]
+            val entryDate = runCatching {
+                Instant.ofEpochMilli(entry.timestampUtc).atZone(zone).toLocalDate()
+            }.getOrNull()
+            if (entryDate == date) return entry
+            if (entryDate != null && entryDate.isBefore(date)) break
+        }
+        return null
     }
 
     private fun buildDayPoints(weekStart: LocalDate): List<BodyweightPoint> {
@@ -318,10 +329,16 @@ class BodyweightViewModel(
 
     private fun updateFirstWeekStart() {
         val zone = ZoneId.systemDefault()
-        val earliest = allEntries.minOfOrNull {
-            Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate()
-        } ?: LocalDate.now()
-        firstWeekStart = earliest.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+        val today = LocalDate.now()
+        val minAllowed = today.minusYears(5)
+        val validEntries = allEntries.filter { it.timestampUtc > 0L }
+        val earliest = validEntries.minOfOrNull {
+            runCatching {
+                Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate()
+            }.getOrDefault(today)
+        } ?: today
+        val clamped = if (earliest.isBefore(minAllowed)) minAllowed else earliest
+        firstWeekStart = clamped.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     }
 
     private fun todayWeekStart(): LocalDate =

@@ -243,12 +243,13 @@ class SetEntryRepository(
         weights: List<BodyWeightEntry>
     ): List<DailyVolume> {
         if (rows.isEmpty()) return base
-        val sorted = weights.sortedBy { it.timestampUtc }
-        val cache = rows.map { it.dateUtc }.toSet()
-            .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, sorted) }
-        val extra = rows.groupBy { it.dateUtc }
+        val validWeights = weights.filter { it.timestampUtc > 0L }.sortedBy { it.timestampUtc }
+        val validRows = rows.filter { it.dateUtc > 0L }
+        val cache = validRows.map { it.dateUtc }.toSet()
+            .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, validWeights) }
+        val extra = validRows.groupBy { it.dateUtc }
             .mapValues { (_, dayRows) -> dayRows.sumOf { effectiveVolume(it, cache[it.dateUtc]) } }
-        val totals = base.associate { it.dateUtc to it.volumeLbs }.toMutableMap()
+        val totals = base.filter { it.dateUtc > 0L }.associate { it.dateUtc to it.volumeLbs }.toMutableMap()
         for ((day, volume) in extra) totals[day] = (totals[day] ?: 0.0) + volume
         return totals.entries.sortedBy { it.key }
             .map { DailyVolume(it.key, it.value) }
@@ -256,7 +257,7 @@ class SetEntryRepository(
 
     private fun effectiveVolume(row: BodyweightSetRow, bwLbs: Double?): Double {
         val repEq = repEquivalent(row) ?: return 0.0
-        if (bwLbs == null) return (row.addedWeightLbs ?: return 0.0) * repEq
+        if (bwLbs == null || bwLbs <= 0.0) return (row.addedWeightLbs ?: return 0.0) * repEq
         val pct = if (row.percentBodyweight <= 0) 100.0 else row.percentBodyweight
         return (bwLbs * pct / 100.0 + (row.addedWeightLbs ?: 0.0)) * repEq
     }

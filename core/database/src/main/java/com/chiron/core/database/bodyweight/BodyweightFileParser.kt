@@ -179,7 +179,8 @@ object BodyweightFileParser {
             } else {
                 i.toLong()
             }
-            ParsedWeightRow(k.weightLbs, config.anchorDateUtc - ageIndex * step + NOON_MS, k.lineNumber)
+            val computedTs = (config.anchorDateUtc - ageIndex * step + NOON_MS).coerceAtLeast(DAY_MS)
+            ParsedWeightRow(k.weightLbs, computedTs, k.lineNumber)
         }
     }
 

@@ -18,10 +18,15 @@ object BodyweightResolver {
     private const val DAY_MS = 86_400_000L
 
     fun getWeightForTimestamp(dayStartUtc: Long, entries: List<BodyWeightEntry>): Double? {
+        if (entries.isEmpty()) return null
         val endOfDay = dayStartUtc + DAY_MS
         var result: Double? = null
         for (entry in entries) {
-            if (entry.timestampUtc < endOfDay) result = entry.weightLbs
+            if (entry.timestampUtc < endOfDay) {
+                result = entry.weightLbs
+            } else {
+                break
+            }
         }
         return result
     }

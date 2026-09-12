@@ -75,6 +75,7 @@ import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -370,10 +371,11 @@ private fun GraphCard(
                 )
             }
             // Week-range slider: 2 weeks min, max from first log to today.
-            val maxWeeks = kotlin.math.max(2, state.maxWeekCount)
+            val maxWeeks = kotlin.math.max(3, state.maxWeekCount)
+            val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
             Spacer(modifier = Modifier.height(8.dp))
             Slider(
-                value = state.weekCount.toFloat(),
+                value = currentWeekVal,
                 onValueChange = { onWeekCountChange(it.roundToInt()) },
                 valueRange = 2f..maxWeeks.toFloat(),
                 modifier = Modifier
@@ -453,9 +455,10 @@ fun BodyweightLineGraph(
 }
 
 private fun nearestPoint(points: List<BodyweightPoint>, x: Float, width: Float): BodyweightPoint {
+    if (points.isEmpty()) return BodyweightPoint("", 0.0, 0L, LocalDate.now(), false)
     val padLeft = 100f
     val padRight = 10f
-    val graphW = width - padLeft - padRight
+    val graphW = (width - padLeft - padRight).coerceAtLeast(1f)
     val n = points.size
     val raw = ((x - padLeft) / graphW * (n - 1).coerceAtLeast(1)).roundToInt()
     return points[raw.coerceIn(0, n - 1)]
