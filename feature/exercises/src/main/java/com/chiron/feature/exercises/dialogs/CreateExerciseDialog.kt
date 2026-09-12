@@ -54,6 +54,7 @@ fun CreateExerciseDialog(
     var useReps by remember { mutableStateOf(true) }
     var bodyweightEnabled by remember { mutableStateOf(false) }
     var percentText by remember { mutableStateOf("100") }
+    var showPresets by remember { mutableStateOf(false) }
 
     fun reset() {
         name = ""
@@ -64,6 +65,7 @@ fun CreateExerciseDialog(
         useReps = true
         bodyweightEnabled = false
         percentText = "100"
+        showPresets = false
     }
 
     val percentValue = percentText.trim().toDoubleOrNull()
@@ -147,7 +149,15 @@ fun CreateExerciseDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Track Bodyweight", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = bodyweightEnabled, onCheckedChange = { bodyweightEnabled = it })
+                    Switch(
+                        checked = bodyweightEnabled,
+                        onCheckedChange = {
+                            bodyweightEnabled = it
+                            if (it) {
+                                showPresets = true
+                            }
+                        }
+                    )
                 }
 
                 if (bodyweightEnabled) {
@@ -158,7 +168,10 @@ fun CreateExerciseDialog(
                     )
                     OutlinedTextField(
                         value = percentText,
-                        onValueChange = { percentText = it },
+                        onValueChange = {
+                            percentText = it
+                            showPresets = false
+                        },
                         label = { Text("% of bodyweight") },
                         suffix = { Text("%") },
                         singleLine = true,
@@ -167,15 +180,14 @@ fun CreateExerciseDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    // Presets only until the user types a custom value — once a non-preset
-                    // number is in the field they are useless, so hide them.
-                    val typedValue = percentText.trim().toDoubleOrNull()
-                    val presetValues = listOf(50.0, 60.0, 80.0, 100.0)
-                    if (typedValue == null || presetValues.any { it == typedValue }) {
+                    if (showPresets) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf("50", "60", "80", "100").forEach { preset ->
                                 AssistChip(
-                                    onClick = { percentText = preset },
+                                    onClick = {
+                                        percentText = preset
+                                        showPresets = false
+                                    },
                                     label = { Text("$preset%") }
                                 )
                             }

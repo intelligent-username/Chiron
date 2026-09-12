@@ -1,6 +1,8 @@
 package com.chiron.feature.timer
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,16 +10,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +28,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +50,7 @@ fun BodyweightLogInput(
     error: String?,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var text by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSubmitMs by rememberSaveable { mutableStateOf(0L) }
@@ -53,7 +61,21 @@ fun BodyweightLogInput(
     val selectedDate = runCatching { LocalDate.parse(logDateIso) }.getOrDefault(today)
         .coerceAtMost(today)
     val dateLabel = if (selectedDate == today) "Today"
-        else selectedDate.format(DateTimeFormatter.ofPattern("EEE MMM d"))
+        else selectedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+
+    fun showDatePicker() {
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                logDateIso = LocalDate.of(year, month + 1, dayOfMonth).coerceAtMost(today).toString()
+            },
+            selectedDate.year,
+            selectedDate.monthValue - 1,
+            selectedDate.dayOfMonth
+        ).apply {
+            datePicker.maxDate = System.currentTimeMillis()
+        }.show()
+    }
 
     fun submit() {
         val now = System.currentTimeMillis()
@@ -73,7 +95,7 @@ fun BodyweightLogInput(
             return
         }
         val stampUtc = if (selectedDate == today) now
-        else selectedDate.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        else selectedDate.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
         lastSubmitMs = now
         localError = null
         onLog(lbs, stampUtc)
@@ -86,30 +108,58 @@ fun BodyweightLogInput(
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, ThinOutline)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 12.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(
+                IconButton(
                     onClick = {
                         logDateIso = selectedDate.minusDays(1).toString()
-                    }
-                ) { Text("<") }
-                Text(
-                    dateLabel,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = CoolGray
-                )
-                TextButton(
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Text("<", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { showDatePicker() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = dateLabel,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                IconButton(
                     onClick = {
                         logDateIso = selectedDate.plusDays(1).coerceAtMost(today).toString()
                     },
-                    enabled = selectedDate < today
-                ) { Text(">") }
+                    enabled = selectedDate < today,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Text(
+                        ">",
+                        color = if (selectedDate < today) Color.White else CoolGray.copy(alpha = 0.3f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
             }
+
             Spacer(modifier = Modifier.height(4.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -131,10 +181,11 @@ fun BodyweightLogInput(
                     Text("Log")
                 }
             }
+
             val msg = localError ?: error
             if (msg != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(msg, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(msg, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
         }
     }

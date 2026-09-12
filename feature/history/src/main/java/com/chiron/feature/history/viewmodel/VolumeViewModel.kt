@@ -15,7 +15,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
+import kotlin.math.ceil
 
 class VolumeViewModel(
     private val repository: ChironRepository,
@@ -71,6 +73,10 @@ class VolumeViewModel(
                 val earliestDate = if (rawEarliestDate.isBefore(minAllowedDate)) minAllowedDate else rawEarliestDate
                 firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
+                val daysSinceFirstWorkout = ChronoUnit.DAYS.between(earliestDate, today).coerceAtLeast(0L)
+                val maxDays = maxOf(90.0, daysSinceFirstWorkout / 3.0)
+                val maxWeekCount = ceil(maxDays / 7.0).toInt().coerceAtLeast(2)
+
                 val weeklyTotals = mutableListOf<Double>()
                 var w = firstWeekStart
                 val todayWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
@@ -113,11 +119,17 @@ class VolumeViewModel(
                 )
 
                 _uiState.update { state ->
+                    val clampedWeekCount = state.weekCount.coerceIn(2, maxWeekCount)
+                    val minWeek = minWeekStart(state.mode, clampedWeekCount)
+                    val clampedWeek = if (state.currentWeekStart < minWeek) minWeek else state.currentWeekStart
                     state.copy(
                         isLoading = false,
-                        points = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps),
-                        isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
-                        isAtCurrentWeek = isCurrentWeek(state.currentWeekStart),
+                        maxWeekCount = maxWeekCount,
+                        weekCount = clampedWeekCount,
+                        currentWeekStart = clampedWeek,
+                        points = buildPoints(state.mode, clampedWeek, clampedWeekCount, state.abridgeGaps),
+                        isAtFirstWeek = clampedWeek <= minWeek,
+                        isAtCurrentWeek = isCurrentWeek(clampedWeek),
                         stats = stats
                     )
                 }
@@ -127,31 +139,54 @@ class VolumeViewModel(
 
     fun setMode(mode: VolumeMode) {
         _uiState.update { state ->
+            val minWeek = minWeekStart(mode, state.weekCount)
+            val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+            val clampedWeek = when {
+                state.currentWeekStart < minWeek -> minWeek
+                state.currentWeekStart > todayWeek && minWeek <= todayWeek -> todayWeek
+                else -> state.currentWeekStart
+            }
             state.copy(
                 mode = mode,
-                points = buildPoints(mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
+                currentWeekStart = clampedWeek,
+                points = buildPoints(mode, clampedWeek, state.weekCount, state.abridgeGaps),
+                isAtFirstWeek = clampedWeek <= minWeek,
+                isAtCurrentWeek = isCurrentWeek(clampedWeek)
             )
         }
     }
 
     fun setWeekCount(count: Int) {
         _uiState.update { state ->
+            val clampedCount = count.coerceIn(2, state.maxWeekCount)
+            val minWeek = minWeekStart(state.mode, clampedCount)
+            val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+            val clampedWeek = when {
+                state.currentWeekStart < minWeek -> minWeek
+                state.currentWeekStart > todayWeek && minWeek <= todayWeek -> todayWeek
+                else -> state.currentWeekStart
+            }
             state.copy(
-                weekCount = count,
-                points = buildPoints(state.mode, state.currentWeekStart, count, state.abridgeGaps)
+                weekCount = clampedCount,
+                currentWeekStart = clampedWeek,
+                points = buildPoints(state.mode, clampedWeek, clampedCount, state.abridgeGaps),
+                isAtFirstWeek = clampedWeek <= minWeek,
+                isAtCurrentWeek = isCurrentWeek(clampedWeek)
             )
         }
     }
 
     fun goToPreviousWeek() {
         _uiState.update { state ->
+            val minWeek = minWeekStart(state.mode, state.weekCount)
+            if (state.currentWeekStart <= minWeek) return@update state
             val step = if (state.mode == VolumeMode.BY_DAY) 1 else state.weekCount
-            val newWeek = state.currentWeekStart.minusWeeks(step.toLong())
-            if (newWeek < firstWeekStart) return@update state
+            val candidateWeek = state.currentWeekStart.minusWeeks(step.toLong())
+            val newWeek = if (candidateWeek < minWeek) minWeek else candidateWeek
             state.copy(
                 currentWeekStart = newWeek,
                 points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
-                isAtFirstWeek = newWeek <= firstWeekStart,
+                isAtFirstWeek = newWeek <= minWeek,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
             )
         }
@@ -160,13 +195,15 @@ class VolumeViewModel(
     fun goToNextWeek() {
         _uiState.update { state ->
             val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+            if (state.currentWeekStart >= todayWeek) return@update state
             val step = if (state.mode == VolumeMode.BY_DAY) 1 else state.weekCount
-            val newWeek = state.currentWeekStart.plusWeeks(step.toLong())
-            if (newWeek > todayWeek) return@update state
+            val candidateWeek = state.currentWeekStart.plusWeeks(step.toLong())
+            val newWeek = if (candidateWeek > todayWeek) todayWeek else candidateWeek
+            val minWeek = minWeekStart(state.mode, state.weekCount)
             state.copy(
                 currentWeekStart = newWeek,
                 points = buildPoints(state.mode, newWeek, state.weekCount, state.abridgeGaps),
-                isAtFirstWeek = newWeek <= firstWeekStart,
+                isAtFirstWeek = newWeek <= minWeek,
                 isAtCurrentWeek = isCurrentWeek(newWeek)
             )
         }
@@ -183,6 +220,19 @@ class VolumeViewModel(
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Earliest allowed currentWeekStart.
+     * In BY_DAY mode: firstWeekStart.
+     * In BY_WEEK mode: firstWeekStart + (weekCount - 1) weeks, so that the window's
+     * starting day is anchored directly at the first recorded workout week.
+     */
+    private fun minWeekStart(mode: VolumeMode, weekCount: Int): LocalDate {
+        return when (mode) {
+            VolumeMode.BY_DAY -> firstWeekStart
+            VolumeMode.BY_WEEK -> firstWeekStart.plusWeeks((weekCount - 1).toLong())
+        }
+    }
 
     private fun isCurrentWeek(weekStart: LocalDate): Boolean {
         val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))

@@ -32,6 +32,7 @@ data class VolumeUiState(
     val points: List<VolumePoint> = emptyList(),
     val displayInKg: Boolean = false,
     val weekCount: Int = 5,
+    val maxWeekCount: Int = 13,
     /** True when we're at the oldest possible week (can't go further back) */
     val isAtFirstWeek: Boolean = false,
     /** True when we're at the current week (can't go forward) */

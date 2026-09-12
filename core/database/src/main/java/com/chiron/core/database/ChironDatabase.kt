@@ -288,6 +288,13 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private data class DefaultExerciseSeed(
+            val name: String,
+            val iconName: String,
+            val isBodyweight: Boolean = false,
+            val percentBodyweight: Double = 100.0
+        )
+
         fun getInstance(context: Context): ChironDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -302,58 +309,61 @@ abstract class ChironDatabase : RoomDatabase() {
                         super.onCreate(db)
                         // Populate default exercises on first launch using raw SQL to avoid recursion issues
                         val defaults = listOf(
-                            "Ab Twister" to "ab-twister",
-                            "Band Pull Aparts" to "bands",
-                            "Barbell Row" to "barbell-row",
-                            "Bench Press" to "benchpress",
-                            "Cable Crossover" to "cable-crossover",
-                            "Cable Row" to "cables",
-                            "Machine Chest Press" to "chest-press",
-                            "Bicep Curl" to "curl",
-                            "Hammer Curl" to "hammer-curl",
-                            "Deadlift" to "deadlift",
-                            "Dips" to "dip",
-                            "Farmer Carry" to "farmers-carry",
-                            "Fly Machine" to "fly-machine",
-                            "Cardio" to "heart-rate",
-                            "Hip Thrust" to "hip-thrust",
-                            "Incline Bench Press" to "incline-bench",
-                            "Incline Machine Press" to "incline-press-machine",
-                            "Box Jumps" to "jump",
-                            "Kettlebell Swing" to "kettlebell",
-                            "Landmine Rotation" to "landmine-rotation",
-                            "Lateral Raises" to "lateral-raise",
-                            "Leg Curl" to "leg-curl",
-                            "Leg Extension" to "leg-extension",
-                            "Leg Press" to "leg-press",
-                            "Leg Raises" to "leg-raise",
-                            "Lunges" to "lunge",
-                            "Machine Row" to "machine-row",
-                            "Pec Deck" to "machine",
-                            "Medicine Ball Slam" to "medicine-ball",
-                            "Overhead Press" to "overhead-press",
-                            "Plank" to "45-plate",
-                            "Preacher Curl" to "preacher-curl",
-                            "Pull Ups" to "pull-up",
-                            "Lat Pulldown" to "pulldown",
-                            "Push ups" to "push-up",
-                            "Tricep Pushdown" to "pushdown",
-                            "Ring Dips" to "rings",
-                            "Sit-ups" to "sit-up",
-                            "Good Morning" to "good-morning",
-                            "Smith Machine Squat" to "smith",
-                            "Squat" to "squat",
-                            "Stationary Bike" to "stationary_bike",
-                            "Treadmill" to "treadmill"
+                            DefaultExerciseSeed("Ab Twister", "ab-twister"),
+                            DefaultExerciseSeed("Australian Pull Ups", "pull-up", isBodyweight = true, percentBodyweight = 60.0),
+                            DefaultExerciseSeed("Band Pull Aparts", "bands"),
+                            DefaultExerciseSeed("Barbell Row", "barbell-row"),
+                            DefaultExerciseSeed("Bench Press", "benchpress"),
+                            DefaultExerciseSeed("Cable Crossover", "cable-crossover"),
+                            DefaultExerciseSeed("Cable Row", "cables"),
+                            DefaultExerciseSeed("Machine Chest Press", "chest-press"),
+                            DefaultExerciseSeed("Bicep Curl", "curl"),
+                            DefaultExerciseSeed("Hammer Curl", "hammer-curl"),
+                            DefaultExerciseSeed("Deadlift", "deadlift"),
+                            DefaultExerciseSeed("Dips", "dip", isBodyweight = true, percentBodyweight = 100.0),
+                            DefaultExerciseSeed("Farmer Carry", "farmers-carry"),
+                            DefaultExerciseSeed("Fly Machine", "fly-machine"),
+                            DefaultExerciseSeed("Cardio", "heart-rate"),
+                            DefaultExerciseSeed("Hip Thrust", "hip-thrust"),
+                            DefaultExerciseSeed("Incline Bench Press", "incline-bench"),
+                            DefaultExerciseSeed("Incline Machine Press", "incline-press-machine"),
+                            DefaultExerciseSeed("Box Jumps", "jump"),
+                            DefaultExerciseSeed("Kettlebell Swing", "kettlebell"),
+                            DefaultExerciseSeed("Landmine Rotation", "landmine-rotation"),
+                            DefaultExerciseSeed("Lateral Raises", "lateral-raise"),
+                            DefaultExerciseSeed("Leg Curl", "leg-curl"),
+                            DefaultExerciseSeed("Leg Extension", "leg-extension"),
+                            DefaultExerciseSeed("Leg Press", "leg-press"),
+                            DefaultExerciseSeed("Leg Raises", "leg-raise", isBodyweight = true, percentBodyweight = 50.0),
+                            DefaultExerciseSeed("Lunges", "lunge"),
+                            DefaultExerciseSeed("Machine Row", "machine-row"),
+                            DefaultExerciseSeed("Pec Deck", "machine"),
+                            DefaultExerciseSeed("Medicine Ball Slam", "medicine-ball"),
+                            DefaultExerciseSeed("Overhead Press", "overhead-press"),
+                            DefaultExerciseSeed("Plank", "45-plate"),
+                            DefaultExerciseSeed("Preacher Curl", "preacher-curl"),
+                            DefaultExerciseSeed("Pull Ups", "pull-up", isBodyweight = true, percentBodyweight = 100.0),
+                            DefaultExerciseSeed("Lat Pulldown", "pulldown"),
+                            DefaultExerciseSeed("Push ups", "push-up", isBodyweight = true, percentBodyweight = 60.0),
+                            DefaultExerciseSeed("Tricep Pushdown", "pushdown"),
+                            DefaultExerciseSeed("Ring Dips", "rings", isBodyweight = true, percentBodyweight = 100.0),
+                            DefaultExerciseSeed("Sit-ups", "sit-up", isBodyweight = true, percentBodyweight = 50.0),
+                            DefaultExerciseSeed("Good Morning", "good-morning"),
+                            DefaultExerciseSeed("Smith Machine Squat", "smith"),
+                            DefaultExerciseSeed("Squat", "squat"),
+                            DefaultExerciseSeed("Stationary Bike", "stationary_bike"),
+                            DefaultExerciseSeed("Treadmill", "treadmill")
                         )
 
                         db.beginTransaction()
                         try {
-                            defaults.forEach { (name, iconName) ->
+                            defaults.forEach { seed ->
                                 val values = android.content.ContentValues().apply {
-                                    put("name", name)
-                                    put("icon_name", iconName)
+                                    put("name", seed.name)
+                                    put("icon_name", seed.iconName)
                                     put("archived", 0)
+                                    put("is_bodyweight", if (seed.isBodyweight) 1 else 0)
+                                    put("percent_bodyweight", seed.percentBodyweight)
                                 }
                                 db.insert("exercise", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, values)
                             }
@@ -361,6 +371,19 @@ abstract class ChironDatabase : RoomDatabase() {
                         } finally {
                             db.endTransaction()
                         }
+                    }
+
+                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        try {
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name IN ('Pull Ups', 'Pull ups', 'Pull-ups') AND is_bodyweight = 0")
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 60.0 WHERE name IN ('Push ups', 'Push Ups', 'Push-ups') AND is_bodyweight = 0")
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 50.0 WHERE name IN ('Sit-ups', 'Sit Ups', 'Sit-up') AND is_bodyweight = 0")
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name = 'Dips' AND is_bodyweight = 0")
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name = 'Ring Dips' AND is_bodyweight = 0")
+                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 50.0 WHERE name = 'Leg Raises' AND is_bodyweight = 0")
+                            db.execSQL("INSERT OR IGNORE INTO exercise (name, icon_name, archived, is_weight_based, is_rep_based, is_time_based, is_distance_based, is_bodyweight, percent_bodyweight) VALUES ('Australian Pull Ups', 'pull-up', 0, 1, 1, 0, 0, 1, 60.0)")
+                        } catch (_: Exception) {}
                     }
                 })
                 .build()

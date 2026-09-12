@@ -82,6 +82,8 @@ fun ExerciseDetailScreen(
     var useReps by remember(exercise.id) { mutableStateOf(exercise.isTimeBased != 1) }
     var bodyweightEnabled by remember(exercise.id) { mutableStateOf(exercise.isBodyweight == 1) }
     var percentText by remember(exercise.id) { mutableStateOf(formatBodyweightPercent(exercise.percentBodyweight)) }
+    val initialIsBodyweight = remember(exercise.id) { exercise.isBodyweight == 1 }
+    var showPresets by remember(exercise.id) { mutableStateOf(false) }
 
     val isPrEligible = (exercise.isWeightBased == 1 && exercise.isRepBased == 1) ||
         (exercise.isBodyweight == 1 && exercise.isRepBased == 1)
@@ -239,11 +241,24 @@ fun ExerciseDetailScreen(
                 useReps = useReps,
                 onUseRepsChange = { useReps = it },
                 bodyweightEnabled = bodyweightEnabled,
-                onBodyweightEnabledChange = { bodyweightEnabled = it },
+                onBodyweightEnabledChange = {
+                    bodyweightEnabled = it
+                    if (it && !initialIsBodyweight) {
+                        showPresets = true
+                    }
+                },
                 percentText = percentText,
-                onPercentTextChange = { percentText = it },
+                onPercentTextChange = {
+                    percentText = it
+                    showPresets = false
+                },
                 percentError = percentError,
-                showImmutabilityError = showImmutabilityError
+                showImmutabilityError = showImmutabilityError,
+                showPresets = showPresets,
+                onPresetSelected = {
+                    percentText = it
+                    showPresets = false
+                }
             )
 
             if (isPrEligible) {

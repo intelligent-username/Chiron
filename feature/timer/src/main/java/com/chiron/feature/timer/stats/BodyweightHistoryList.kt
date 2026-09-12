@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -65,13 +67,23 @@ fun BodyweightHistoryList(
     onDeleteRange: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val zone = remember { ZoneId.systemDefault() }
+
     // Pagination state: customizable page size bounded 5..50, default 10
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
-    // Dialog states
+    // Inline row editing state
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editWeightText by rememberSaveable { mutableStateOf("") }
+    var editDateIso by rememberSaveable { mutableStateOf("") }
+    var editHour by rememberSaveable { mutableIntStateOf(12) }
+    var editMinute by rememberSaveable { mutableIntStateOf(0) }
+    var editError by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Mass-delete dialog state
     var showDeleteRangeDialog by rememberSaveable { mutableStateOf(false) }
-    var editingEntry by remember { mutableStateOf<BodyWeightEntry?>(null) }
 
     val unit = if (localInKg) "kg" else "lbs"
 
@@ -123,30 +135,232 @@ fun BodyweightHistoryList(
 
             // Paginated log rows
             displayedEntries.forEach { entry ->
+                val isEditing = editingId == entry.id
                 val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "${UnitConversion.formatNumber(display)} $unit",
-                            color = Color.White,
-                            fontFamily = MonospaceFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
-                        )
-                        Text(formatHistoryTimestamp(entry.timestampUtc), color = CoolGray, fontSize = 12.sp)
+                if (isEditing) {
+                    val parsedDate = runCatching { LocalDate.parse(editDateIso) }.getOrDefault(LocalDate.now())
+                    val currentTime = LocalTime.of(editHour, editMinute)
+                    val formattedDate = parsedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d, yyyy"))
+                    val formattedTime = currentTime.format(DateTimeFormatter.ofPattern("h:mm a"))
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF161F30)),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, ElectricBlue.copy(alpha = 0.5f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editWeightText,
+                                onValueChange = {
+                                    editWeightText = it
+                                    editError = null
+                                },
+                                label = { Text("Weight ($unit)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Date Picker Box
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1.2f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF0F172A))
+                                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            DatePickerDialog(
+                                                context,
+                                                { _, year, month, dayOfMonth ->
+                                                    editDateIso = LocalDate.of(year, month + 1, dayOfMonth).toString()
+                                                },
+                                                parsedDate.year,
+                                                parsedDate.monthValue - 1,
+                                                parsedDate.dayOfMonth
+                                            ).show()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "DATE",
+                                        color = CoolGray,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = formattedDate,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = "Edit",
+                                            color = ElectricBlue,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                // Time Picker Box
+                                Column(
+                                    modifier = Modifier
+                                        .weight(0.9f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF0F172A))
+                                        .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            TimePickerDialog(
+                                                context,
+                                                { _, hourOfDay, minute ->
+                                                    editHour = hourOfDay
+                                                    editMinute = minute
+                                                },
+                                                editHour,
+                                                editMinute,
+                                                false
+                                            ).show()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "TIME",
+                                        color = CoolGray,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = formattedTime,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontFamily = MonospaceFamily,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = "Edit",
+                                            color = ElectricBlue,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (editError != null) {
+                                Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        editingId = null
+                                        editError = null
+                                    }
+                                ) {
+                                    Text("Cancel", color = CoolGray, fontSize = 13.sp)
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Button(
+                                    onClick = {
+                                        val parsed = editWeightText.trim().toDoubleOrNull()
+                                        if (parsed == null || !parsed.isFinite()) {
+                                            editError = "Enter a valid number"
+                                            return@Button
+                                        }
+                                        val lbs = if (localInKg) UnitConversion.kgToLbs(parsed) else parsed
+                                        if (lbs <= 0.0) {
+                                            editError = "Enter weight > 0"
+                                            return@Button
+                                        }
+                                        if (lbs < 20.0 || lbs > 1500.0) {
+                                            editError = "Weight must be 20-1500 lbs"
+                                            return@Button
+                                        }
+
+                                        val selectedDate = runCatching { LocalDate.parse(editDateIso) }.getOrDefault(LocalDate.now())
+                                        val selectedTime = LocalTime.of(editHour, editMinute)
+                                        val newTimestampUtc = selectedDate
+                                            .atTime(selectedTime)
+                                            .atZone(zone)
+                                            .toInstant()
+                                            .toEpochMilli()
+
+                                        onEdit(entry.id, lbs, newTimestampUtc)
+                                        editingId = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Save", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+                        }
                     }
-                    TextButton(onClick = { editingEntry = entry }) {
-                        Text("Edit", color = ElectricBlue)
-                    }
-                    TextButton(onClick = { onDelete(entry.id) }) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${UnitConversion.formatNumber(display)} $unit",
+                                color = Color.White,
+                                fontFamily = MonospaceFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            Text(formatHistoryTimestamp(entry.timestampUtc), color = CoolGray, fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = {
+                                val zdt = Instant.ofEpochMilli(entry.timestampUtc).atZone(zone)
+                                editingId = entry.id
+                                editWeightText = UnitConversion.formatNumber(display)
+                                editDateIso = zdt.toLocalDate().toString()
+                                editHour = zdt.hour
+                                editMinute = zdt.minute
+                                editError = null
+                            }
+                        ) {
+                            Text("Edit", color = ElectricBlue)
+                        }
+                        TextButton(onClick = { onDelete(entry.id) }) {
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
@@ -226,213 +440,6 @@ fun BodyweightHistoryList(
                 }
             }
         }
-    }
-
-    // Modern Edit Weigh-In Dialog
-    editingEntry?.let { entry ->
-        val context = LocalContext.current
-        val zone = ZoneId.systemDefault()
-        val originalZoned = remember(entry) { Instant.ofEpochMilli(entry.timestampUtc).atZone(zone) }
-
-        var editWeightText by rememberSaveable(entry.id) {
-            val initialDisplay = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
-            mutableStateOf(UnitConversion.formatNumber(initialDisplay))
-        }
-        var editInKg by rememberSaveable(entry.id) { mutableStateOf(localInKg) }
-        var editDate by rememberSaveable(entry.id) { mutableStateOf(originalZoned.toLocalDate().toString()) }
-        var editHour by rememberSaveable(entry.id) { mutableIntStateOf(originalZoned.hour) }
-        var editMinute by rememberSaveable(entry.id) { mutableIntStateOf(originalZoned.minute) }
-        var editError by rememberSaveable(entry.id) { mutableStateOf<String?>(null) }
-
-        val currentLocalDate = runCatching { LocalDate.parse(editDate) }.getOrDefault(originalZoned.toLocalDate())
-        val currentLocalTime = LocalTime.of(editHour, editMinute)
-
-        fun showDatePicker() {
-            DatePickerDialog(
-                context,
-                { _, year, month, dayOfMonth ->
-                    editDate = LocalDate.of(year, month + 1, dayOfMonth).toString()
-                },
-                currentLocalDate.year,
-                currentLocalDate.monthValue - 1,
-                currentLocalDate.dayOfMonth
-            ).show()
-        }
-
-        fun showTimePicker() {
-            TimePickerDialog(
-                context,
-                { _, hourOfDay, minute ->
-                    editHour = hourOfDay
-                    editMinute = minute
-                },
-                editHour,
-                editMinute,
-                false
-            ).show()
-        }
-
-        AlertDialog(
-            onDismissRequest = { editingEntry = null },
-            containerColor = SolidSlate,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text("Edit Weigh-In", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Modify your logged weight or retroactively change the date and time.",
-                        color = CoolGray,
-                        fontSize = 13.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Weight Input Row with Unit Switcher
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = editWeightText,
-                            onValueChange = { editWeightText = it },
-                            label = { Text("Weight") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // Unit Toggle Pill
-                        Row(
-                            modifier = Modifier
-                                .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                                .clickable {
-                                    val currentVal = editWeightText.trim().toDoubleOrNull()
-                                    if (currentVal != null && currentVal > 0.0) {
-                                        if (editInKg) {
-                                            // Switch to lbs
-                                            editWeightText = UnitConversion.formatNumber(UnitConversion.kgToLbs(currentVal))
-                                        } else {
-                                            // Switch to kg
-                                            editWeightText = UnitConversion.formatNumber(UnitConversion.lbsToKg(currentVal))
-                                        }
-                                    }
-                                    editInKg = !editInKg
-                                }
-                                .padding(horizontal = 12.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (editInKg) "kg" else "lbs",
-                                color = ElectricBlue,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                fontFamily = MonospaceFamily
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("⇄", color = CoolGray, fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Date Selector Tile
-                    Text("Date", color = CoolGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                            .clickable { showDatePicker() }
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📅", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = currentLocalDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy")),
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                        }
-                        Text("Change", color = ElectricBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Time Selector Tile
-                    Text("Time", color = CoolGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                            .clickable { showTimePicker() }
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("⏰", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = currentLocalTime.format(DateTimeFormatter.ofPattern("h:mm a")),
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontFamily = MonospaceFamily
-                            )
-                        }
-                        Text("Change", color = ElectricBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    if (editError != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val parsed = editWeightText.trim().toDoubleOrNull()
-                        if (parsed == null || !parsed.isFinite()) {
-                            editError = "Enter a valid number"
-                            return@Button
-                        }
-                        val lbs = if (editInKg) UnitConversion.kgToLbs(parsed) else parsed
-                        if (lbs <= 0.0) {
-                            editError = "Enter a weight above 0"
-                            return@Button
-                        }
-                        if (lbs < 20.0 || lbs > 1500.0) {
-                            editError = "Enter a weight between 20 and 1500 lbs"
-                            return@Button
-                        }
-
-                        val newTimestampUtc = currentLocalDate
-                            .atTime(currentLocalTime)
-                            .atZone(zone)
-                            .toInstant()
-                            .toEpochMilli()
-
-                        onEdit(entry.id, lbs, newTimestampUtc)
-                        editingEntry = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
-                ) {
-                    Text("Save Changes", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { editingEntry = null }) {
-                    Text("Cancel", color = CoolGray)
-                }
-            }
-        )
     }
 
     // Mass-Delete Date Range Dialog

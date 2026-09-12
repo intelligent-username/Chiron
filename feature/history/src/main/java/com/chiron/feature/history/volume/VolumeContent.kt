@@ -148,11 +148,24 @@ fun VolumeContent(
                 }
 
                 if (state.mode == VolumeMode.BY_WEEK) {
+                    val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
+                    val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
                     Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Range: ${state.weekCount} weeks (${state.weekCount * 7} days)",
+                            color = Color(0xFF8B949E),
+                            fontSize = 12.sp
+                        )
+                    }
                     Slider(
-                        value = state.weekCount.toFloat(),
+                        value = currentWeekVal,
                         onValueChange = { onWeekCountChange(it.roundToInt()) },
-                        valueRange = 2f..10f,
+                        valueRange = 2f..maxWeeks.toFloat(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(24.dp)

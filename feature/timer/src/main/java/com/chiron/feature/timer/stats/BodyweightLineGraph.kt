@@ -42,6 +42,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 @Composable
@@ -60,13 +62,33 @@ fun BodyweightLineGraph(
     )
     LaunchedEffect(points) { triggered = true }
 
-    // Dynamic scale with headroom so min/max never collide with grid lines
-    val rawMax = remember(points) { points.filter { it.weightLbs > 0.0 }.maxOfOrNull { it.weightLbs } ?: 150.0 }
-    val rawMin = remember(points) { points.filter { it.weightLbs > 0.0 }.minOfOrNull { it.weightLbs } ?: rawMax }
-    val span = (rawMax - rawMin).coerceAtLeast(3.0)
-    val headroom = span * 0.08
-    val maxW = rawMax + headroom
-    val minW = (rawMin - headroom).coerceAtLeast(0.0)
+    // Calculate nice ticks placed at nearest 0.25, 0.5, or full kg/lb based on display units
+    val displayWeights = remember(points, localInKg) {
+        points.filter { it.weightLbs > 0.0 }.map {
+            if (localInKg) UnitConversion.lbsToKg(it.weightLbs) else it.weightLbs
+        }
+    }
+    val rawMin = displayWeights.minOfOrNull { it } ?: (if (localInKg) 70.0 else 150.0)
+    val rawMax = displayWeights.maxOfOrNull { it } ?: rawMin
+    val rawSpan = (rawMax - rawMin).coerceAtLeast(if (localInKg) 0.5 else 1.0)
+
+    val stepCandidates = doubleArrayOf(0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0)
+    val targetStep = rawSpan / 4.0
+    val niceStep = stepCandidates.firstOrNull { it >= targetStep } ?: 10.0
+
+    val niceMin = floor(rawMin / niceStep) * niceStep
+    var niceMax = ceil(rawMax / niceStep) * niceStep
+    if (niceMax <= niceMin) {
+        niceMax = niceMin + niceStep * 2
+    }
+
+    val tickCount = ((niceMax - niceMin) / niceStep).roundToInt().coerceIn(2, 6)
+    val ticks = remember(niceMin, niceMax, niceStep, tickCount) {
+        (0..tickCount).map { niceMin + it * niceStep }
+    }
+
+    val minW = if (localInKg) UnitConversion.kgToLbs(niceMin) else niceMin
+    val maxW = if (localInKg) UnitConversion.kgToLbs(niceMax) else niceMax
 
     val unit = if (localInKg) "kg" else "lbs"
     val textMeasurer = rememberTextMeasurer()
@@ -124,7 +146,7 @@ fun BodyweightLineGraph(
             val plotTop = padTop + plotInsetY
             val plotH = (graphH - plotInsetY * 2f).coerceAtLeast(1f)
 
-            drawGrid(textMeasurer, maxW, minW, localInKg, padLeft, padRight, padTop, graphH, labelColor, tipBorder)
+            drawGrid(textMeasurer, ticks, niceMin, niceMax, padLeft, padRight, padTop, graphH, labelColor, tipBorder)
             if (points.isEmpty()) return@Canvas
 
             drawLine(points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
@@ -153,9 +175,9 @@ private fun nearestPoint(
 
 private fun DrawScope.drawGrid(
     measurer: androidx.compose.ui.text.TextMeasurer,
-    maxW: Double,
-    minW: Double,
-    localInKg: Boolean,
+    ticks: List<Double>,
+    displayMin: Double,
+    displayMax: Double,
     padLeft: Float,
     padRight: Float,
     padTop: Float,
@@ -163,8 +185,9 @@ private fun DrawScope.drawGrid(
     labelColor: Color,
     gridColor: Color
 ) {
-    // 5 horizontal reference lines
-    listOf(0f, 0.25f, 0.5f, 0.75f, 1f).forEach { ratio ->
+    val span = (displayMax - displayMin).takeIf { it > 0.0 } ?: 1.0
+    ticks.forEach { tickValue ->
+        val ratio = ((tickValue - displayMin) / span).toFloat().coerceIn(0f, 1f)
         val y = padTop + graphH * (1f - ratio)
         drawLine(
             color = gridColor.copy(alpha = 0.5f),
@@ -172,10 +195,8 @@ private fun DrawScope.drawGrid(
             end = Offset(size.width - padRight, y),
             strokeWidth = 0.5.dp.toPx()
         )
-        val raw = minW + (maxW - minW) * ratio
-        val v = if (localInKg) UnitConversion.lbsToKg(raw) else raw
         val layout = measurer.measure(
-            UnitConversion.formatNumber(v),
+            UnitConversion.formatNumber(tickValue),
             TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
         )
         drawText(
