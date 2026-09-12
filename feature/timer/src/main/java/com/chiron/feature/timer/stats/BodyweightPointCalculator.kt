@@ -11,10 +11,10 @@ import kotlin.math.max
 
 object BodyweightPointCalculator {
 
-    fun computeStats(points: List<BodyweightPoint>): BodyweightStats {
+    fun computeStats(points: List<BodyweightPoint>, totalCount: Int = points.count { it.isActualInput }): BodyweightStats {
         val actualPoints = points.filter { it.isActualInput && it.weightLbs > 0.0 }
         val allValidPoints = points.filter { it.weightLbs > 0.0 }
-        if (allValidPoints.isEmpty()) return BodyweightStats()
+        if (allValidPoints.isEmpty()) return BodyweightStats(count = totalCount)
 
         val current = actualPoints.lastOrNull()?.weightLbs ?: allValidPoints.last().weightLbs
         val change = if (actualPoints.size >= 2) {
@@ -34,7 +34,7 @@ object BodyweightPointCalculator {
             average = weights.average(),
             min = weights.minOrNull() ?: 0.0,
             max = weights.maxOrNull() ?: 0.0,
-            count = actualPoints.size
+            count = totalCount
         )
     }
 

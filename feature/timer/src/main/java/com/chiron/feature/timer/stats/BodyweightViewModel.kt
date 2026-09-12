@@ -70,7 +70,7 @@ class BodyweightViewModel(
             earliestDate = earliestDate,
             allEntries = allEntries
         )
-        val stats = BodyweightPointCalculator.computeStats(pts)
+        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
         val windowStart = current.currentPeriodEnd.minusDays((clamped * 7 - 1).toLong())
         val isAtFirst = earliestDate == null || windowStart <= earliestDate
         _uiState.update { state ->
@@ -107,7 +107,7 @@ class BodyweightViewModel(
             earliestDate = earliestDate,
             allEntries = allEntries
         )
-        val stats = BodyweightPointCalculator.computeStats(pts)
+        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
         val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
 
         _uiState.update { state ->
@@ -133,7 +133,7 @@ class BodyweightViewModel(
             earliestDate = earliestDate,
             allEntries = allEntries
         )
-        val stats = BodyweightPointCalculator.computeStats(pts)
+        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
         val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
 
         _uiState.update { state ->
@@ -147,8 +147,8 @@ class BodyweightViewModel(
         }
     }
 
-    /** Log a weigh-in stamped now. */
-    fun logWeight(weightLbs: Double) {
+    /** Log a weigh-in stamped now or at a custom date/time. */
+    fun logWeight(weightLbs: Double, timestampUtc: Long = System.currentTimeMillis()) {
         val err = validate(weightLbs)
         if (err != null) {
             _uiState.update { it.copy(error = err) }
@@ -157,7 +157,7 @@ class BodyweightViewModel(
         viewModelScope.launch {
             runCatching {
                 repository.insertBodyWeight(
-                    BodyWeightEntry(timestampUtc = System.currentTimeMillis(), weightLbs = weightLbs)
+                    BodyWeightEntry(timestampUtc = timestampUtc, weightLbs = weightLbs)
                 )
             }.onSuccess {
                 _uiState.update { it.copy(error = null) }
@@ -167,8 +167,8 @@ class BodyweightViewModel(
         }
     }
 
-    /** Edit weight, keep original timestamp. */
-    fun updateEntry(id: Long, weightLbs: Double) {
+    /** Edit weight and/or timestamp. */
+    fun updateEntry(id: Long, weightLbs: Double, timestampUtc: Long? = null) {
         val err = validate(weightLbs)
         if (err != null) {
             _uiState.update { it.copy(error = err) }
@@ -179,9 +179,10 @@ class BodyweightViewModel(
             _uiState.update { it.copy(error = "Entry not found") }
             return
         }
+        val updatedTimestamp = timestampUtc ?: existing.timestampUtc
         viewModelScope.launch {
             runCatching {
-                repository.updateBodyWeight(existing.copy(weightLbs = weightLbs))
+                repository.updateBodyWeight(existing.copy(weightLbs = weightLbs, timestampUtc = updatedTimestamp))
             }.onSuccess {
                 _uiState.update { it.copy(error = null) }
             }.onFailure { e ->
@@ -270,7 +271,7 @@ class BodyweightViewModel(
             earliestDate = earliestDate,
             allEntries = allEntries
         )
-        val stats = BodyweightPointCalculator.computeStats(pts)
+        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
         val windowStart = periodEnd.minusDays((clampedWeekCount * 7 - 1).toLong())
         val isAtFirst = earliestDate == null || windowStart <= earliestDate
         val isAtCurrent = periodEnd >= today

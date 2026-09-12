@@ -1,6 +1,10 @@
 package com.chiron.feature.timer
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,13 +17,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,6 +51,7 @@ import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
@@ -54,22 +60,18 @@ import kotlin.math.max
 fun BodyweightHistoryList(
     entries: List<BodyWeightEntry>,
     localInKg: Boolean,
-    onEdit: (Long, Double) -> Unit,
+    onEdit: (Long, Double, Long) -> Unit,
     onDelete: (Long) -> Unit,
     onDeleteRange: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
-    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var editText by rememberSaveable { mutableStateOf("") }
-    var editInKg by rememberSaveable { mutableStateOf(localInKg) }
-    var editError by rememberSaveable { mutableStateOf<String?>(null) }
-
     // Pagination state: customizable page size bounded 5..50, default 10
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
-    // Mass-delete dialog state
+    // Dialog states
     var showDeleteRangeDialog by rememberSaveable { mutableStateOf(false) }
+    var editingEntry by remember { mutableStateOf<BodyWeightEntry?>(null) }
 
     val unit = if (localInKg) "kg" else "lbs"
 
@@ -123,79 +125,28 @@ fun BodyweightHistoryList(
             displayedEntries.forEach { entry ->
                 val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
 
-                if (editingId == entry.id) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = editText,
-                                onValueChange = { editText = it },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = {
-                                val parsed = editText.trim().toDoubleOrNull()
-                                if (parsed == null || !parsed.isFinite()) {
-                                    editError = "Enter a valid number"
-                                    return@TextButton
-                                }
-                                val lbs = if (editInKg) UnitConversion.kgToLbs(parsed) else parsed
-                                if (lbs <= 0.0) {
-                                    editError = "Enter a weight above 0"
-                                    return@TextButton
-                                }
-                                if (lbs < 20.0 || lbs > 1500.0) {
-                                    editError = "Enter a weight between 20 and 1500 lbs"
-                                    return@TextButton
-                                }
-                                editError = null
-                                onEdit(entry.id, lbs)
-                                editingId = null
-                            }) {
-                                Text("Save")
-                            }
-                            TextButton(onClick = { editingId = null; editError = null }) {
-                                Text("Cancel")
-                            }
-                        }
-                        if (editError != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${UnitConversion.formatNumber(display)} $unit",
+                            color = Color.White,
+                            fontFamily = MonospaceFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                        Text(formatHistoryTimestamp(entry.timestampUtc), color = CoolGray, fontSize = 12.sp)
                     }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "${UnitConversion.formatNumber(display)} $unit",
-                                color = Color.White,
-                                fontFamily = MonospaceFamily,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                            Text(formatHistoryTimestamp(entry.timestampUtc), color = CoolGray, fontSize = 12.sp)
-                        }
-                        TextButton(onClick = {
-                            editingId = entry.id
-                            editInKg = localInKg
-                            editError = null
-                            editText = UnitConversion.formatNumber(display)
-                        }) {
-                            Text("Edit")
-                        }
-                        TextButton(onClick = { onDelete(entry.id) }) {
-                            Text("Delete", color = MaterialTheme.colorScheme.error)
-                        }
+                    TextButton(onClick = { editingEntry = entry }) {
+                        Text("Edit", color = ElectricBlue)
+                    }
+                    TextButton(onClick = { onDelete(entry.id) }) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -275,6 +226,213 @@ fun BodyweightHistoryList(
                 }
             }
         }
+    }
+
+    // Modern Edit Weigh-In Dialog
+    editingEntry?.let { entry ->
+        val context = LocalContext.current
+        val zone = ZoneId.systemDefault()
+        val originalZoned = remember(entry) { Instant.ofEpochMilli(entry.timestampUtc).atZone(zone) }
+
+        var editWeightText by rememberSaveable(entry.id) {
+            val initialDisplay = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
+            mutableStateOf(UnitConversion.formatNumber(initialDisplay))
+        }
+        var editInKg by rememberSaveable(entry.id) { mutableStateOf(localInKg) }
+        var editDate by rememberSaveable(entry.id) { mutableStateOf(originalZoned.toLocalDate().toString()) }
+        var editHour by rememberSaveable(entry.id) { mutableIntStateOf(originalZoned.hour) }
+        var editMinute by rememberSaveable(entry.id) { mutableIntStateOf(originalZoned.minute) }
+        var editError by rememberSaveable(entry.id) { mutableStateOf<String?>(null) }
+
+        val currentLocalDate = runCatching { LocalDate.parse(editDate) }.getOrDefault(originalZoned.toLocalDate())
+        val currentLocalTime = LocalTime.of(editHour, editMinute)
+
+        fun showDatePicker() {
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    editDate = LocalDate.of(year, month + 1, dayOfMonth).toString()
+                },
+                currentLocalDate.year,
+                currentLocalDate.monthValue - 1,
+                currentLocalDate.dayOfMonth
+            ).show()
+        }
+
+        fun showTimePicker() {
+            TimePickerDialog(
+                context,
+                { _, hourOfDay, minute ->
+                    editHour = hourOfDay
+                    editMinute = minute
+                },
+                editHour,
+                editMinute,
+                false
+            ).show()
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingEntry = null },
+            containerColor = SolidSlate,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text("Edit Weigh-In", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Modify your logged weight or retroactively change the date and time.",
+                        color = CoolGray,
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Weight Input Row with Unit Switcher
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editWeightText,
+                            onValueChange = { editWeightText = it },
+                            label = { Text("Weight") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Unit Toggle Pill
+                        Row(
+                            modifier = Modifier
+                                .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    val currentVal = editWeightText.trim().toDoubleOrNull()
+                                    if (currentVal != null && currentVal > 0.0) {
+                                        if (editInKg) {
+                                            // Switch to lbs
+                                            editWeightText = UnitConversion.formatNumber(UnitConversion.kgToLbs(currentVal))
+                                        } else {
+                                            // Switch to kg
+                                            editWeightText = UnitConversion.formatNumber(UnitConversion.lbsToKg(currentVal))
+                                        }
+                                    }
+                                    editInKg = !editInKg
+                                }
+                                .padding(horizontal = 12.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (editInKg) "kg" else "lbs",
+                                color = ElectricBlue,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                fontFamily = MonospaceFamily
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("⇄", color = CoolGray, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Date Selector Tile
+                    Text("Date", color = CoolGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                            .clickable { showDatePicker() }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📅", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = currentLocalDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy")),
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                        }
+                        Text("Change", color = ElectricBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Time Selector Tile
+                    Text("Time", color = CoolGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                            .clickable { showTimePicker() }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⏰", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = currentLocalTime.format(DateTimeFormatter.ofPattern("h:mm a")),
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontFamily = MonospaceFamily
+                            )
+                        }
+                        Text("Change", color = ElectricBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    if (editError != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val parsed = editWeightText.trim().toDoubleOrNull()
+                        if (parsed == null || !parsed.isFinite()) {
+                            editError = "Enter a valid number"
+                            return@Button
+                        }
+                        val lbs = if (editInKg) UnitConversion.kgToLbs(parsed) else parsed
+                        if (lbs <= 0.0) {
+                            editError = "Enter a weight above 0"
+                            return@Button
+                        }
+                        if (lbs < 20.0 || lbs > 1500.0) {
+                            editError = "Enter a weight between 20 and 1500 lbs"
+                            return@Button
+                        }
+
+                        val newTimestampUtc = currentLocalDate
+                            .atTime(currentLocalTime)
+                            .atZone(zone)
+                            .toInstant()
+                            .toEpochMilli()
+
+                        onEdit(entry.id, lbs, newTimestampUtc)
+                        editingEntry = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+                ) {
+                    Text("Save Changes", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingEntry = null }) {
+                    Text("Cancel", color = CoolGray)
+                }
+            }
+        )
     }
 
     // Mass-Delete Date Range Dialog

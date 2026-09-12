@@ -41,8 +41,8 @@ fun BodyweightStatsScreen(
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
                 onNextWeek = viewModel::goToNextWeek,
-                onLog = viewModel::logWeight,
-                onEdit = viewModel::updateEntry,
+                onLog = { weight, timestamp -> viewModel.logWeight(weight, timestamp) },
+                onEdit = { id, weight, timestamp -> viewModel.updateEntry(id, weight, timestamp) },
                 onDelete = viewModel::deleteEntry,
                 onDeleteRange = viewModel::deleteEntriesInRange,
                 onImportClick = onImportClick
@@ -58,8 +58,8 @@ fun BodyweightContent(
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
-    onLog: (Double) -> Unit,
-    onEdit: (Long, Double) -> Unit,
+    onLog: (Double, Long) -> Unit,
+    onEdit: (Long, Double, Long) -> Unit,
     onDelete: (Long) -> Unit,
     onDeleteRange: (Long, Long) -> Unit,
     onImportClick: () -> Unit = {}

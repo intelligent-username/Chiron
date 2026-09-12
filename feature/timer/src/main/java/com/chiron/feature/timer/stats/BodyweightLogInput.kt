@@ -17,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,20 +29,31 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun BodyweightLogInput(
     localInKg: Boolean,
-    onLog: (Double) -> Unit,
+    onLog: (Double, Long) -> Unit,
     error: String?,
     modifier: Modifier = Modifier
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSubmitMs by rememberSaveable { mutableStateOf(0L) }
+    var logDateIso by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     val unit = if (localInKg) "kg" else "lbs"
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now()
+    val selectedDate = runCatching { LocalDate.parse(logDateIso) }.getOrDefault(today)
+        .coerceAtMost(today)
+    val dateLabel = if (selectedDate == today) "Today"
+        else selectedDate.format(DateTimeFormatter.ofPattern("EEE MMM d"))
 
     fun submit() {
         val now = System.currentTimeMillis()
@@ -60,9 +72,11 @@ fun BodyweightLogInput(
             localError = "Enter a weight between 20 and 1500 lbs"
             return
         }
+        val stampUtc = if (selectedDate == today) now
+        else selectedDate.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
         lastSubmitMs = now
         localError = null
-        onLog(lbs)
+        onLog(lbs, stampUtc)
         text = ""
     }
 
@@ -73,6 +87,29 @@ fun BodyweightLogInput(
         border = BorderStroke(1.dp, ThinOutline)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(
+                    onClick = {
+                        logDateIso = selectedDate.minusDays(1).toString()
+                    }
+                ) { Text("<") }
+                Text(
+                    dateLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = CoolGray
+                )
+                TextButton(
+                    onClick = {
+                        logDateIso = selectedDate.plusDays(1).coerceAtMost(today).toString()
+                    },
+                    enabled = selectedDate < today
+                ) { Text(">") }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

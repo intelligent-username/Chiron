@@ -167,12 +167,18 @@ fun CreateExerciseDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("50", "60", "80", "100").forEach { preset ->
-                            AssistChip(
-                                onClick = { percentText = preset },
-                                label = { Text("$preset%") }
-                            )
+                    // Presets only until the user types a custom value — once a non-preset
+                    // number is in the field they are useless, so hide them.
+                    val typedValue = percentText.trim().toDoubleOrNull()
+                    val presetValues = listOf(50.0, 60.0, 80.0, 100.0)
+                    if (typedValue == null || presetValues.any { it == typedValue }) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("50", "60", "80", "100").forEach { preset ->
+                                AssistChip(
+                                    onClick = { percentText = preset },
+                                    label = { Text("$preset%") }
+                                )
+                            }
                         }
                     }
                 }
