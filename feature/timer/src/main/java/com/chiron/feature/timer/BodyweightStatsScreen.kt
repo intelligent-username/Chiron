@@ -169,9 +169,9 @@ fun BodyweightContent(
         Spacer(modifier = Modifier.height(8.dp))
         LogInput(localInKg = localInKg, onLog = onLog, error = state.error)
         Spacer(modifier = Modifier.height(12.dp))
-        ModeSelector(selected = state.mode, onSelect = onModeChange)
-        // Semi-abridged by design: gaps extrapolate from last known weight (LOCF forward);
-        // actual input days show a dot. No toggle — always on.
+        Spacer(modifier = Modifier.height(8.dp))
+        // Slider controls week range: 2 weeks min, max from first log to today.
+        // Mode buttons removed per user request; always semi-abridged.
         Spacer(modifier = Modifier.height(8.dp))
         GraphCard(state = state, localInKg = localInKg, unit = unit, onWeekCountChange = onWeekCountChange)
         Spacer(modifier = Modifier.height(12.dp))
@@ -369,17 +369,17 @@ private fun GraphCard(
                         .height(220.dp)
                 )
             }
-            if (state.mode == BodyweightMode.BY_WEEK) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Slider(
-                    value = state.weekCount.toFloat(),
-                    onValueChange = { onWeekCountChange(it.roundToInt()) },
-                    valueRange = 2f..10f,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                )
-            }
+            // Week-range slider: 2 weeks min, max from first log to today.
+            val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
+            Spacer(modifier = Modifier.height(8.dp))
+            Slider(
+                value = state.weekCount.toFloat(),
+                onValueChange = { onWeekCountChange(it.roundToInt()) },
+                valueRange = 2f..maxWeeks.toFloat(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+            )
         }
     }
 }

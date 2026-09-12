@@ -47,6 +47,7 @@ data class BodyweightUiState(
     val isAtFirstWeek: Boolean = false,
     val isAtCurrentWeek: Boolean = true,
     val abridgeGaps: Boolean = true,
+    val maxWeekCount: Int = 10,
     val stats: BodyweightStats = BodyweightStats(),
     val entries: List<BodyWeightEntry> = emptyList(),
     val error: String? = null
@@ -213,6 +214,10 @@ class BodyweightViewModel(
     private fun onRows(rows: List<BodyWeightEntry>) {
         allEntries = rows.sortedBy { it.timestampUtc }
         updateFirstWeekStart()
+        val maxWeeks = kotlin.math.max(2, java.time.temporal.ChronoUnit.WEEKS.between(
+            firstWeekStart.atStartOfDay(ZoneId.systemDefault()).toInstant(),
+            todayWeekStart().atStartOfDay(ZoneId.systemDefault()).toInstant()
+        ).toInt() + 1)
         _uiState.update { state ->
             val pts = buildPoints(state.mode, state.currentWeekStart, state.weekCount, state.abridgeGaps)
             state.copy(
@@ -220,6 +225,7 @@ class BodyweightViewModel(
                 points = pts,
                 stats = computeStats(pts),
                 entries = allEntries.sortedByDescending { it.timestampUtc },
+                maxWeekCount = maxWeeks,
                 isAtFirstWeek = state.currentWeekStart <= firstWeekStart,
                 isAtCurrentWeek = isCurrentWeek(state.currentWeekStart)
             )
