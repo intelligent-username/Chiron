@@ -24,7 +24,8 @@ import com.chiron.core.model.SetEntry
 import com.chiron.core.model.TimerPreset
 import com.chiron.core.model.WorkoutSession
 import com.chiron.core.database.exercise.ExerciseRepository
-import com.chiron.core.database.exercise.ImageRepositoryimport com.chiron.core.database.pr.PrRepository
+import com.chiron.core.database.exercise.ImageRepository
+import com.chiron.core.database.pr.PrRepository
 import com.chiron.core.database.timer.TimerPresetRepository
 import com.chiron.core.database.transfer.DataTransferRepository
 import com.chiron.core.database.workout.ExerciseEntryRepository

@@ -98,7 +98,7 @@ private fun formatStamp(timestampUtc: Long): String {
 @Composable
 fun BodyweightStatsScreen(
     viewModel: BodyweightViewModel,
-    localInKg: Boolean,
+    displayInKg: Boolean,
     onImportClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -112,7 +112,7 @@ fun BodyweightStatsScreen(
         } else {
             BodyweightContent(
                 state = state,
-                localInKg = localInKg,
+                displayInKg = displayInKg,
                 onModeChange = viewModel::setMode,
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
@@ -167,13 +167,13 @@ fun BodyweightContent(
             ) { Text(if (localInKg) "kg" else "lbs") }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        LogInput(displayInKg = localInKg, onLog = onLog, error = state.error)
+        LogInput(localInKg = localInKg, onLog = onLog, error = state.error)
         Spacer(modifier = Modifier.height(12.dp))
         ModeSelector(selected = state.mode, onSelect = onModeChange)
         // Semi-abridged by design: gaps extrapolate from last known weight (LOCF forward);
         // actual input days show a dot. No toggle — always on.
         Spacer(modifier = Modifier.height(8.dp))
-        GraphCard(state = state, displayInKg = localInKg, unit = unit, onWeekCountChange = onWeekCountChange)
+        GraphCard(state = state, localInKg = localInKg, unit = unit, onWeekCountChange = onWeekCountChange)
         Spacer(modifier = Modifier.height(12.dp))
         WeekNavigator(
             weekLabel = weekLabel,
@@ -183,9 +183,9 @@ fun BodyweightContent(
             onNext = onNextWeek
         )
         Spacer(modifier = Modifier.height(16.dp))
-        StatsSection(stats = state.stats, displayInKg = localInKg, unit = unit)
+        StatsSection(stats = state.stats, localInKg = localInKg, unit = unit)
         Spacer(modifier = Modifier.height(16.dp))
-        HistoryList(entries = state.entries, displayInKg = localInKg, onEdit = onEdit, onDelete = onDelete)
+        HistoryList(entries = state.entries, localInKg = localInKg, onEdit = onEdit, onDelete = onDelete)
         Spacer(modifier = Modifier.height(120.dp))
     }
 }

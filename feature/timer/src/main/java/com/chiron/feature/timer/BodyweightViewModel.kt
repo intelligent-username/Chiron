@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chiron.core.database.ChironRepository
+import com.chiron.core.database.bodyweight.BodyweightResolver
 import com.chiron.core.model.BodyWeightEntry
 import java.time.DayOfWeek
 import java.time.Instant
