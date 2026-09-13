@@ -27,6 +27,10 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import java.io.File
 
+/**
+ * Resolves an exercise icon identifier or file name to the corresponding asset SVG file name.
+ * Checks direct icon name matches, hyphen/underscore variants, and asset file name equivalents.
+ */
 private fun resolveFileName(iconName: String?): String {
     if (iconName.isNullOrBlank()) return "dumbell.svg"
     val clean = iconName.trim().lowercase()
@@ -49,6 +53,10 @@ private fun resolveFileName(iconName: String?): String {
     return "dumbell.svg"
 }
 
+/**
+ * Returns an image URL suitable for Coil. Checks custom user-imported icons in `filesDir/icons`
+ * and custom exercise images in `filesDir/images/exercises/` before falling back to bundled assets.
+ */
 fun getIconUrl(iconName: String?, context: Context? = null): String {
     if (iconName.isNullOrBlank()) return "file:///android_asset/icons/dumbell.svg"
 

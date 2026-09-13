@@ -1,8 +1,16 @@
 package com.chiron.core.ui.components
 
-// Available exercise icons — name matches the icon ID stored in DB, fileName matches assets/icons/
+/**
+ * Available exercise icons catalog.
+ *
+ * @property name Canonical icon identifier stored in the database (e.g. "benchpress", "ring-front-lever").
+ * @property fileName Asset file name located within `assets/icons/` (e.g. "benchpress.svg", "ring-fl.svg").
+ */
 data class ExerciseIcon(val name: String, val fileName: String)
 
+/**
+ * Built-in collection of 100+ bespoke exercise SVG icons packaged with the app.
+ */
 val AVAILABLE_ICONS = listOf(
     ExerciseIcon("benchpress",             "benchpress.svg"),
     ExerciseIcon("chest-press",            "chest-press.svg"),
