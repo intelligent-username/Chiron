@@ -376,13 +376,15 @@ abstract class ChironDatabase : RoomDatabase() {
                     override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onOpen(db)
                         try {
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name IN ('Pull Ups', 'Pull ups', 'Pull-ups') AND is_bodyweight = 0")
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 60.0 WHERE name IN ('Push ups', 'Push Ups', 'Push-ups') AND is_bodyweight = 0")
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 50.0 WHERE name IN ('Sit-ups', 'Sit Ups', 'Sit-up') AND is_bodyweight = 0")
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name = 'Dips' AND is_bodyweight = 0")
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 100.0 WHERE name = 'Ring Dips' AND is_bodyweight = 0")
-                            db.execSQL("UPDATE exercise SET is_bodyweight = 1, percent_bodyweight = 50.0 WHERE name = 'Leg Raises' AND is_bodyweight = 0")
-                            db.execSQL("INSERT OR IGNORE INTO exercise (name, icon_name, archived, is_weight_based, is_rep_based, is_time_based, is_distance_based, is_bodyweight, percent_bodyweight) VALUES ('Australian Pull Ups', 'pull-up', 0, 1, 1, 0, 0, 1, 60.0)")
+                            // Clean up any duplicate exercises created by previous buggy builds
+                            db.execSQL("""
+                                DELETE FROM exercise 
+                                WHERE id NOT IN (SELECT MIN(id) FROM exercise GROUP BY name)
+                                  AND id NOT IN (SELECT DISTINCT exercise_id FROM exercise_entry)
+                                  AND id NOT IN (SELECT DISTINCT exercise_id FROM exercise_pr)
+                                  AND id NOT IN (SELECT DISTINCT exercise_id FROM exercise_1rm_estimate)
+                                  AND id NOT IN (SELECT DISTINCT exercise_id FROM goal_exercise)
+                            """.trimIndent())
                         } catch (_: Exception) {}
                     }
                 })

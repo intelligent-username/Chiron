@@ -28,9 +28,24 @@ import coil.request.ImageRequest
 import java.io.File
 
 private fun resolveFileName(iconName: String?): String {
-    if (iconName == null) return "dumbell.svg"
-    AVAILABLE_ICONS.find { it.name == iconName }?.let { return it.fileName }
-    AVAILABLE_ICONS.find { it.name == iconName.replace('_', '-') }?.let { return it.fileName }
+    if (iconName.isNullOrBlank()) return "dumbell.svg"
+    val clean = iconName.trim().lowercase()
+    val cleanNoExt = clean.removeSuffix(".svg")
+    val cleanHyphen = cleanNoExt.replace('_', '-')
+
+    // 1. Match by ExerciseIcon.name (e.g. "ring-front-lever", "deadhang", "benchpress")
+    AVAILABLE_ICONS.find { 
+        it.name.equals(cleanNoExt, ignoreCase = true) || 
+        it.name.equals(cleanHyphen, ignoreCase = true) 
+    }?.let { return it.fileName }
+
+    // 2. Match by ExerciseIcon.fileName (e.g. "ring-fl.svg", "ring-fl", "deadhang.svg")
+    AVAILABLE_ICONS.find { 
+        it.fileName.equals(clean, ignoreCase = true) || 
+        it.fileName.equals("$cleanNoExt.svg", ignoreCase = true) || 
+        it.fileName.equals("$cleanHyphen.svg", ignoreCase = true) 
+    }?.let { return it.fileName }
+
     return "dumbell.svg"
 }
 
@@ -80,7 +95,15 @@ fun ExerciseAsyncIcon(
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(context).data(url).crossfade(true).build(),
+            model = ImageRequest.Builder(context)
+                .data(url)
+                .crossfade(true)
+                .listener(
+                    onError = { _, result ->
+                        android.util.Log.e("ExerciseAsyncIcon", "Failed to load icon '$iconName' from url '$url'", result.throwable)
+                    }
+                )
+                .build(),
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null
