@@ -1,20 +1,12 @@
 package com.chiron.feature.history
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,19 +20,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
-import com.chiron.core.model.Exercise
 import com.chiron.core.model.ExerciseEntry
-import com.chiron.core.model.SetEntry
 import com.chiron.core.model.WorkoutSession
+import com.chiron.feature.history.editor.WorkoutEditorDialogHost
+import com.chiron.feature.history.editor.WorkoutEditorGrid
 import kotlinx.coroutines.launch
 
 /**
- * Top-level workout editor screen.
+ * Top-level workout editor screen coordinator.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutEditor(
     workout: WorkoutSession?,
@@ -71,7 +61,6 @@ fun WorkoutEditor(
 
     // ── Set editing ────────────────────────────────────────────────────────────
     var editingSetEntry by remember { mutableStateOf<Triple<Long, Int, Long>?>(null) }
-    var editingExercise by remember { mutableStateOf<Exercise?>(null) }
 
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -138,154 +127,92 @@ fun WorkoutEditor(
     }
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            state = gridState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { focusManager.clearFocus() })
-                },
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 80.dp)
-        ) {
-            // Header
-            item(span = { GridItemSpan(2) }) {
-                WorkoutEditorHeader(
-                    workout = workout,
-                    isEditable = isEditable,
-                    onEnableEdit = { forceEditMode = true },
-                    editableDayTag = editableDayTag,
-                    onDayTagChange = { 
-                        if (!isEditable) return@WorkoutEditorHeader
-                        editableDayTag = it 
-                        viewModel.updateWorkout(workout.copy(dayTag = it))
-                    },
-                    onWorkoutTimeChange = { dateUtc, endTimeUtc, dateIso ->
-                        if (!isEditable) return@WorkoutEditorHeader
-                        editableDateUtc = dateUtc
-                        editableEndTimeUtc = endTimeUtc
-                        editableDateIso = dateIso
-                        viewModel.saveWorkoutImmediate(
-                            workout.copy(
-                                dateIso = dateIso,
-                                dateUtc = dateUtc,
-                                endTimeUtc = endTimeUtc
-                            )
-                        )
-                    },
-                    editableLocation = editableLocation,
-                    onLocationChange = { 
-                        if (!isEditable) return@WorkoutEditorHeader
-                        editableLocation = it
-                        viewModel.updateWorkout(workout.copy(locationTag = it))
-                    },
-                    editableNotes = editableNotes,
-                    onNotesChange = { 
-                        editableNotes = it 
-                        viewModel.updateWorkout(workout.copy(notes = it.ifBlank { null }))
-                    },
-                    dayTags = uiState.dayTags,
-                    allLocations = allLocations,
-                    onShowDeleteDialog = { showDeleteConfirmation = true },
-                    onShowDuplicateDialog = { showDuplicateConfirmation = true },
-                    onResetTimes = { viewModel.getResetTimingForWorkout(workout.id) },
-                    onDone = {
-                        if (!isEditable) return@WorkoutEditorHeader
-                        viewModel.saveWorkoutImmediate(
-                            workout.copy(
-                                dayTag = editableDayTag,
-                                locationTag = editableLocation,
-                                notes = editableNotes.ifBlank { null }
-                            )
-                        )
-                        onClose()
-                    }
+        WorkoutEditorGrid(
+            gridState = gridState,
+            workout = workout,
+            isEditable = isEditable,
+            onEnableEdit = { forceEditMode = true },
+            editableDayTag = editableDayTag,
+            onDayTagChange = {
+                if (!isEditable) return@WorkoutEditorGrid
+                editableDayTag = it
+                viewModel.updateWorkout(workout.copy(dayTag = it))
+            },
+            onWorkoutTimeChange = { dateUtc, endUtc, dateIso ->
+                if (!isEditable) return@WorkoutEditorGrid
+                editableDateUtc = dateUtc
+                editableEndTimeUtc = endUtc
+                editableDateIso = dateIso
+                viewModel.saveWorkoutImmediate(
+                    workout.copy(
+                        dateIso = dateIso,
+                        dateUtc = dateUtc,
+                        endTimeUtc = endUtc
+                    )
                 )
-            }
-
-            // Exercise groups
-            items(
-                items = exerciseGroups,
-                key = { group -> group.firstOrNull()?.id ?: 0 },
-                span = { GridItemSpan(2) }
-            ) { group ->
-                if (group.size > 1 && group[0].sequenceType == "SUPERSET_START") {
-                    SupersetCard(
-                        entries = group,
-                        viewModel = viewModel,
-                        displayInKg = displayInKg,
-                        distanceUnit = distanceUnit,
-                        allEntries = entries,
-                        workoutId = workout.id,
-                        supersetNumber = supersetNumbersByStartId[group.first().id] ?: 1,
-                        highlightedEntryId = highlightedEntryId,
-                        highlightedSetIndex = highlightedSetIndex,
-                        onSetClick = { entryId, setIndex ->
-                            val exerciseId = entries.find { it.id == entryId }?.exerciseId ?: return@SupersetCard
-                            editingSetEntry = Triple(entryId, setIndex, exerciseId)
-                        },
-                        onAddSet = { entryId ->
-                            if (!isEditable) return@SupersetCard
-                            scope.launch { viewModel.addSet(entryId) }
-                        },
-                        onDeleteSuperset = {
-                            if (!isEditable) return@SupersetCard
-                            scope.launch {
-                                viewModel.deleteExerciseEntries(workout.id, group.map { it.id })
-                            }
-                        },
-                        onOpenPrForExercise = onOpenPrForExercise,
-                        onOpenExerciseDetail = onOpenExerciseDetail,
-                        onOpenSetInWorkout = onOpenSetInWorkout,
-                        onRequestAddExercise = { fromIncrement ->
-                            if (!isEditable) return@SupersetCard
-                            didAddExerciseInDialog = false
-                            supersetParentEntryId = group.firstOrNull()?.id
-                            pendingIncrementSupersetParentEntryId =
-                                if (fromIncrement) group.firstOrNull()?.id else null
-                            showAddExerciseDialog = true
-                        },
-                        isEditable = isEditable
+            },
+            editableLocation = editableLocation,
+            onLocationChange = {
+                if (!isEditable) return@WorkoutEditorGrid
+                editableLocation = it
+                viewModel.updateWorkout(workout.copy(locationTag = it))
+            },
+            editableNotes = editableNotes,
+            onNotesChange = {
+                editableNotes = it
+                viewModel.updateWorkout(workout.copy(notes = it.ifBlank { null }))
+            },
+            dayTags = uiState.dayTags,
+            allLocations = allLocations,
+            onShowDeleteDialog = { showDeleteConfirmation = true },
+            onShowDuplicateDialog = { showDuplicateConfirmation = true },
+            onResetTimes = { viewModel.getResetTimingForWorkout(workout.id) },
+            onDone = {
+                if (!isEditable) return@WorkoutEditorGrid
+                viewModel.saveWorkoutImmediate(
+                    workout.copy(
+                        dayTag = editableDayTag,
+                        locationTag = editableLocation,
+                        notes = editableNotes.ifBlank { null }
                     )
-                } else {
-                    ExerciseEntryCard(
-                        entry = group[0],
-                        viewModel = viewModel,
-                        displayInKg = displayInKg,
-                        distanceUnit = distanceUnit,
-                        allEntries = entries,
-                        workoutId = workout.id,
-                        highlightedEntryId = highlightedEntryId,
-                        highlightedSetIndex = highlightedSetIndex,
-                        onSetClick = { setIndex ->
-                            editingSetEntry = Triple(group[0].id, setIndex, group[0].exerciseId)
-                        },
-                        onAddSet = {
-                            if (!isEditable) return@ExerciseEntryCard
-                            scope.launch { viewModel.addSet(group[0].id) }
-                        },
-                        onDeleteEntry = {
-                            if (!isEditable) return@ExerciseEntryCard
-                            scope.launch {
-                                viewModel.deleteExerciseEntry(workout.id, group[0].id)
-                            }
-                        },
-                        onOpenPrForExercise = onOpenPrForExercise,
-                        onOpenExerciseDetail = onOpenExerciseDetail,
-                        onOpenSetInWorkout = onOpenSetInWorkout,
-                        onRequestAddExercise = {
-                            if (!isEditable) return@ExerciseEntryCard
-                            supersetParentEntryId = group[0].id
-                            showAddExerciseDialog = true
-                        },
-                        isEditable = isEditable
-                    )
-                }
-            }
-        }
+                )
+                onClose()
+            },
+            exerciseGroups = exerciseGroups,
+            supersetNumbersByStartId = supersetNumbersByStartId,
+            viewModel = viewModel,
+            displayInKg = displayInKg,
+            distanceUnit = distanceUnit,
+            entries = entries,
+            highlightedEntryId = highlightedEntryId,
+            highlightedSetIndex = highlightedSetIndex,
+            onSetClick = { entryId, setIndex, exerciseId ->
+                editingSetEntry = Triple(entryId, setIndex, exerciseId)
+            },
+            onAddSet = { entryId ->
+                if (!isEditable) return@WorkoutEditorGrid
+                scope.launch { viewModel.addSet(entryId) }
+            },
+            onDeleteSuperset = { entryIds ->
+                if (!isEditable) return@WorkoutEditorGrid
+                scope.launch { viewModel.deleteExerciseEntries(workout.id, entryIds) }
+            },
+            onDeleteEntry = { entryId ->
+                if (!isEditable) return@WorkoutEditorGrid
+                scope.launch { viewModel.deleteExerciseEntry(workout.id, entryId) }
+            },
+            onOpenPrForExercise = onOpenPrForExercise,
+            onOpenExerciseDetail = onOpenExerciseDetail,
+            onOpenSetInWorkout = onOpenSetInWorkout,
+            onRequestAddExercise = { parentEntryId, fromIncrement ->
+                if (!isEditable) return@WorkoutEditorGrid
+                didAddExerciseInDialog = false
+                supersetParentEntryId = parentEntryId
+                pendingIncrementSupersetParentEntryId = if (fromIncrement) parentEntryId else null
+                showAddExerciseDialog = true
+            },
+            focusManager = focusManager
+        )
 
         FloatingActionButton(
             onClick = { if (isEditable) showAddExerciseDialog = true },
@@ -302,94 +229,68 @@ fun WorkoutEditor(
         )
     }
 
-    // ── Dialogs ─────────────────────────────────────────────────────────────
-
-    if (showDeleteConfirmation) {
-        WorkoutDeleteDialog(
-            workout = workout,
-            onConfirm = {
-                scope.launch {
-                    if (workout.archived != 0) {
-                        viewModel.permanentlyDeleteWorkout(workout.id)
-                    } else {
-                        viewModel.archiveWorkout(workout.id)
-                    }
-                    onClose()
+    WorkoutEditorDialogHost(
+        workout = workout,
+        viewModel = viewModel,
+        entries = entries,
+        displayInKg = displayInKg,
+        distanceUnit = distanceUnit,
+        showDeleteConfirmation = showDeleteConfirmation,
+        onConfirmDelete = {
+            scope.launch {
+                if (workout.archived != 0) {
+                    viewModel.permanentlyDeleteWorkout(workout.id)
+                } else {
+                    viewModel.archiveWorkout(workout.id)
                 }
-            },
-            onDismiss = { showDeleteConfirmation = false }
-        )
-    }
-
-    if (showDuplicateConfirmation) {
-        WorkoutDuplicateDialog(
-            onConfirm = {
-                showDuplicateConfirmation = false
-                viewModel.duplicateWorkout(workout.id) { newId ->
-                    viewModel.openEditor(newId)
-                }
-            },
-            onDismiss = { showDuplicateConfirmation = false }
-        )
-    }
-
-    if (showAddExerciseDialog) {
-        AddExerciseDialog(
-            viewModel = viewModel,
-            workoutId = workout.id,
-            parentEntryId = supersetParentEntryId,
-            entries = entries,
-            onExerciseAdded = { didAddExerciseInDialog = true },
-            onDismiss = {
-                val pendingId = pendingIncrementSupersetParentEntryId
-                if (pendingId != null && !didAddExerciseInDialog) {
-                    val parent = entries.find { it.id == pendingId }
-                    if (parent != null) {
-                        val decremented = (parent.numExercisesInSuperset - 1).coerceAtLeast(2)
-                        viewModel.updateExerciseEntry(
-                            parent.copy(
-                                numExercisesInSuperset = decremented,
-                                sequenceType = "SUPERSET_START",
-                                groupId = parent.groupId ?: parent.id
-                            )
-                        )
-                    }
-                }
-                showAddExerciseDialog = false
-                supersetParentEntryId = null
-                pendingIncrementSupersetParentEntryId = null
-                didAddExerciseInDialog = false
+                onClose()
             }
-        )
-    }
-
-    editingSetEntry?.let { (entryId, setIndex, exerciseId) ->
-        LaunchedEffect(exerciseId) {
-            editingExercise = viewModel.getExerciseById(exerciseId)
-        }
-        val sets by viewModel.getSetsForEntry(entryId).collectAsState(initial = emptyList<SetEntry>())
-        val set = sets.getOrNull(setIndex - 1)
-        val exercise = editingExercise
-        if (set != null && exercise != null) {
-            EditSetDialog(
-                set = set,
-                exercise = exercise,
-                displayInKg = displayInKg,
-                distanceUnit = distanceUnit,
-                onSave = { updatedSet ->
-                    scope.launch {
-                        viewModel.updateSetAndCheckPr(updatedSet)
-                        editingSetEntry = null
-                    }
-                },
-                onDelete = {
-                    scope.launch {
-                        viewModel.deleteSet(entryId, set.id)
-                        editingSetEntry = null
-                    }
-                },
-                onDismiss = { editingSetEntry = null }
-            )
-        }
-    }
+        },
+        onDismissDelete = { showDeleteConfirmation = false },
+        showDuplicateConfirmation = showDuplicateConfirmation,
+        onConfirmDuplicate = {
+            showDuplicateConfirmation = false
+            viewModel.duplicateWorkout(workout.id) { newId ->
+                viewModel.openEditor(newId)
+            }
+        },
+        onDismissDuplicate = { showDuplicateConfirmation = false },
+        showAddExerciseDialog = showAddExerciseDialog,
+        supersetParentEntryId = supersetParentEntryId,
+        onExerciseAdded = { didAddExerciseInDialog = true },
+        onDismissAddExercise = {
+            val pendingId = pendingIncrementSupersetParentEntryId
+            if (pendingId != null && !didAddExerciseInDialog) {
+                val parent = entries.find { it.id == pendingId }
+                if (parent != null) {
+                    val decremented = (parent.numExercisesInSuperset - 1).coerceAtLeast(2)
+                    viewModel.updateExerciseEntry(
+                        parent.copy(
+                            numExercisesInSuperset = decremented,
+                            sequenceType = "SUPERSET_START",
+                            groupId = parent.groupId ?: parent.id
+                        )
+                    )
+                }
+            }
+            showAddExerciseDialog = false
+            supersetParentEntryId = null
+            pendingIncrementSupersetParentEntryId = null
+            didAddExerciseInDialog = false
+        },
+        editingSetEntry = editingSetEntry,
+        onSaveSet = { updatedSet ->
+            scope.launch {
+                viewModel.updateSetAndCheckPr(updatedSet)
+                editingSetEntry = null
+            }
+        },
+        onDeleteSet = { entryId, setId ->
+            scope.launch {
+                viewModel.deleteSet(entryId, setId)
+                editingSetEntry = null
+            }
+        },
+        onDismissEditSet = { editingSetEntry = null }
+    )
 }

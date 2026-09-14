@@ -70,9 +70,6 @@ interface BodyWeightDao {
     @Query("SELECT * FROM body_weight_entry ORDER BY timestamp_utc ASC, id ASC")
     suspend fun getAllSync(): List<BodyWeightEntry>
 
-    @Query("SELECT * FROM body_weight_entry WHERE timestamp_utc <= :timestampUtc ORDER BY timestamp_utc DESC, id DESC LIMIT 1")
-    suspend fun getLatestAtOrBefore(timestampUtc: Long): BodyWeightEntry?
-
     @Transaction
     suspend fun upsertBodyweights(
         rows: List<ParsedWeightRow>,

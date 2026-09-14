@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chiron.core.common.UnitConversion
 import com.chiron.core.model.TimerPreset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -140,7 +141,7 @@ fun PresetCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = preset.label, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
-                Text(text = formatDuration(preset.durationSeconds), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                Text(text = UnitConversion.formatDurationWords(preset.durationSeconds), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (isSelected) {
@@ -151,15 +152,5 @@ fun PresetCard(
                 }
             }
         }
-    }
-}
-
-private fun formatDuration(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return when {
-        mins > 0 && secs > 0 -> "${mins}m ${secs}s"
-        mins > 0 -> "${mins}m"
-        else -> "${secs}s"
     }
 }

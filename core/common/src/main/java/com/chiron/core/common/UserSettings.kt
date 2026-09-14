@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_settings")
@@ -27,6 +28,7 @@ class UserSettingsRepository(private val context: Context) {
         private val DISTANCE_UNIT = stringPreferencesKey("distance_unit")
         private val CURRENT_TAB = stringPreferencesKey("current_tab")
         private val EDITING_WORKOUT_ID = longPreferencesKey("editing_workout_id")
+        private val HAS_BACKFILLED_1RM = booleanPreferencesKey("has_backfilled_1rm")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -114,26 +116,14 @@ class UserSettingsRepository(private val context: Context) {
             }
         }
     }
-}
 
-/**
- * Data class for settings snapshot.
- */
-data class UserSettings(
-    val displayInKg: Boolean = false,
-    val customLocations: List<String> = emptyList(),
-    val spotifyEnabled: Boolean = false,
-    val matchThemeWithMedia: Boolean = false,
-    val distanceUnit: DistanceUnit = DistanceUnit.METERS
-)
+    suspend fun hasBackfilled1rm(): Boolean {
+        return context.dataStore.data.map { it[HAS_BACKFILLED_1RM] ?: false }.first()
+    }
 
-/** Canonical unit for distance display. DB always stores meters. */
-enum class DistanceUnit(val key: String, val displayLabel: String) {
-    METERS("meters", "Meters"),
-    FEET("feet", "Feet");
-
-    companion object {
-        fun fromString(value: String?): DistanceUnit =
-            values().firstOrNull { it.key == value } ?: METERS
+    suspend fun setBackfilled1rm(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[HAS_BACKFILLED_1RM] = value
+        }
     }
 }

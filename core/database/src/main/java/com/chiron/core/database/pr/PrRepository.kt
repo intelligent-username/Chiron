@@ -1,5 +1,6 @@
 package com.chiron.core.database.pr
 
+import com.chiron.core.common.OneRmEstimator
 import com.chiron.core.database.dao.ExercisePrDao
 import com.chiron.core.database.dao.SetEntryDao
 import com.chiron.core.database.dao.ExerciseDao
@@ -319,10 +320,9 @@ class PrRepository(
         }
 
         // 3. Take the maximum Epley estimate across all remaining PRs.
-        // Epley: 1RM = w * (1 + r/30). For r=1, use raw weight (it's already the 1RM).
         var finalEstimate = 0.0
         for (pr in monotonicPrs) {
-            val mHat = if (pr.repsInt == 1) pr.weightLbs else pr.weightLbs * (1.0 + pr.repsInt / 30.0)
+            val mHat = OneRmEstimator.estimate1Rm(pr.weightLbs, pr.repsInt)
             if (mHat > finalEstimate) finalEstimate = mHat
         }
 

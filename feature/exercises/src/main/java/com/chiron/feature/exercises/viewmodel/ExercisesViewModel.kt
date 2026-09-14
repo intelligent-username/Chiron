@@ -65,9 +65,6 @@ class ExercisesViewModel(
                 }
             }
         }
-        viewModelScope.launch {
-            repository.backfill1rmEstimates()
-        }
     }
 
     fun updateSearchQuery(query: String) {

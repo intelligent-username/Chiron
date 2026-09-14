@@ -74,6 +74,20 @@ object UnitConversion {
         }
     }
 
+    /**
+     * Format a duration in seconds as concise words, e.g. "5m 30s", "5m", or "30s".
+     */
+    fun formatDurationWords(seconds: Int?): String {
+        if (seconds == null) return "—"
+        val mins = seconds / 60
+        val secs = seconds % 60
+        return when {
+            mins > 0 && secs > 0 -> "${mins}m ${secs}s"
+            mins > 0 -> "${mins}m"
+            else -> "${secs}s"
+        }
+    }
+
     // ── Combined set display ──────────────────────────────────────────────────
 
     /**

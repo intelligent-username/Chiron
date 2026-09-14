@@ -39,9 +39,6 @@ abstract class GoalDao {
     @Query("SELECT * FROM goal WHERE id = :id")
     abstract suspend fun getGoalById(id: Long): Goal?
 
-    @Query("SELECT * FROM goal WHERE name = :name AND archived = 0 LIMIT 1")
-    abstract suspend fun getGoalByName(name: String): Goal?
-
     @Query("SELECT * FROM goal WHERE TRIM(name) = TRIM(:name) COLLATE NOCASE LIMIT 1")
     abstract suspend fun getGoalByNameAnyStatus(name: String): Goal?
 

@@ -13,7 +13,9 @@ import com.chiron.core.database.dao.SetTimestampRow
 import com.chiron.core.database.dao.SetWorkoutContext
 import com.chiron.core.model.Exercise1rmEstimate
 import com.chiron.core.database.dao.TimerPresetDao
+import com.chiron.core.database.dao.VolumeAnalyticsDao
 import com.chiron.core.database.dao.WorkoutSessionDao
+import com.chiron.core.database.workout.VolumeAnalyticsRepository
 import com.chiron.core.model.Exercise
 import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.model.ExerciseEntry
@@ -62,7 +64,8 @@ class ChironRepository(
     private val exercise1rmEstimateDao: Exercise1rmEstimateDao,
     private val goalDao: GoalDao,
     private val onImportLocations: (suspend (List<String>) -> Unit)? = null,
-    private val bodyWeightDao: BodyWeightDao? = null
+    private val bodyWeightDao: BodyWeightDao? = null,
+    private val volumeAnalyticsDao: VolumeAnalyticsDao? = null
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -106,9 +109,12 @@ class ChironRepository(
         exerciseEntryDao = exerciseEntryDao,
         workoutSessionDao = workoutSessionDao,
         exerciseDao = exerciseDao,
-        onSyncGlobalPrBucket = { exerciseId, reps -> prRepository.syncGlobalPrBucket(exerciseId, reps) },
-        bodyWeightDao = bodyWeightDao
+        onSyncGlobalPrBucket = { exerciseId, reps -> prRepository.syncGlobalPrBucket(exerciseId, reps) }
     )
+
+    private val volumeAnalyticsRepository = volumeAnalyticsDao?.let {
+        VolumeAnalyticsRepository(it, bodyWeightDao)
+    }
 
     private val exerciseEntryRepository = ExerciseEntryRepository(
         exerciseEntryDao = exerciseEntryDao,
@@ -161,9 +167,6 @@ class ChironRepository(
     suspend fun getExerciseById(id: Long): Exercise? =
         exerciseRepository.getExerciseById(id)
 
-    suspend fun getExerciseByName(name: String): Exercise? =
-        exerciseRepository.getExerciseByName(name)
-
     suspend fun archiveExercise(id: Long) =
         exerciseRepository.archiveExercise(id)
 
@@ -172,12 +175,6 @@ class ChironRepository(
 
     suspend fun deleteExercisePermanently(id: Long) =
         exerciseRepository.deleteExercisePermanently(id)
-
-    suspend fun searchExercises(
-        query: String,
-        archived: Boolean = false,
-        limit: Int = 10
-    ): List<Exercise> = exerciseRepository.searchExercises(query, archived, limit)
 
     suspend fun getAllExercises(): List<Exercise> =
         exerciseRepository.getAllExercises()
@@ -189,36 +186,12 @@ class ChironRepository(
     suspend fun getLastSessionPreview(
         exerciseId: Long,
         currentWorkoutId: Long
-    ): LastSessionPreview? {
-        val preview = sessionPreviewRepository.getLastSessionPreview(exerciseId, currentWorkoutId)
-            ?: return null
-        return LastSessionPreview(
-            dateLabel = preview.dateLabel,
-            sets = preview.sets,
-            notes = preview.notes
-        )
-    }
+    ): LastSessionPreview? = sessionPreviewRepository.getLastSessionPreview(exerciseId, currentWorkoutId)
 
     suspend fun getLastSessionSupersetPreview(
         exerciseId: Long,
         currentWorkoutId: Long
-    ): LastSessionSupersetPreview? {
-        val preview = sessionPreviewRepository.getLastSessionSupersetPreview(
-            exerciseId, currentWorkoutId
-        ) ?: return null
-        return LastSessionSupersetPreview(
-            dateLabel = preview.dateLabel,
-            exercises = preview.exercises.map { e ->
-                SupersetExercisePreview(
-                    exerciseId = e.exerciseId,
-                    exerciseName = e.exerciseName,
-                    iconName = e.iconName,
-                    sets = e.sets
-                )
-            },
-            notes = preview.notes
-        )
-    }
+    ): LastSessionSupersetPreview? = sessionPreviewRepository.getLastSessionSupersetPreview(exerciseId, currentWorkoutId)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Workout session operations
@@ -239,9 +212,6 @@ class ChironRepository(
 
     suspend fun getWorkoutById(id: Long): WorkoutSession? =
         workoutSessionRepository.getWorkoutById(id)
-
-    fun getWorkoutsByDayTag(dayTag: String): Flow<List<WorkoutSession>> =
-        workoutSessionRepository.getWorkoutsByDayTag(dayTag)
 
     suspend fun archiveWorkout(id: Long) =
         workoutSessionRepository.archiveWorkout(id)
@@ -325,11 +295,12 @@ class ChironRepository(
         setEntryDao.getWorkoutContextForExerciseOnDate(exerciseId, startUtc, endUtc)
 
     /**
-     * Volume passthroughs with identical signatures. Bodyweight share is derived
-     * live in [SetEntryRepository]; no stored volume column (Option C banned).
+     * Volume Flow. Bodyweight share is derived live in [VolumeAnalyticsRepository];
+     * no stored volume column (Option C banned).
      */
-    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDay(exerciseId)
-    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null) = setEntryRepository.getVolumeSummaryByDayFlow(exerciseId)
+    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null) =
+        volumeAnalyticsRepository?.getVolumeSummaryByDayFlow(exerciseId)
+            ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
     // ─────────────────────────────────────────────────────────────────────────
     // PR Detection
@@ -400,9 +371,6 @@ class ChironRepository(
     suspend fun getGoalById(id: Long): Goal? =
         goalDao.getGoalById(id)
 
-    suspend fun getGoalByName(name: String): Goal? =
-        goalDao.getGoalByName(name)
-
     suspend fun insertGoal(goal: Goal): Long =
         goalDao.insertGoal(goal)
 
@@ -432,17 +400,8 @@ class ChironRepository(
     fun observeBodyWeights(): Flow<List<BodyWeightEntry>> =
         requireBodyWeightDao().getAllFlow()
 
-    suspend fun getAllBodyWeightsSync(): List<BodyWeightEntry> =
-        requireBodyWeightDao().getAllSync()
-
-    suspend fun getLatestBodyWeightAtOrBefore(timestampUtc: Long): BodyWeightEntry? =
-        requireBodyWeightDao().getLatestAtOrBefore(timestampUtc)
-
     suspend fun insertBodyWeight(entry: BodyWeightEntry): Long =
         requireBodyWeightDao().insert(entry)
-
-    suspend fun upsertBodyWeight(entry: BodyWeightEntry): Long =
-        requireBodyWeightDao().upsert(entry)
 
     suspend fun updateBodyWeight(entry: BodyWeightEntry) =
         requireBodyWeightDao().update(entry)

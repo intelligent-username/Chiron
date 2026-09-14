@@ -12,8 +12,6 @@ interface Exercise1rmEstimateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(estimate: Exercise1rmEstimate)
 
-    @Query("SELECT * FROM exercise_1rm_estimate WHERE exercise_id = :exerciseId")
-    suspend fun getForExercise(exerciseId: Long): Exercise1rmEstimate?
 
     @Query("SELECT * FROM exercise_1rm_estimate WHERE exercise_id = :exerciseId")
     fun getForExerciseFlow(exerciseId: Long): Flow<Exercise1rmEstimate?>

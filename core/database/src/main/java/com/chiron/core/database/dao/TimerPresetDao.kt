@@ -24,18 +24,9 @@ interface TimerPresetDao {
     @Query("SELECT * FROM timer_presets WHERE archived = 0 ORDER BY duration_seconds ASC")
     fun getPresetsFlow(): Flow<List<TimerPreset>>
 
-    @Query("SELECT * FROM timer_presets WHERE archived = 0 ORDER BY duration_seconds ASC")
-    suspend fun getAllPresets(): List<TimerPreset>
-
     @Query("SELECT * FROM timer_presets WHERE id = :id")
     suspend fun getPresetById(id: Long): TimerPreset?
 
     @Query("SELECT * FROM timer_presets WHERE label = :label AND duration_seconds = :duration LIMIT 1")
     suspend fun getPresetByLabelAndDuration(label: String, duration: Int): TimerPreset?
-
-    @Query("UPDATE timer_presets SET archived = 1 WHERE id = :id")
-    suspend fun archivePreset(id: Long)
-
-    @Query("UPDATE timer_presets SET archived = 0 WHERE id = :id")
-    suspend fun unarchivePreset(id: Long)
 }

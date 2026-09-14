@@ -29,8 +29,15 @@ object DateUtils {
         }
     }
 
-    fun formatWorkoutEditorDate(workout: WorkoutSession): String {
-        return formatWorkoutCardDate(workout)
+    fun formatWorkoutDateLabel(dateIso: String): String {
+        return try {
+            val date = java.time.LocalDate.parse(dateIso)
+            val dayOfWeek = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            val month = date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            "$dayOfWeek, $month ${date.dayOfMonth}"
+        } catch (e: Exception) {
+            dateIso
+        }
     }
 
     /**
@@ -46,52 +53,6 @@ object DateUtils {
         val endStr = endZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
 
         return "$dateStr $startStr - $endStr"
-    }
-
-    fun tryParseWorkoutStartEndDisplay(input: String, workout: WorkoutSession): WorkoutSession? {
-        // Expected something like: "20/07/2024 14:30 - 15:45"
-        val regex = Regex("""(\d{2}/\d{2}/\d{4})\s+(\d{2}[:/]\d{2})\s*(?:-|--|–|—)\s*(\d{2}[:/]\d{2})""")
-        val match = regex.find(input.trim()) ?: return null
-
-        val datePart = match.groupValues[1]
-        val startTimePart = match.groupValues[2]
-        val endTimePart = match.groupValues[3]
-
-        return parseWorkoutTimes(datePart, startTimePart, endTimePart, workout)
-    }
-
-    fun parseWorkoutTimes(dateStr: String, startStr: String, endStr: String, workout: WorkoutSession): WorkoutSession? {
-        val datePart = dateStr.trim()
-        val startTimePart = startStr.trim().replace("/", ":")
-        val endTimePart = endStr.trim().replace("/", ":")
-
-        if (datePart.length < 8 || startTimePart.length < 4 || endTimePart.length < 4) return null
-        
-        return try {
-            val startDateTimeStr = "$datePart $startTimePart"
-            val endDateTimeStr = "$datePart $endTimePart"
-            
-            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-            
-            val startZdt = java.time.LocalDateTime.parse(startDateTimeStr, formatter).atZone(ZoneId.systemDefault())
-            val endZdt = java.time.LocalDateTime.parse(endDateTimeStr, formatter).atZone(ZoneId.systemDefault())
-
-            var endEpoch = endZdt.toInstant().toEpochMilli()
-            val startEpoch = startZdt.toInstant().toEpochMilli()
-
-            // If end is before start, assume it crossed midnight
-            if (endEpoch < startEpoch) {
-                endEpoch += 86400000L
-            }
-
-            workout.copy(
-                dateUtc = startEpoch,
-                endTimeUtc = endEpoch,
-                dateIso = startZdt.toLocalDate().toString()
-            )
-        } catch (e: Exception) {
-            null
-        }
     }
     
     fun getDateStr(workout: WorkoutSession): String {

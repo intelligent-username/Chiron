@@ -100,6 +100,28 @@ fun BodyweightLineGraph(
     val tipBorder = ThinOutline
     val onSurface = MaterialTheme.colorScheme.onSurface
 
+    val measuredTicks = remember(ticks, textMeasurer, labelColor) {
+        ticks.map { tickValue ->
+            tickValue to textMeasurer.measure(
+                UnitConversion.formatNumber(tickValue),
+                TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+            )
+        }
+    }
+
+    val measuredPointLabels = remember(points, textMeasurer, labelColor) {
+        points.map { p ->
+            if (p.label.isNotEmpty()) {
+                textMeasurer.measure(
+                    p.label,
+                    TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+                )
+            } else null
+        }
+    }
+
+    val linePath = remember { Path() }
+
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
@@ -146,11 +168,11 @@ fun BodyweightLineGraph(
             val plotTop = padTop + plotInsetY
             val plotH = (graphH - plotInsetY * 2f).coerceAtLeast(1f)
 
-            drawGrid(textMeasurer, ticks, niceMin, niceMax, padLeft, padRight, padTop, graphH, labelColor, tipBorder)
+            drawGrid(measuredTicks, niceMin, niceMax, padLeft, padRight, padTop, graphH, tipBorder)
             if (points.isEmpty()) return@Canvas
 
-            drawLine(points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
-            drawDots(textMeasurer, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor, labelColor)
+            drawLine(linePath, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
+            drawDots(measuredPointLabels, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor)
             hoveredX?.let { hx ->
                 drawTooltip(
                     textMeasurer, hx, points, localInKg, unit, maxW, minW, animProgress,
@@ -174,19 +196,17 @@ private fun nearestPoint(
 }
 
 private fun DrawScope.drawGrid(
-    measurer: androidx.compose.ui.text.TextMeasurer,
-    ticks: List<Double>,
+    measuredTicks: List<Pair<Double, androidx.compose.ui.text.TextLayoutResult>>,
     displayMin: Double,
     displayMax: Double,
     padLeft: Float,
     padRight: Float,
     padTop: Float,
     graphH: Float,
-    labelColor: Color,
     gridColor: Color
 ) {
     val span = (displayMax - displayMin).takeIf { it > 0.0 } ?: 1.0
-    ticks.forEach { tickValue ->
+    measuredTicks.forEach { (tickValue, layout) ->
         val ratio = ((tickValue - displayMin) / span).toFloat().coerceIn(0f, 1f)
         val y = padTop + graphH * (1f - ratio)
         drawLine(
@@ -194,10 +214,6 @@ private fun DrawScope.drawGrid(
             start = Offset(padLeft, y),
             end = Offset(size.width - padRight, y),
             strokeWidth = 0.5.dp.toPx()
-        )
-        val layout = measurer.measure(
-            UnitConversion.formatNumber(tickValue),
-            TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
         )
         drawText(
             textLayoutResult = layout,
@@ -223,6 +239,7 @@ private fun DrawScope.drawGrid(
 }
 
 private fun DrawScope.drawLine(
+    path: Path,
     points: List<BodyweightPoint>,
     maxW: Double,
     minW: Double,
@@ -237,7 +254,7 @@ private fun DrawScope.drawLine(
     fun xOf(i: Int) = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
     fun yOf(w: Double) = plotTop + plotH * (1f - yRatio(w, maxW, minW) * progress)
 
-    val path = Path()
+    path.rewind()
     path.moveTo(xOf(0), yOf(points[0].weightLbs))
     for (i in 1 until n) {
         val mid = (xOf(i - 1) + xOf(i)) / 2f
@@ -252,7 +269,7 @@ private fun yRatio(w: Double, maxW: Double, minW: Double): Float {
 }
 
 private fun DrawScope.drawDots(
-    measurer: androidx.compose.ui.text.TextMeasurer,
+    measuredLabels: List<androidx.compose.ui.text.TextLayoutResult?>,
     points: List<BodyweightPoint>,
     maxW: Double,
     minW: Double,
@@ -265,8 +282,7 @@ private fun DrawScope.drawDots(
     padRight: Float,
     padTop: Float,
     graphH: Float,
-    dotColor: Color,
-    labelColor: Color
+    dotColor: Color
 ) {
     val n = points.size
     points.forEachIndexed { i, p ->
@@ -280,11 +296,8 @@ private fun DrawScope.drawDots(
             drawCircle(color = Color.White, radius = 2f, center = Offset(x, y))
         }
 
-        if (p.label.isNotEmpty()) {
-            val measured = measurer.measure(
-                p.label,
-                TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-            )
+        val measured = measuredLabels.getOrNull(i)
+        if (measured != null) {
             // Clamp X-axis label so it stays nicely bounded
             val labelX = (x - measured.size.width / 2f).coerceIn(padLeft, size.width - padRight - measured.size.width)
             drawText(measured, topLeft = Offset(labelX, padTop + graphH + 8f))

@@ -36,7 +36,8 @@ object ServiceLocator {
             exercise1rmEstimateDao = database.exercise1rmEstimateDao(),
             goalDao = database.goalDao(),
             onImportLocations = { locations -> userSettingsRepository.addCustomLocations(locations) },
-            bodyWeightDao = database.bodyWeightDao()
+            bodyWeightDao = database.bodyWeightDao(),
+            volumeAnalyticsDao = database.volumeAnalyticsDao()
         )
     }
 

@@ -1,60 +1,43 @@
 package com.chiron.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiron.app.di.ServiceLocator
+import com.chiron.app.ui.dialogs.ChironDialogHost
+import com.chiron.app.ui.navigation.BottomBarContainer
+import com.chiron.app.ui.navigation.ChironTabPager
 import com.chiron.app.ui.settings.SettingsScreen
-import com.chiron.core.spotify.MiniPlayerBar
+import com.chiron.app.ui.topbar.ChironTopBar
 import com.chiron.core.spotify.SpotifyManager
-import com.chiron.core.ui.components.BottomNavBar
 import com.chiron.core.ui.components.NavTab
-import com.chiron.core.ui.theme.PrGold
-import com.chiron.feature.exercises.ExerciseDetailScreen
-import com.chiron.feature.exercises.ExercisesScreen
 import com.chiron.feature.exercises.ExercisesViewModel
-import com.chiron.feature.exercises.PrScreen
-import com.chiron.feature.goals.GoalsScreen
 import com.chiron.feature.goals.GoalsViewModel
-import com.chiron.feature.history.HistoryScreen
 import com.chiron.feature.history.HistoryViewModel
-import com.chiron.feature.history.VolumeScreen
 import com.chiron.feature.history.VolumeViewModel
-import com.chiron.feature.timer.AddPresetDialog
-import com.chiron.feature.timer.BodyweightImportDialog
-import com.chiron.feature.timer.BodyweightStatsScreen
 import com.chiron.feature.timer.BodyweightViewModel
-import com.chiron.feature.timer.PresetsSheet
-import com.chiron.feature.timer.TimerScreenHost
 import com.chiron.feature.timer.TimerTab
 import com.chiron.feature.timer.TimerViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChironApp(
     historyViewModel: HistoryViewModel,
@@ -107,17 +90,14 @@ fun ChironApp(
 
     val spotifyEnabled by ServiceLocator.userSettingsRepository.spotifyEnabledFlow
         .collectAsState(initial = false)
-    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(spotifyEnabled) {
         if (!spotifyEnabled) SpotifyManager.disconnect()
     }
 
-    androidx.activity.compose.BackHandler(enabled = true) {
+    BackHandler(enabled = true) {
         when {
-            isBodyweightMode -> {
-                isBodyweightMode = false
-            }
+            isBodyweightMode -> isBodyweightMode = false
             isGoalsMode -> {
                 isGoalsMode = false
                 goalsViewModel.closeDetail()
@@ -174,368 +154,194 @@ fun ChironApp(
     } else if (!isAppLoading) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
-                    ),
-                    title = {
-                        if (selectedTab == NavTab.HISTORY) {
-                            androidx.compose.animation.AnimatedContent(
-                                targetState = isVolumeMode,
-                                label = "volume_toggle"
-                            ) { mode ->
-                                Text(
-                                    text = if (mode) "Volume" else "History",
-                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null
-                                    ) { 
-                                        isVolumeMode = !isVolumeMode 
-                                        if (isVolumeMode) {
-                                            volumeViewModel.setExerciseFilter(null)
-                                        }
-                                    }
-                                )
-                            }
-                        } else if (selectedTab == NavTab.EXERCISES) {
-                            androidx.compose.animation.AnimatedContent(
-                                targetState = isGoalsMode,
-                                label = "goals_toggle"
-                            ) { mode ->
-                                Text(
-                                    text = if (mode) "Goals" else "Exercises",
-                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null
-                                    ) { isGoalsMode = !isGoalsMode }
-                                )
-                            }
-                        } else if (selectedTab == NavTab.TIMER) {
-                            androidx.compose.animation.AnimatedContent(
-                                targetState = isBodyweightMode,
-                                label = "bodyweight_toggle"
-                            ) { mode ->
-                                Text(
-                                    text = if (mode) "Stats" else "Timer",
-                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null
-                                    ) { isBodyweightMode = !isBodyweightMode }
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = when (selectedTab) { NavTab.EXERCISES -> "Exercises"; NavTab.TIMER -> "Timer"; else -> "" },
-                                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            )
+                ChironTopBar(
+                    selectedTab = selectedTab,
+                    isVolumeMode = isVolumeMode,
+                    onToggleVolumeMode = {
+                        isVolumeMode = !isVolumeMode
+                        if (isVolumeMode) {
+                            volumeViewModel.setExerciseFilter(null)
                         }
                     },
-                    actions = {
-                        when (selectedTab) {
-                            NavTab.EXERCISES -> {
-                                if (!isGoalsMode) {
-                                    IconButton(onClick = { exercisesViewModel.toggleShowArchived() }) {
-                                        Icon(Icons.Default.Archive, contentDescription = if (exercisesState.showArchived) "Show active" else "Show archived", tint = if (exercisesState.showArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    IconButton(onClick = {
-                                        prTargetExerciseId = null
-                                        prOpenedFromHistory = false
-                                        prReturnExerciseId = null
-                                        isPrScreenOpen = true
-                                    }) {
-                                        Icon(Icons.Default.EmojiEvents, contentDescription = "Personal Records", tint = PrGold)
-                                    }
-                                }
-                            }
-                            NavTab.TIMER -> {
-                                if (isBodyweightMode) {
-                                    IconButton(onClick = { bodyweightViewModel.refresh() }) { Icon(Icons.Default.Refresh, "Refresh") }
-                                } else {
-                                    IconButton(onClick = { isPresetsOpen = true }) { Icon(Icons.Default.Tune, contentDescription = "Presets") }
-                                }
-                            }
-                            else -> {
-                                if (selectedTab == NavTab.HISTORY && isVolumeMode) {
-                                    IconButton(onClick = { volumeViewModel.refresh() }) { Icon(Icons.Default.Refresh, "Refresh") }
-                                }
-                                IconButton(onClick = { isSettingsOpen = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
-                            }
-                        }
-                    }
+                    isGoalsMode = isGoalsMode,
+                    onToggleGoalsMode = { isGoalsMode = !isGoalsMode },
+                    isBodyweightMode = isBodyweightMode,
+                    onToggleBodyweightMode = { isBodyweightMode = !isBodyweightMode },
+                    showArchivedExercises = exercisesState.showArchived,
+                    onToggleShowArchived = { exercisesViewModel.toggleShowArchived() },
+                    onOpenPrScreen = {
+                        prTargetExerciseId = null
+                        prOpenedFromHistory = false
+                        prReturnExerciseId = null
+                        isPrScreenOpen = true
+                    },
+                    onRefreshBodyweight = { bodyweightViewModel.refresh() },
+                    onOpenPresets = { isPresetsOpen = true },
+                    onRefreshVolume = { volumeViewModel.refresh() },
+                    onOpenSettings = { isSettingsOpen = true }
                 )
             },
             bottomBar = {
-                if (spotifyEnabled) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(com.chiron.core.ui.theme.SolidSlate)
-                            .border(1.dp, com.chiron.core.ui.theme.ThinOutline, RoundedCornerShape(8.dp))
-                    ) {
-                        MiniPlayerBar(drawBackgroundAndBorder = false)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(com.chiron.core.ui.theme.ThinOutline)
-                        )
-                        BottomNavBar(
-                            selectedTab = selectedTab,
-                            selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
-                            isVolumeMode = isVolumeMode,
-                            isGoalsMode = isGoalsMode,
-                            isBodyweightMode = isBodyweightMode,
-                            drawBackgroundAndBorder = false,
-                            onTabSelected = { tab ->
-                                if (tab == selectedTab) {
-                                    if (tab == NavTab.HISTORY) {
-                                        historyViewModel.closeEditor()
-                                    } else if (tab == NavTab.EXERCISES) {
-                                        isExerciseDetailOpen = false
-                                        isPrScreenOpen = false
-                                        prTargetExerciseId = null
-                                    } else if (tab == NavTab.TIMER) {
-                                        isBodyweightMode = !isBodyweightMode
-                                    }
-                                } else {
-                                    if (selectedTab == NavTab.EXERCISES) {
-                                        isGoalsMode = false
-                                        goalsViewModel.closeDetail()
-                                    }
-                                    isPrScreenOpen = false
-                                    prTargetExerciseId = null
-                                    prOpenedFromHistory = false
-                                    isExerciseDetailOpen = false
-                                    activeExerciseId = null
-                                    exerciseDetailOpenedFromHistory = false
-                                    scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
-                                }
-                            }
-                        )
-                    }
-                } else {
-                    BottomNavBar(
-                        selectedTab = selectedTab,
-                        selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
-                        isVolumeMode = isVolumeMode,
-                        isGoalsMode = isGoalsMode,
-                        isBodyweightMode = isBodyweightMode,
-                        drawBackgroundAndBorder = true,
-                        onTabSelected = { tab ->
-                            if (tab == selectedTab) {
-                                if (tab == NavTab.HISTORY) {
-                                    historyViewModel.closeEditor()
-                                } else if (tab == NavTab.EXERCISES) {
+                BottomBarContainer(
+                    selectedTab = selectedTab,
+                    selectedTabFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction,
+                    isVolumeMode = isVolumeMode,
+                    isGoalsMode = isGoalsMode,
+                    isBodyweightMode = isBodyweightMode,
+                    spotifyEnabled = spotifyEnabled,
+                    onTabSelected = { tab ->
+                        if (tab == selectedTab) {
+                            when (tab) {
+                                NavTab.HISTORY -> historyViewModel.closeEditor()
+                                NavTab.EXERCISES -> {
                                     isExerciseDetailOpen = false
                                     isPrScreenOpen = false
                                     prTargetExerciseId = null
-                                } else if (tab == NavTab.TIMER) {
-                                    isBodyweightMode = !isBodyweightMode
                                 }
-                            } else {
-                                if (selectedTab == NavTab.EXERCISES) {
-                                    isGoalsMode = false
-                                    goalsViewModel.closeDetail()
-                                }
-                                isPrScreenOpen = false
-                                prTargetExerciseId = null
-                                prOpenedFromHistory = false
-                                isExerciseDetailOpen = false
-                                activeExerciseId = null
-                                exerciseDetailOpenedFromHistory = false
-                                scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
+                                NavTab.TIMER -> isBodyweightMode = !isBodyweightMode
                             }
-                        }
-                    )
-                }
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .padding(innerPadding)
-            ) {
-                HorizontalPager(
-                    state = pagerState,
-                    userScrollEnabled = !historyState.isEditorOpen,
-                    beyondViewportPageCount = tabs.size,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    when (tabs[page]) {
-                        NavTab.HISTORY -> {
-                            if (isVolumeMode) {
-                                VolumeScreen(
-                                    viewModel = volumeViewModel,
-                                    displayInKg = historyState.displayInKg,
-                                    onPointTap = { point ->
-                                        historyViewModel.openLastWorkoutOnDate(point.date) {
-                                            isVolumeMode = false
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                HistoryScreen(
-                                    viewModel = historyViewModel,
-                                    onOpenWorkout = {},
-                                    onOpenPrForExercise = { exerciseId ->
-                                        prTargetExerciseId = exerciseId
-                                        prOpenedFromHistory = true
-                                        prReturnExerciseId = null
-                                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
-                                        isPrScreenOpen = true
-                                    },
-                                    onOpenExerciseDetail = { exerciseId ->
-                                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
-                                        activeExerciseId = exerciseId
-                                        isExerciseDetailOpen = true
-                                        exerciseDetailOpenedFromHistory = true
-                                    },
-                                    onOpenSetInWorkout = { setId ->
-                                        historyViewModel.openWorkoutFromPr(setId)
-                                    }
-                                )
+                        } else {
+                            if (selectedTab == NavTab.EXERCISES) {
+                                isGoalsMode = false
+                                goalsViewModel.closeDetail()
                             }
-                        }
-                        NavTab.EXERCISES -> Box(modifier = Modifier.fillMaxSize()) {
-                            if (isGoalsMode) {
-                                GoalsScreen(
-                                    viewModel = goalsViewModel,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                ExercisesScreen(
-                                    viewModel = exercisesViewModel,
-                                    onOpenDetail = { exId ->
-                                        activeExerciseId = exId
-                                        isExerciseDetailOpen = true
-                                        exerciseDetailOpenedFromHistory = false
-                                    },
-                                    onSearchQueryChange = { exercisesSearchHasText = it }
-                                )
-                                if (isExerciseDetailOpen) {
-                                    val exercise = exercisesState.exercises.find { it.id == activeExerciseId }
-                                        ?: exercisesState.archivedExercises.find { it.id == activeExerciseId }
-                                    ExerciseDetailScreen(
-                                        exercise = exercise,
-                                        volumeViewModel = volumeViewModel,
-                                        displayInKg = historyState.displayInKg,
-                                        onSave = { exercisesViewModel.updateExerciseSuspend(it) },
-                                        onDelete = { exercisesViewModel.archiveExercise(it) },
-                                        onUnarchive = { exercisesViewModel.unarchiveExercise(it) },
-                                        onDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },
-                                        onOpenPrForExercise = { exerciseId ->
-                                            prTargetExerciseId = exerciseId
-                                            prOpenedFromHistory = false
-                                            prReturnExerciseId = null
-                                            isPrScreenOpen = true
-                                        },
-                                        onOpenWorkoutFromDate = { exerciseId, date ->
-                                            isExerciseDetailOpen = false
-                                            activeExerciseId = null
-                                            volumeViewModel.setExerciseFilter(null)
-                                            isVolumeMode = false
-                                            scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
-                                            historyViewModel.openWorkoutFromDate(exerciseId, date)
-                                        },
-                                        onClose = {
-                                            isExerciseDetailOpen = false
-                                            activeExerciseId = null
-                                            volumeViewModel.setExerciseFilter(null)
-                                            if (exerciseDetailOpenedFromHistory) {
-                                                scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
-                                                exerciseDetailOpenedFromHistory = false
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-                        }
-                        NavTab.TIMER -> {
-                            if (isBodyweightMode) {
-                                BodyweightStatsScreen(
-                                    viewModel = bodyweightViewModel,
-                                    displayInKg = historyState.displayInKg,
-                                    onImportClick = { showBodyweightImportDialog = true },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                TimerScreenHost(viewModel = timerViewModel)
-                            }
-                        }
-                    }
-                }
-
-                if (isPrScreenOpen) {
-                    PrScreen(
-                        viewModel = exercisesViewModel,
-                        displayInKg = historyState.displayInKg,
-                        distanceUnit = historyState.distanceUnit,
-                        initialExerciseId = prTargetExerciseId,
-                        onClose = {
-                            isPrScreenOpen = false
-                            prTargetExerciseId = null
-                            if (prOpenedFromHistory) {
-                                scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
-                                prOpenedFromHistory = false
-                            }
-                        },
-                        onOpenWorkout = { exerciseId, setId ->
-                            prReturnExerciseId = exerciseId
                             isPrScreenOpen = false
                             prTargetExerciseId = null
                             prOpenedFromHistory = false
+                            isExerciseDetailOpen = false
+                            activeExerciseId = null
+                            exerciseDetailOpenedFromHistory = false
+                            scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
+                        }
+                    }
+                )
+            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                ChironTabPager(
+                    pagerState = pagerState,
+                    tabs = tabs,
+                    isEditorOpen = historyState.isEditorOpen,
+                    isVolumeMode = isVolumeMode,
+                    volumeViewModel = volumeViewModel,
+                    displayInKg = historyState.displayInKg,
+                    historyViewModel = historyViewModel,
+                    onOpenVolumePoint = { date ->
+                        historyViewModel.openLastWorkoutOnDate(date) {
+                            isVolumeMode = false
+                        }
+                    },
+                    onOpenPrFromHistory = { exerciseId ->
+                        prTargetExerciseId = exerciseId
+                        prOpenedFromHistory = true
+                        prReturnExerciseId = null
+                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
+                        isPrScreenOpen = true
+                    },
+                    onOpenExerciseDetailFromHistory = { exerciseId ->
+                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
+                        activeExerciseId = exerciseId
+                        isExerciseDetailOpen = true
+                        exerciseDetailOpenedFromHistory = true
+                    },
+                    onOpenSetInWorkout = { setId ->
+                        historyViewModel.openWorkoutFromPr(setId)
+                    },
+                    isGoalsMode = isGoalsMode,
+                    goalsViewModel = goalsViewModel,
+                    exercisesViewModel = exercisesViewModel,
+                    onOpenExerciseDetail = { exId ->
+                        activeExerciseId = exId
+                        isExerciseDetailOpen = true
+                        exerciseDetailOpenedFromHistory = false
+                    },
+                    onExercisesSearchQueryChange = { exercisesSearchHasText = it },
+                    isExerciseDetailOpen = isExerciseDetailOpen,
+                    activeExerciseId = activeExerciseId,
+                    exercises = exercisesState.exercises,
+                    archivedExercises = exercisesState.archivedExercises,
+                    onExerciseSave = { exercisesViewModel.updateExerciseSuspend(it) },
+                    onExerciseDelete = { exercisesViewModel.archiveExercise(it) },
+                    onExerciseUnarchive = { exercisesViewModel.unarchiveExercise(it) },
+                    onExerciseDeletePermanently = { exercisesViewModel.deleteExercisePermanently(it) },
+                    onExerciseOpenPr = { exerciseId ->
+                        prTargetExerciseId = exerciseId
+                        prOpenedFromHistory = false
+                        prReturnExerciseId = null
+                        isPrScreenOpen = true
+                    },
+                    onExerciseOpenWorkoutFromDate = { exerciseId, date ->
+                        isExerciseDetailOpen = false
+                        activeExerciseId = null
+                        volumeViewModel.setExerciseFilter(null)
+                        isVolumeMode = false
+                        scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                        historyViewModel.openWorkoutFromDate(exerciseId, date)
+                    },
+                    onExerciseDetailClose = {
+                        isExerciseDetailOpen = false
+                        activeExerciseId = null
+                        volumeViewModel.setExerciseFilter(null)
+                        if (exerciseDetailOpenedFromHistory) {
                             scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
-                            historyViewModel.openWorkoutFromPr(setId)
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                            exerciseDetailOpenedFromHistory = false
+                        }
+                    },
+                    isBodyweightMode = isBodyweightMode,
+                    bodyweightViewModel = bodyweightViewModel,
+                    onOpenBodyweightImport = { showBodyweightImportDialog = true },
+                    timerViewModel = timerViewModel
+                )
+
+                ChironDialogHost(
+                    isPrScreenOpen = isPrScreenOpen,
+                    prTargetExerciseId = prTargetExerciseId,
+                    exercisesViewModel = exercisesViewModel,
+                    displayInKg = historyState.displayInKg,
+                    distanceUnit = historyState.distanceUnit,
+                    onClosePrScreen = {
+                        isPrScreenOpen = false
+                        prTargetExerciseId = null
+                        if (prOpenedFromHistory) {
+                            scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                            prOpenedFromHistory = false
+                        }
+                    },
+                    onOpenWorkoutFromPr = { exerciseId, setId ->
+                        prReturnExerciseId = exerciseId
+                        isPrScreenOpen = false
+                        prTargetExerciseId = null
+                        prOpenedFromHistory = false
+                        scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                        historyViewModel.openWorkoutFromPr(setId)
+                    },
+                    isPresetsOpen = isPresetsOpen,
+                    presets = timerState.presets,
+                    countdownSeconds = timerState.countdownSeconds,
+                    onSelectPreset = {
+                        timerViewModel.selectTab(TimerTab.TIMER)
+                        timerViewModel.setCountdownPreset(it)
+                        timerViewModel.startCountdown()
+                        isPresetsOpen = false
+                    },
+                    onOpenAddPresetDialog = { showAddPresetDialog = true },
+                    onDeletePreset = { scope.launch { timerViewModel.deletePreset(it) } },
+                    onEditPreset = { scope.launch { timerViewModel.deletePreset(it) } },
+                    onDismissPresets = { isPresetsOpen = false },
+                    showAddPresetDialog = showAddPresetDialog,
+                    onDismissAddPreset = { showAddPresetDialog = false },
+                    onSaveAddPreset = { label, secs ->
+                        scope.launch { timerViewModel.addPreset(label, secs) }
+                        showAddPresetDialog = false
+                    },
+                    showBodyweightImportDialog = showBodyweightImportDialog,
+                    onDismissBodyweightImport = { showBodyweightImportDialog = false },
+                    onConfirmBodyweightImport = { lines, config ->
+                        bodyweightViewModel.importWeightsFromLines(lines, config) { _ -> }
+                        showBodyweightImportDialog = false
+                    }
+                )
             }
         }
-
-        if (isPresetsOpen) {
-            PresetsSheet(
-                presets = timerState.presets,
-                currentDuration = timerState.countdownSeconds,
-                onSelectPreset = {
-                    timerViewModel.selectTab(TimerTab.TIMER)
-                    timerViewModel.setCountdownPreset(it)
-                    timerViewModel.startCountdown()
-                    isPresetsOpen = false
-                },
-                onAddPreset = { showAddPresetDialog = true },
-                onDeletePreset = { scope.launch { timerViewModel.deletePreset(it) } },
-                onEditPreset = { scope.launch { timerViewModel.deletePreset(it) } },
-                onDismiss = { isPresetsOpen = false }
-            )
-        }
-    }
-
-    if (showAddPresetDialog) {
-        AddPresetDialog(
-            onDismiss = { showAddPresetDialog = false },
-            onSave = { label, secs -> scope.launch { timerViewModel.addPreset(label, secs) }; showAddPresetDialog = false }
-        )
-    }
-
-    if (showBodyweightImportDialog) {
-        BodyweightImportDialog(
-            onDismiss = { showBodyweightImportDialog = false },
-            onConfirm = { lines, config ->
-                bodyweightViewModel.importWeightsFromLines(lines, config) { _ -> }
-                showBodyweightImportDialog = false
-            },
-            displayInKg = historyState.displayInKg
-        )
     }
 }

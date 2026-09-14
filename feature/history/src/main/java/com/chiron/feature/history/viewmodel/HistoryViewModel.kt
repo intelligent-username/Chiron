@@ -157,7 +157,10 @@ class HistoryViewModel(
 
     init {
         viewModelScope.launch {
-            repository.backfill1rmEstimates()
+            if (!settingsRepository.hasBackfilled1rm()) {
+                repository.backfill1rmEstimates()
+                settingsRepository.setBackfilled1rm(true)
+            }
         }
         viewModelScope.launch {
             repository.workoutsFlow.collect { w ->

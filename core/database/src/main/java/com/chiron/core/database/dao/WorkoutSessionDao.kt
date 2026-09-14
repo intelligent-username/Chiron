@@ -20,9 +20,6 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_session WHERE archived = 0 ORDER BY date_iso DESC, date_utc DESC")
     fun getWorkoutsFlow(): Flow<List<WorkoutSession>>
 
-    @Query("SELECT * FROM workout_session ORDER BY date_iso DESC, date_utc DESC")
-    fun getAllWorkoutsFlow(): Flow<List<WorkoutSession>>
-
     @Query("SELECT * FROM workout_session WHERE archived = 1 ORDER BY date_iso DESC, date_utc DESC")
     fun getArchivedWorkoutsFlow(): Flow<List<WorkoutSession>>
 
@@ -34,9 +31,6 @@ interface WorkoutSessionDao {
 
     @Query("SELECT DISTINCT day_tag FROM workout_session WHERE archived = 0 ORDER BY day_tag ASC")
     fun getDistinctDayTagsFlow(): Flow<List<String>>
-
-    @Query("SELECT * FROM workout_session WHERE day_tag = :dayTag AND archived = 0 ORDER BY date_iso DESC, date_utc DESC")
-    fun getByDayTagFlow(dayTag: String): Flow<List<WorkoutSession>>
 
     @Query("UPDATE workout_session SET archived = 1 WHERE id = :id")
     suspend fun archive(id: Long)

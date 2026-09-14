@@ -29,9 +29,6 @@ class WorkoutSessionRepository(
 
     suspend fun getWorkoutById(id: Long): WorkoutSession? = workoutSessionDao.getById(id)
 
-    fun getWorkoutsByDayTag(dayTag: String): Flow<List<WorkoutSession>> =
-        workoutSessionDao.getByDayTagFlow(dayTag)
-
     suspend fun archiveWorkout(id: Long) = workoutSessionDao.archive(id)
 
     suspend fun unarchiveWorkout(id: Long) = workoutSessionDao.unarchive(id)

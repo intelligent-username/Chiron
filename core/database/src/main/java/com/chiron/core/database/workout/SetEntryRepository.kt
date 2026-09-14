@@ -1,21 +1,13 @@
 package com.chiron.core.database.workout
 
-import com.chiron.core.database.bodyweight.BodyweightResolver
-import com.chiron.core.database.dao.BodyWeightDao
-import com.chiron.core.database.dao.BodyweightSetRow
-import com.chiron.core.database.dao.DailyVolume
 import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.ExerciseEntryDao
 import com.chiron.core.database.dao.SetEntryDao
 import com.chiron.core.database.dao.WorkoutSessionDao
 import com.chiron.core.database.pr.PrCategory
 import com.chiron.core.database.pr.prCategory
-import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.model.SetEntry
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 
 /**
  * Handles CRUD for [SetEntry] records and drives per-set historical PR evaluation.
@@ -31,8 +23,7 @@ class SetEntryRepository(
     private val exerciseEntryDao: ExerciseEntryDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val exerciseDao: ExerciseDao,
-    private val onSyncGlobalPrBucket: suspend (exerciseId: Long, reps: Int) -> Unit,
-    private val bodyWeightDao: BodyWeightDao? = null
+    private val onSyncGlobalPrBucket: suspend (exerciseId: Long, reps: Int) -> Unit
 ) {
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> =
         setEntryDao.getSetsForEntry(entryId)
@@ -44,9 +35,40 @@ class SetEntryRepository(
     }
 
     suspend fun insertSetAndEvaluateHistoricalPr(set: SetEntry): Long {
-        val newSetId = setEntryDao.insertSet(set)
+        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId)
+        val exercise = if (exerciseId != null) exerciseDao.getById(exerciseId) else null
+
+        val reps = set.reps
+        val weight = set.weightLbs
+        val shouldCheck = exercise != null && exercise.prCategory() == PrCategory.WEIGHT_REPS &&
+            reps != null && weight != null && set.isFailed == 0
+
+        val isPr = if (shouldCheck && exerciseId != null) {
+            val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
+            val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
+            if (workout != null) {
+                val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
+                    exerciseId = exerciseId,
+                    reps = reps!!,
+                    upToWorkoutDateUtc = workout.dateUtc,
+                    excludeSetId = 0L
+                )
+                if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
+            } else 0
+        } else 0
+
+        val newSetId = setEntryDao.insertSet(set.copy(isPr = isPr))
         updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
-        updateSetAndEvaluateHistoricalPrInternal(set.copy(id = newSetId), isNewSet = true)
+
+        if (exercise != null && exerciseId != null) {
+            val category = exercise.prCategory()
+            if (category == PrCategory.WEIGHT_REPS && reps != null) {
+                onSyncGlobalPrBucket(exerciseId, reps)
+            } else if (category != PrCategory.NONE && category != PrCategory.WEIGHT_REPS) {
+                onSyncGlobalPrBucket(exerciseId, 0)
+            }
+        }
+
         return newSetId
     }
 
@@ -70,17 +92,9 @@ class SetEntryRepository(
      * Does **not** rebuild or rewrite other sets' `is_pr` flags.
      */
     suspend fun updateSetAndEvaluateHistoricalPr(set: SetEntry) {
-        updateSetAndEvaluateHistoricalPrInternal(set, isNewSet = false)
-    }
-
-    private suspend fun updateSetAndEvaluateHistoricalPrInternal(set: SetEntry, isNewSet: Boolean) {
-        val oldSet = if (!isNewSet && set.id > 0) setEntryDao.getById(set.id) else null
-        setEntryDao.updateSet(set)
-
-        // Config-driven placeholder detection: a set is newly completed if all
-        // enabled-metric columns transitioned from null → non-null for any metric.
-        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId) ?: return
-        val exercise = exerciseDao.getById(exerciseId)
+        val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
+        val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId)
+        val exercise = if (exerciseId != null) exerciseDao.getById(exerciseId) else null
 
         val wasPlaceholder = if (oldSet != null && exercise != null) {
             val wasWeightNull = exercise.isWeightBased != 1 || oldSet.weightLbs == null
@@ -95,61 +109,50 @@ class SetEntryRepository(
             set.durationSeconds != null || set.distanceMeters != null
         )
 
-        // Infer and update the workout's end time if a set is newly created or newly completed.
-        if (isNewSet || isNowCompleted) {
+        // Infer and update the workout's end time if a set is newly completed.
+        if (isNowCompleted) {
             updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
         }
 
-        // ── PR evaluation ──────────────────────────────────────────────────────
-        if (exercise == null) return
+        val category = exercise?.prCategory() ?: PrCategory.NONE
+        val newIsPr = if (category == PrCategory.WEIGHT_REPS) {
+            val reps = set.reps
+            val weight = set.weightLbs
+            val shouldCheck = reps != null && weight != null && set.isFailed == 0
+            if (shouldCheck && exerciseId != null) {
+                val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
+                val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
+                if (workout != null) {
+                    val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
+                        exerciseId = exerciseId,
+                        reps = reps!!,
+                        upToWorkoutDateUtc = workout.dateUtc,
+                        excludeSetId = set.id
+                    )
+                    if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
+                } else 0
+            } else 0
+        } else {
+            0
+        }
 
-        val category = exercise.prCategory()
-        if (category == PrCategory.NONE) {
-            if (set.isPr != 0) {
-                setEntryDao.updateSet(set.copy(isPr = 0))
+        setEntryDao.updateSet(set.copy(isPr = newIsPr))
+
+        if (exercise != null && exerciseId != null) {
+            if (category == PrCategory.WEIGHT_REPS) {
+                val reps = set.reps
+                if (reps != null) {
+                    onSyncGlobalPrBucket(exerciseId, reps)
+                    val oldReps = oldSet?.reps
+                    if (oldReps != null && oldReps != reps) {
+                        onSyncGlobalPrBucket(exerciseId, oldReps)
+                    }
+                }
+            } else if (category != PrCategory.NONE) {
+                // For TIME_WEIGHT, DISTANCE_WEIGHT, and DISTANCE_TIME, PR evaluation
+                // and per-set is_pr flags are delegated to PrRepository.rebuildPrsForExercise.
+                onSyncGlobalPrBucket(exerciseId, 0)
             }
-            return
-        }
-
-        if (category != PrCategory.WEIGHT_REPS) {
-            // For TIME_WEIGHT, DISTANCE_WEIGHT, and DISTANCE_TIME, PR evaluation
-            // and per-set is_pr flags are delegated to PrRepository.rebuildPrsForExercise.
-            onSyncGlobalPrBucket(exerciseId, 0)
-            return
-        }
-
-        val reps = set.reps
-        val weight = set.weightLbs
-        val shouldCheck = reps != null && weight != null && set.isFailed == 0
-
-        if (!shouldCheck) {
-            if (set.isPr != 0) {
-                setEntryDao.updateSet(set.copy(isPr = 0))
-            }
-            return
-        }
-
-        val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) ?: return
-        val workout = workoutSessionDao.getById(workoutId) ?: return
-
-        val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
-            exerciseId = exerciseId,
-            reps = reps!!,
-            upToWorkoutDateUtc = workout.dateUtc,
-            excludeSetId = set.id
-        )
-
-        val isHistoricalPr = maxWeightSoFar == null || weight!! > maxWeightSoFar
-        val newIsPr = if (isHistoricalPr) 1 else 0
-
-        if (set.isPr != newIsPr) {
-            setEntryDao.updateSet(set.copy(isPr = newIsPr))
-        }
-
-        onSyncGlobalPrBucket(exerciseId, reps)
-        val oldReps = oldSet?.reps
-        if (oldReps != null && oldReps != reps) {
-            onSyncGlobalPrBucket(exerciseId, oldReps)
         }
     }
 
@@ -187,91 +190,5 @@ class SetEntryRepository(
     /** Get the last set recorded for an exercise (for autofill). */
     suspend fun getLastSetForExercise(exerciseId: Long): SetEntry? =
         setEntryDao.getLastSetForExercise(exerciseId)
-
-    /**
-     * Total volume grouped by workout day, including dynamic bodyweight share.
-     *
-     * Base aggregates come from the bodyweight-excluded DAO queries; bodyweight
-     * component rows are resolved in Kotlin per day via [BodyweightResolver] and
-     * merged in. No stored volume column exists anywhere (Option C rejected);
-     * the per-day cache is built once per emission then discarded.
-     */
-    suspend fun getVolumeSummaryByDay(exerciseId: Long? = null): List<DailyVolume> {
-        val bwDao = bodyWeightDao ?: return baseVolumeSync(exerciseId)
-        val weights = bwDao.getAllFlow().first()
-        val base = baseVolumeSync(exerciseId)
-        val rows = bodyweightRowsSync(exerciseId)
-        return mergeVolumes(base, rows, weights)
-    }
-
-    /** Flow variant combining weights with base volume, re-emitting on edits. */
-    fun getVolumeSummaryByDayFlow(exerciseId: Long? = null): Flow<List<DailyVolume>> {
-        val bwDao = bodyWeightDao ?: return baseVolumeFlow(exerciseId)
-        val weightsFlow = bwDao.getAllFlow()
-        return if (exerciseId != null) {
-            combine(
-                weightsFlow,
-                setEntryDao.getVolumeSummaryByDayForExerciseFlow(exerciseId),
-                setEntryDao.getBodyweightSetRowsForExerciseFlow(exerciseId)
-            ) { weights, base, rows -> mergeVolumes(base, rows, weights) }
-                .distinctUntilChanged()
-        } else {
-            combine(
-                weightsFlow,
-                setEntryDao.getVolumeSummaryByDayFlow(),
-                setEntryDao.getBodyweightSetRowsFlow()
-            ) { weights, base, rows -> mergeVolumes(base, rows, weights) }
-                .distinctUntilChanged()
-        }
-    }
-
-    private suspend fun baseVolumeSync(exerciseId: Long?): List<DailyVolume> =
-        if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExercise(exerciseId)
-        else setEntryDao.getVolumeSummaryByDay()
-
-    private fun baseVolumeFlow(exerciseId: Long?): Flow<List<DailyVolume>> =
-        if (exerciseId != null) setEntryDao.getVolumeSummaryByDayForExerciseFlow(exerciseId)
-        else setEntryDao.getVolumeSummaryByDayFlow()
-
-    private suspend fun bodyweightRowsSync(exerciseId: Long?): List<BodyweightSetRow> =
-        if (exerciseId != null) setEntryDao.getBodyweightSetRowsForExercise(exerciseId)
-        else setEntryDao.getBodyweightSetRows()
-
-    private fun mergeVolumes(
-        base: List<DailyVolume>,
-        rows: List<BodyweightSetRow>,
-        weights: List<BodyWeightEntry>
-    ): List<DailyVolume> {
-        if (rows.isEmpty()) return base
-        val validWeights = weights.filter { it.timestampUtc > 0L }.sortedBy { it.timestampUtc }
-        val validRows = rows.filter { it.dateUtc > 0L }
-        val cache = validRows.map { it.dateUtc }.toSet()
-            .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, validWeights) }
-        val extra = validRows.groupBy { it.dateUtc }
-            .mapValues { (_, dayRows) -> dayRows.sumOf { effectiveVolume(it, cache[it.dateUtc]) } }
-        val totals = base.filter { it.dateUtc > 0L }.associate { it.dateUtc to it.volumeLbs }.toMutableMap()
-        for ((day, volume) in extra) totals[day] = (totals[day] ?: 0.0) + volume
-        return totals.entries.sortedBy { it.key }
-            .map { DailyVolume(it.key, it.value) }
-    }
-
-    private fun effectiveVolume(row: BodyweightSetRow, bwLbs: Double?): Double {
-        val repEq = repEquivalent(row) ?: return 0.0
-        if (bwLbs == null || bwLbs <= 0.0) return (row.addedWeightLbs ?: return 0.0) * repEq
-        val pct = if (row.percentBodyweight <= 0) 100.0 else row.percentBodyweight
-        return (bwLbs * pct / 100.0 + (row.addedWeightLbs ?: 0.0)) * repEq
-    }
-
-    private fun repEquivalent(row: BodyweightSetRow): Double? {
-        val reps = row.reps
-        val duration = row.durationSeconds
-        val distance = row.distanceMeters
-        return when {
-            distance != null && reps != null -> reps * (distance * 2.0)
-            distance != null -> distance / 5.0
-            duration != null -> duration / 3.0
-            reps != null -> reps.toDouble()
-            else -> null
-        }
-    }
 }
+

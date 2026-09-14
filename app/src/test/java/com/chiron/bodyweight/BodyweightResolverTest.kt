@@ -1,8 +1,6 @@
 package com.chiron.bodyweight
 
-import com.chiron.core.database.bodyweight.AffectedRange
 import com.chiron.core.database.bodyweight.BodyweightResolver
-import com.chiron.core.database.bodyweight.affectedRange
 import com.chiron.core.model.BodyWeightEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -93,29 +91,5 @@ class BodyweightResolverTest {
         val afterDelete = monThu().drop(1)
         assertNull(BodyweightResolver.getWeightForTimestamp(WED, afterDelete))
         assertEquals(THU_WT, BodyweightResolver.getWeightForTimestamp(FRI, afterDelete))
-    }
-
-    @Test
-    fun affectedRange_boundedByNextLog() {
-        assertEquals(
-            AffectedRange(MON, THU),
-            affectedRange(MON, listOf(MON, THU))
-        )
-    }
-
-    @Test
-    fun affectedRange_openEndedOnLastLog() {
-        assertEquals(
-            AffectedRange(THU, null),
-            affectedRange(THU, listOf(MON, THU))
-        )
-    }
-
-    @Test
-    fun affectedRange_wedEditCoversWedToThuOnly() {
-        assertEquals(
-            AffectedRange(WED, THU),
-            affectedRange(WED, listOf(MON, THU))
-        )
     }
 }

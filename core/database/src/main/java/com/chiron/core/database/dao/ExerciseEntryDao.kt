@@ -33,9 +33,6 @@ interface ExerciseEntryDao {
     @Query("SELECT MAX(slot_index) FROM exercise_entry WHERE workout_id = :workoutId")
     suspend fun getMaxSlotIndex(workoutId: Long): Int?
 
-    @Query("UPDATE exercise_entry SET archived = 1 WHERE id = :id")
-    suspend fun archive(id: Long)
-
     @Query("DELETE FROM exercise_entry WHERE id = :id")
     suspend fun delete(id: Long)
 

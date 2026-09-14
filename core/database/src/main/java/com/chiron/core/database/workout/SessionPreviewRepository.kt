@@ -1,5 +1,9 @@
 package com.chiron.core.database.workout
 
+import com.chiron.core.common.DateUtils
+import com.chiron.core.database.ChironRepository.LastSessionPreview
+import com.chiron.core.database.ChironRepository.LastSessionSupersetPreview
+import com.chiron.core.database.ChironRepository.SupersetExercisePreview
 import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.ExerciseEntryDao
 import com.chiron.core.database.dao.SetEntryDao
@@ -16,24 +20,6 @@ class SessionPreviewRepository(
     private val setEntryDao: SetEntryDao,
     private val workoutSessionDao: WorkoutSessionDao
 ) {
-    data class LastSessionPreview(
-        val dateLabel: String,
-        val sets: List<SetEntry>,
-        val notes: String? = null
-    )
-
-    data class SupersetExercisePreview(
-        val exerciseId: Long,
-        val exerciseName: String,
-        val iconName: String?,
-        val sets: List<SetEntry>
-    )
-
-    data class LastSessionSupersetPreview(
-        val dateLabel: String,
-        val exercises: List<SupersetExercisePreview>,
-        val notes: String?
-    )
 
     suspend fun getLastSessionPreview(
         exerciseId: Long,
@@ -47,7 +33,7 @@ class SessionPreviewRepository(
         if (sets.isEmpty()) return null
 
         val workout = workoutSessionDao.getById(entry.workoutId) ?: return null
-        val dateLabel = formatWorkoutDateLabel(workout.dateIso)
+        val dateLabel = DateUtils.formatWorkoutDateLabel(workout.dateIso)
 
         return LastSessionPreview(dateLabel = dateLabel, sets = sets, notes = entry.notes)
     }
@@ -77,7 +63,7 @@ class SessionPreviewRepository(
         if (supersetEntries.size < 2) return null
 
         val workout = workoutSessionDao.getById(prevEntry.workoutId) ?: return null
-        val dateLabel = formatWorkoutDateLabel(workout.dateIso)
+        val dateLabel = DateUtils.formatWorkoutDateLabel(workout.dateIso)
 
         val exercises = mutableListOf<SupersetExercisePreview>()
         for (entry in supersetEntries) {
@@ -101,18 +87,5 @@ class SessionPreviewRepository(
                 notes = prevEntry.notes
             )
         } else null
-    }
-
-    private fun formatWorkoutDateLabel(dateIso: String): String {
-        return try {
-            val date = java.time.LocalDate.parse(dateIso)
-            val dayOfWeek = date.dayOfWeek
-                .getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-            val month = date.month
-                .getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-            "$dayOfWeek, $month ${date.dayOfMonth}"
-        } catch (e: Exception) {
-            dateIso
-        }
     }
 }

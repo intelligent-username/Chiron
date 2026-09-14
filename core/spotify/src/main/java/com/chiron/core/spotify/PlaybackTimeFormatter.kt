@@ -23,11 +23,6 @@ sealed interface PlaybackTimeFormatter {
         }
 
         fun forDuration(durationMs: Long): PlaybackTimeFormatter = forDuration(durationMs.toFloat())
-
-        /**
-         * Adaptive formatter that chooses h:mm:ss vs m:ss per individual timestamp.
-         */
-        fun adaptive(): PlaybackTimeFormatter = AdaptiveTimeFormatter
     }
 }
 
@@ -54,20 +49,5 @@ object HourMinuteSecondFormatter : PlaybackTimeFormatter {
         val mins = (totalSec % 3600) / 60
         val secs = totalSec % 60
         return "$hours:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
-    }
-}
-
-/** Polymorphic formatter that dynamically displays h:mm:ss when hours > 0, otherwise m:ss. */
-object AdaptiveTimeFormatter : PlaybackTimeFormatter {
-    override fun format(ms: Float): String {
-        val totalSec = (ms / 1000).toLong().coerceAtLeast(0)
-        val hours = totalSec / 3600
-        val mins = (totalSec % 3600) / 60
-        val secs = totalSec % 60
-        return if (hours > 0) {
-            "$hours:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
-        } else {
-            "$mins:${secs.toString().padStart(2, '0')}"
-        }
     }
 }

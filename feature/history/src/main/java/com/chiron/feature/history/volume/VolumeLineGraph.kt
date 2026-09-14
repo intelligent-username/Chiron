@@ -84,6 +84,29 @@ fun VolumeLineGraph(
     val tooltipBgColor = SolidSlate
     val tooltipBorderColor = ThinOutline
 
+    val measuredTicks = remember(ticks, textMeasurer, textLabelColor) {
+        ticks.map { tickVal ->
+            val labelStr = formatVolumeTick(tickVal)
+            tickVal to textMeasurer.measure(
+                labelStr,
+                TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+            )
+        }
+    }
+
+    val measuredPointLabels = remember(points, textMeasurer, textLabelColor) {
+        points.map { point ->
+            if (point.label.isNotEmpty()) {
+                textMeasurer.measure(
+                    point.label,
+                    TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+                )
+            } else null
+        }
+    }
+
+    val linePath = remember { Path() }
+
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     Box(modifier = modifier) {
         Canvas(
@@ -102,30 +125,26 @@ fun VolumeLineGraph(
                             val change = event.changes.firstOrNull() ?: break
                             if (!change.pressed) {
                                 hoveredX = null
-                                val duration = change.uptimeMillis - startTime
+                                val elapsed = change.uptimeMillis - startTime
                                 val dist = (change.position - startPos).getDistance()
-                                if (!isDrag && duration < 500L && dist < 20f) {
-                                    if (points.isNotEmpty()) {
-                                        val n = points.size
-                                        val padLeft = 100f
-                                        val padRight = 10f
-                                        val graphW = size.width - padLeft - padRight
-                                        val rawIndex = ((startPos.x - padLeft) / graphW * (n - 1).coerceAtLeast(1))
-                                            .roundToInt()
-                                        val index = rawIndex.coerceIn(0, n - 1)
-                                        val point = points[index]
-                                        onPointTap(point)
+                                if (!isDrag && elapsed < 300 && dist < 20f && points.isNotEmpty()) {
+                                    val w = size.width
+                                    val padLeft = 100f
+                                    val padRight = 10f
+                                    val graphW = w - padLeft - padRight
+                                    val n = points.size
+                                    fun xOf(i: Int) = padLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * graphW
+                                    val closest = (0 until n).minByOrNull { abs(xOf(it) - startPos.x) }
+                                    if (closest != null) {
+                                        onPointTap(points[closest])
                                     }
                                 }
                                 break
-                            } else {
-                                change.consume()
-                                val dist = (change.position - startPos).getDistance()
-                                if (dist >= 10f) {
-                                    isDrag = true
-                                }
-                                hoveredX = change.position.x
                             }
+                            val dist = (change.position - startPos).getDistance()
+                            if (dist > 10f) isDrag = true
+                            change.consume()
+                            hoveredX = change.position.x
                         }
                     }
                 }
@@ -140,7 +159,7 @@ fun VolumeLineGraph(
             val graphH = h - padTop - padBottom
 
             // Y-axis grid lines — rounded evenly to nearest thousands/half a thousand
-            ticks.forEach { tickVal ->
+            measuredTicks.forEach { (tickVal, measuredText) ->
                 val ratio = (tickVal / niceMax).toFloat()
                 val y = padTop + graphH * (1f - ratio)
                 drawLine(
@@ -148,12 +167,6 @@ fun VolumeLineGraph(
                     start = Offset(padLeft, y),
                     end = Offset(w - padRight, y),
                     strokeWidth = 0.5.dp.toPx()
-                )
-
-                val labelStr = formatVolumeTick(tickVal)
-                val measuredText = textMeasurer.measure(
-                    labelStr,
-                    TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
                 )
                 drawText(
                     textLayoutResult = measuredText,
@@ -168,7 +181,7 @@ fun VolumeLineGraph(
             fun yOf(vol: Double) = padTop + graphH * (1.0 - (vol / maxVolLbs).coerceIn(0.0, 1.0)).toFloat()
 
             // Solid Electric Blue line — no gradient fill area
-            val linePath = Path()
+            linePath.rewind()
             val firstX = xOf(0)
             val firstY = yOf(points[0].volumeLbs * animProgress)
             linePath.moveTo(firstX, firstY)
@@ -198,11 +211,8 @@ fun VolumeLineGraph(
                 }
 
                 // X-axis label — Monospace
-                if (point.label.isNotEmpty()) {
-                    val measuredText = textMeasurer.measure(
-                        point.label,
-                        TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-                    )
+                val measuredText = measuredPointLabels.getOrNull(i)
+                if (measuredText != null) {
                     drawText(
                         textLayoutResult = measuredText,
                         topLeft = Offset(x - measuredText.size.width / 2f, h - padBottom + 12f)

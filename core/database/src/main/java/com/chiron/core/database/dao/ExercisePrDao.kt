@@ -14,10 +14,6 @@ interface ExercisePrDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(pr: ExercisePr)
 
-    /** Get the current global PR for a specific (exercise, reps) pair. */
-    @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId AND bucket = :reps")
-    suspend fun getForExerciseAndReps(exerciseId: Long, reps: Int): ExercisePr?
-
     /** Get ALL current PRs for an exercise, ordered by rep count ascending. */
     @Query("SELECT * FROM exercise_pr WHERE exercise_id = :exerciseId ORDER BY bucket ASC")
     suspend fun getAllForExercise(exerciseId: Long): List<ExercisePr>
