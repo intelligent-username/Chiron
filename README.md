@@ -72,7 +72,7 @@ Pacing and biometric tracking utilities built directly into your workflow:
 
 ---
 
-## <img src="imgs/logo.png" width="16" height="16" style="border-radius: 50%"> Compilation & Build
+## <img src="imgs/Logo.png" width="16" height="16" style="border-radius: 50%"> Compilation & Build
 
 ### Prerequisites
 *   [JDK 17+](https://www.oracle.com/java/technologies/downloads/)
