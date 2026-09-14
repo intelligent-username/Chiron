@@ -25,6 +25,7 @@ import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 class MetronomeService : Service() {
@@ -69,6 +70,7 @@ class MetronomeService : Service() {
 
         serviceScope.launch {
             combine(MetronomeController.isRunning, MetronomeController.bpm) { running, bpm -> running to bpm }
+                .distinctUntilChanged()
                 .collect { (running, bpm) ->
                     if (running) startTickLoop() else { tickJob?.cancel(); tickJob = null }
                     updateSessionAndNotification(running, bpm)
@@ -89,8 +91,6 @@ class MetronomeService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
-
-        if (MetronomeController.isRunning.value) startTickLoop() else { tickJob?.cancel(); tickJob = null }
 
         return START_NOT_STICKY
     }
