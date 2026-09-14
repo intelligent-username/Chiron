@@ -54,8 +54,9 @@ fun TimerScreen(
     val context = LocalContext.current
     val view = LocalView.current
 
-    DisposableEffect(Unit) {
-        view.keepScreenOn = true
+    val shouldKeepScreenOn = state.isCountdownRunning || state.isStopwatchRunning || state.isMetronomeRunning
+    DisposableEffect(shouldKeepScreenOn) {
+        view.keepScreenOn = shouldKeepScreenOn
         onDispose {
             view.keepScreenOn = false
         }

@@ -162,14 +162,16 @@ fun VolumeContent(
                             fontSize = 12.sp
                         )
                     }
-                    Slider(
-                        value = currentWeekVal,
-                        onValueChange = { onWeekCountChange(it.roundToInt()) },
-                        valueRange = 2f..maxWeeks.toFloat(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(24.dp)
-                    )
+                    if (maxWeeks > 2) {
+                        Slider(
+                            value = currentWeekVal,
+                            onValueChange = { onWeekCountChange(it.roundToInt()) },
+                            valueRange = 2f..maxWeeks.toFloat(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(24.dp)
+                        )
+                    }
                 }
             }
         }

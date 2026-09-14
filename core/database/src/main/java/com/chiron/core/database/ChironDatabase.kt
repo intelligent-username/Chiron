@@ -39,7 +39,7 @@ import com.chiron.core.model.GoalExercise
         GoalExercise::class,
         BodyWeightEntry::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class ChironDatabase : RoomDatabase() {
@@ -288,6 +288,32 @@ abstract class ChironDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                fun hasColumn(table: String, column: String): Boolean {
+                    var exists = false
+                    db.query("PRAGMA table_info($table)").use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        while (c.moveToNext()) {
+                            if (nameIdx >= 0 && c.getString(nameIdx) == column) {
+                                exists = true
+                                break
+                            }
+                        }
+                    }
+                    return exists
+                }
+
+                db.execSQL("CREATE TABLE IF NOT EXISTS `body_weight_entry` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp_utc` INTEGER NOT NULL, `weight_lbs` REAL NOT NULL, `note` TEXT, `source` TEXT)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_body_weight_entry_timestamp_utc` ON `body_weight_entry` (`timestamp_utc`)")
+
+                if (!hasColumn("exercise", "is_bodyweight"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN is_bodyweight INTEGER NOT NULL DEFAULT 0")
+                if (!hasColumn("exercise", "percent_bodyweight"))
+                    db.execSQL("ALTER TABLE exercise ADD COLUMN percent_bodyweight REAL NOT NULL DEFAULT 100.0")
+            }
+        }
+
         private data class DefaultExerciseSeed(
             val name: String,
             val iconName: String,
@@ -302,8 +328,9 @@ abstract class ChironDatabase : RoomDatabase() {
                     ChironDatabase::class.java,
                     "chiron_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigrationOnDowngrade()
+                .fallbackToDestructiveMigration()
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onCreate(db)

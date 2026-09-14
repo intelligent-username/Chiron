@@ -123,7 +123,8 @@ object BodyweightFileParser {
             val y = isoMatch.groupValues[1].toIntOrNull() ?: referenceYear
             val m = isoMatch.groupValues[2].toIntOrNull() ?: 1
             val d = isoMatch.groupValues[3].toIntOrNull() ?: 1
-            return runCatching { LocalDate.of(y, m, d) }.getOrNull()
+            val safeY = if (y in 1980..2100) y else referenceYear
+            return runCatching { LocalDate.of(safeY, m, d) }.getOrNull()
         }
 
         // 2. Month Day format: January 4th, Jan 4
@@ -138,7 +139,7 @@ object BodyweightFileParser {
             val colonIdx = text.indexOf(':')
             val yearIdx = if (yearStr != null) text.indexOf(yearStr) else -1
             val colonBeforeYear = colonIdx in 0..yearIdx
-            val y = if (matchedYear != null && matchedYear in 2000..2100 && !colonBeforeYear) {
+            val y = if (matchedYear != null && matchedYear in 1980..2100 && !colonBeforeYear) {
                 matchedYear
             } else {
                 referenceYear
@@ -312,6 +313,10 @@ object BodyweightFileParser {
         }
         return runCatching {
             val date = LocalDate.parse(slice, DateTimeFormatter.ofPattern(df))
+            if (date.year !in 1980..2100) {
+                errors.add(ImportParseError(lineNo, excerpt(line), REASON_BAD_DATE))
+                return null
+            }
             date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         }.getOrElse {
             errors.add(ImportParseError(lineNo, excerpt(line), REASON_BAD_DATE))
@@ -323,7 +328,8 @@ object BodyweightFileParser {
         if (kept.isEmpty()) return emptyList()
         return when (config.dateStrategy) {
             ImportDateStrategy.EMBEDDED_DATE_COLUMN -> kept.map {
-                ParsedWeightRow(it.weightLbs, (it.embeddedDateMs ?: 0L) + NOON_MS, it.lineNumber)
+                val ms = ((it.embeddedDateMs ?: 0L) + NOON_MS).coerceAtLeast(DAY_MS)
+                ParsedWeightRow(it.weightLbs, ms, it.lineNumber)
             }
             ImportDateStrategy.SINGLE_TIMESTAMP -> {
                 val now = System.currentTimeMillis()
@@ -337,7 +343,7 @@ object BodyweightFileParser {
         val step = config.stepDays.toLong() * DAY_MS
         return kept.mapIndexed { i, k ->
             val computedTs = if (k.embeddedDateMs != null) {
-                k.embeddedDateMs + NOON_MS
+                (k.embeddedDateMs + NOON_MS).coerceAtLeast(DAY_MS)
             } else {
                 val ageIndex = if (config.fileOrder == ImportFileOrder.OLDEST_FIRST) {
                     (kept.size - 1 - i).toLong()

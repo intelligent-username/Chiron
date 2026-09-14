@@ -97,6 +97,12 @@ class MetronomeService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        MetronomeController.stop()
+        stopSelf()
+    }
+
     private fun startTickLoop() {
         tickJob?.cancel()
         tickJob = tickScope.launch {

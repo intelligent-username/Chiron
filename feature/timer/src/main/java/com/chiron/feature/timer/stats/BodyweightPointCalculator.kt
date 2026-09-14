@@ -48,9 +48,12 @@ object BodyweightPointCalculator {
     ): LocalDate? {
         val valid = allEntries.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }
         if (valid.isEmpty()) return null
-        return valid.minOf {
-            Instant.ofEpochMilli(it.timestampUtc).atZone(zone).toLocalDate()
+        val minAllowed = LocalDate.now().minusYears(10)
+        val earliest = valid.minOf {
+            val millis = if (it.timestampUtc in 1L..9_999_999_999L) it.timestampUtc * 1000L else it.timestampUtc
+            Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
         }
+        return if (earliest.isBefore(minAllowed)) minAllowed else earliest
     }
 
     /**
@@ -58,8 +61,10 @@ object BodyweightPointCalculator {
      */
     fun computeMaxWeeks(earliestDate: LocalDate?, today: LocalDate = LocalDate.now()): Int {
         if (earliestDate == null) return 2
-        val days = ChronoUnit.DAYS.between(earliestDate, today).toInt() + 1
-        return max(2, (days + 6) / 7)
+        val minDate = today.minusYears(10)
+        val clampedEarliest = if (earliestDate.isBefore(minDate)) minDate else earliestDate
+        val days = ChronoUnit.DAYS.between(clampedEarliest, today).toInt() + 1
+        return max(2, (days + 6) / 7).coerceAtMost(520)
     }
 
     /**
@@ -79,24 +84,36 @@ object BodyweightPointCalculator {
         // Find latest entry for each distinct calendar date
         val latestByDate = HashMap<LocalDate, BodyWeightEntry>()
         for (entry in sortedEntries) {
-            val d = runCatching { Instant.ofEpochMilli(entry.timestampUtc).atZone(zone).toLocalDate() }.getOrNull()
+            val millis = if (entry.timestampUtc in 1L..9_999_999_999L) entry.timestampUtc * 1000L else entry.timestampUtc
+            val d = runCatching { Instant.ofEpochMilli(millis).atZone(zone).toLocalDate() }.getOrNull()
             if (d != null) {
                 latestByDate[d] = entry
             }
         }
         val knownDates = latestByDate.keys.sorted()
 
-        // Determine date span
-        val daysRequested = (weekCount.coerceAtLeast(1) * 7)
+        // Determine date span bounded to at most 10 years
+        val minAllowed = periodEnd.minusYears(10)
+        val safeEarliest = when {
+            earliestDate == null -> null
+            earliestDate.isBefore(minAllowed) -> minAllowed
+            else -> earliestDate
+        }
+
+        val daysRequested = (weekCount.coerceAtLeast(1) * 7).coerceAtMost(3650)
         val tentativeStart = periodEnd.minusDays((daysRequested - 1).toLong())
-        val actualStart = if (earliestDate != null && tentativeStart < earliestDate) earliestDate else tentativeStart
+        val actualStart = when {
+            safeEarliest != null && tentativeStart < safeEarliest -> safeEarliest
+            tentativeStart.isBefore(minAllowed) -> minAllowed
+            else -> tentativeStart
+        }
         val actualEnd = periodEnd
 
         if (actualStart > actualEnd || knownDates.isEmpty()) {
             return emptyList()
         }
 
-        val totalDays = ChronoUnit.DAYS.between(actualStart, actualEnd).toInt() + 1
+        val totalDays = (ChronoUnit.DAYS.between(actualStart, actualEnd).toInt() + 1).coerceIn(1, 3650)
         val points = ArrayList<BodyweightPoint>(totalDays)
 
         val dayFmt = DateTimeFormatter.ofPattern("EEE")
@@ -114,14 +131,21 @@ object BodyweightPointCalculator {
             if (hit != null) {
                 weightLbs = hit.weightLbs
                 isActual = true
-                timestampUtc = hit.timestampUtc
+                val millis = if (hit.timestampUtc in 1L..9_999_999_999L) hit.timestampUtc * 1000L else hit.timestampUtc
+                timestampUtc = millis
             } else {
                 isActual = false
                 timestampUtc = date.atStartOfDay(zone).toInstant().toEpochMilli()
 
-                // Find closest previous and next known entries
-                val prevDate = knownDates.lastOrNull { it < date }
-                val nextDate = knownDates.firstOrNull { it > date }
+                // Efficient binary search for closest previous and next known entries
+                val idx = knownDates.binarySearch(date)
+                val ins = if (idx < 0) -idx - 1 else idx
+                val prevDate = if (ins > 0) knownDates[ins - 1] else null
+                val nextDate = if (ins < knownDates.size) {
+                    if (idx >= 0 && ins + 1 < knownDates.size) knownDates[ins + 1]
+                    else if (idx < 0) knownDates[ins]
+                    else null
+                } else null
 
                 weightLbs = when {
                     prevDate != null && nextDate != null -> {

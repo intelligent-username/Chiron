@@ -107,14 +107,16 @@ fun BodyweightGraphCard(
                     )
                 }
             }
-            Slider(
-                value = currentWeekVal,
-                onValueChange = { onWeekCountChange(it.roundToInt()) },
-                valueRange = 1f..maxWeeks.toFloat(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-            )
+            if (maxWeeks > 1) {
+                Slider(
+                    value = currentWeekVal,
+                    onValueChange = { onWeekCountChange(it.roundToInt()) },
+                    valueRange = 1f..maxWeeks.toFloat(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                )
+            }
         }
     }
 }

@@ -47,7 +47,7 @@ class TimerViewModel(
     private val repository: ChironRepository
 ) : ViewModel() {
 
-    private val highRefreshIntervalMs = 8L
+    private val highRefreshIntervalMs = 33L
 
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
