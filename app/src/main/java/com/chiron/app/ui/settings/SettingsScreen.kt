@@ -34,6 +34,10 @@ fun SettingsScreen(
     val spotifyEnabled by repository.spotifyEnabledFlow.collectAsState(initial = false)
     val matchThemeWithMedia by repository.matchThemeWithMediaFlow.collectAsState(initial = false)
     val distanceUnit by repository.distanceUnitFlow.collectAsState(initial = com.chiron.core.common.DistanceUnit.METERS)
+    val metronomeControlsEnabled by repository.metronomeControlsEnabledFlow.collectAsState(initial = false)
+    val customizeSingleTap by repository.metronomeCustomizeSingleTapFlow.collectAsState(initial = false)
+    val customizeDoubleTap by repository.metronomeCustomizeDoubleTapFlow.collectAsState(initial = false)
+    val customizeTripleTap by repository.metronomeCustomizeTripleTapFlow.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -224,6 +228,155 @@ fun SettingsScreen(
                         checked = matchThemeWithMedia,
                         onCheckedChange = { checked ->
                             scope.launch { repository.setMatchThemeWithMedia(checked) }
+                        }
+                    )
+                }
+            }
+
+            // Metronome Controls Master Setting
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        scope.launch { repository.setMetronomeControlsEnabled(!metronomeControlsEnabled) }
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                    Text(
+                        text = "Metronome Controls",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Requires notification access",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Switch(
+                    checked = metronomeControlsEnabled,
+                    onCheckedChange = { checked ->
+                        scope.launch { repository.setMetronomeControlsEnabled(checked) }
+                    }
+                )
+            }
+
+            if (metronomeControlsEnabled) {
+                if (!com.chiron.feature.timer.metronome.ChironNotificationListenerService.isNotificationAccessGranted(context)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                runCatching {
+                                    val intent = Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                            .padding(start = 32.dp, top = 0.dp, bottom = 8.dp, end = 0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Tap to grant notification access in Settings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                // Customize Single Tap
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scope.launch { repository.setMetronomeCustomizeSingleTap(!customizeSingleTap) }
+                        }
+                        .padding(start = 32.dp, top = 4.dp, bottom = 8.dp, end = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Customize single tap",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (customizeSingleTap) "Pauses/plays metronome" else "Pauses/plays song",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = customizeSingleTap,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setMetronomeCustomizeSingleTap(checked) }
+                        }
+                    )
+                }
+
+                // Customize Double Tap
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scope.launch { repository.setMetronomeCustomizeDoubleTap(!customizeDoubleTap) }
+                        }
+                        .padding(start = 32.dp, top = 4.dp, bottom = 8.dp, end = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Customize double tap",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (customizeDoubleTap) "Skips song" else "Does nothing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = customizeDoubleTap,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setMetronomeCustomizeDoubleTap(checked) }
+                        }
+                    )
+                }
+
+                // Customize Triple Tap
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scope.launch { repository.setMetronomeCustomizeTripleTap(!customizeTripleTap) }
+                        }
+                        .padding(start = 32.dp, top = 4.dp, bottom = 8.dp, end = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Customize triple tap",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (customizeTripleTap) "Goes to previous song" else "Does nothing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = customizeTripleTap,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setMetronomeCustomizeTripleTap(checked) }
                         }
                     )
                 }

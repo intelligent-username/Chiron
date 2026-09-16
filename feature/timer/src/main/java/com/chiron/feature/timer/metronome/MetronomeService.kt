@@ -14,9 +14,12 @@ import android.os.IBinder
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
+import com.chiron.core.common.UserSettingsRepository
 import com.chiron.core.ui.R
+import com.chiron.feature.timer.metronome.ExternalMediaManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,9 +35,14 @@ class MetronomeService : Service() {
 
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var notificationManager: NotificationManager
+    private lateinit var userSettingsRepository: UserSettingsRepository
     private var tickJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
     private var currentTickAsset: String? = null
+    private var isControlsEnabled: Boolean = false
+    private var isCustomizeSingleTap: Boolean = false
+    private var isCustomizeDoubleTap: Boolean = false
+    private var isCustomizeTripleTap: Boolean = false
 
     // MediaPlayer must be created/used on a thread with a Looper (its callbacks are
     // delivered there). Building it on the main thread every beat is what caused the
@@ -48,6 +56,7 @@ class MetronomeService : Service() {
     override fun onCreate() {
         super.onCreate()
         notificationManager = getSystemService(NotificationManager::class.java)
+        userSettingsRepository = UserSettingsRepository(applicationContext)
 
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -58,9 +67,86 @@ class MetronomeService : Service() {
 
         mediaSession = MediaSessionCompat(this, "MetronomeSession").apply {
             setCallback(object : MediaSessionCompat.Callback() {
-                override fun onPlay() { MetronomeController.start() }
-                override fun onPause() { MetronomeController.pause() }
-                override fun onStop() { MetronomeController.stop() }
+                override fun onPlay() {
+                    if (isCustomizeSingleTap) {
+                        MetronomeController.start()
+                    } else {
+                        ExternalMediaManager.togglePlayPause(this@MetronomeService)
+                    }
+                }
+                override fun onPause() {
+                    if (isCustomizeSingleTap) {
+                        MetronomeController.pause()
+                    } else {
+                        ExternalMediaManager.togglePlayPause(this@MetronomeService)
+                    }
+                }
+                override fun onStop() {
+                    MetronomeController.stop()
+                }
+                override fun onSkipToNext() {
+                    if (isCustomizeDoubleTap) {
+                        ExternalMediaManager.skipToNext(this@MetronomeService)
+                    }
+                }
+                override fun onSkipToPrevious() {
+                    if (isCustomizeTripleTap) {
+                        ExternalMediaManager.skipToPrevious(this@MetronomeService)
+                    }
+                }
+                override fun onMediaButtonEvent(mediaButtonEvent: Intent): Boolean {
+                    val keyEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        mediaButtonEvent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        mediaButtonEvent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+                    }
+                    if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
+                        when (keyEvent.keyCode) {
+                            KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                                if (isCustomizeDoubleTap) {
+                                    ExternalMediaManager.skipToNext(this@MetronomeService)
+                                }
+                                return true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                                if (isCustomizeTripleTap) {
+                                    ExternalMediaManager.skipToPrevious(this@MetronomeService)
+                                }
+                                return true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
+                                if (isCustomizeSingleTap) {
+                                    MetronomeController.toggle()
+                                } else {
+                                    ExternalMediaManager.togglePlayPause(this@MetronomeService)
+                                }
+                                return true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                if (isCustomizeSingleTap) {
+                                    MetronomeController.start()
+                                } else {
+                                    ExternalMediaManager.togglePlayPause(this@MetronomeService)
+                                }
+                                return true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                                if (isCustomizeSingleTap) {
+                                    MetronomeController.pause()
+                                } else {
+                                    ExternalMediaManager.togglePlayPause(this@MetronomeService)
+                                }
+                                return true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                                MetronomeController.stop()
+                                return true
+                            }
+                        }
+                    }
+                    return super.onMediaButtonEvent(mediaButtonEvent)
+                }
             })
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
@@ -68,12 +154,39 @@ class MetronomeService : Service() {
             )
         }
 
+        val settingsFlow = combine(
+            userSettingsRepository.metronomeControlsEnabledFlow,
+            userSettingsRepository.metronomeCustomizeSingleTapFlow,
+            userSettingsRepository.metronomeCustomizeDoubleTapFlow,
+            userSettingsRepository.metronomeCustomizeTripleTapFlow
+        ) { controlsEnabled, customSingle, customDouble, customTriple ->
+            SettingsConfig(controlsEnabled, customSingle, customDouble, customTriple)
+        }
+
         serviceScope.launch {
-            combine(MetronomeController.isRunning, MetronomeController.bpm) { running, bpm -> running to bpm }
+            combine(
+                MetronomeController.isRunning,
+                MetronomeController.bpm,
+                settingsFlow
+            ) { running, bpm, settings ->
+                MetronomeConfigState(
+                    running = running,
+                    bpm = bpm,
+                    controlsEnabled = settings.controlsEnabled,
+                    customSingle = settings.customSingle,
+                    customDouble = settings.customDouble,
+                    customTriple = settings.customTriple
+                )
+            }
                 .distinctUntilChanged()
-                .collect { (running, bpm) ->
-                    if (running) startTickLoop() else { tickJob?.cancel(); tickJob = null }
-                    updateSessionAndNotification(running, bpm)
+                .collect { config ->
+                    isControlsEnabled = config.controlsEnabled
+                    isCustomizeSingleTap = config.customSingle
+                    isCustomizeDoubleTap = config.customDouble
+                    isCustomizeTripleTap = config.customTriple
+
+                    if (config.running) startTickLoop() else { tickJob?.cancel(); tickJob = null }
+                    updateSessionAndNotification(config.running, config.bpm, config.controlsEnabled)
                 }
         }
     }
@@ -136,33 +249,39 @@ class MetronomeService : Service() {
         }
     }
 
-    private fun updateSessionAndNotification(running: Boolean, bpm: Int) {
-        mediaSession.isActive = true
-        mediaSession.setPlaybackState(
-            PlaybackStateCompat.Builder()
-                .setState(
-                    if (running) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
-                    0,
-                    1f
-                )
-                .setActions(
-                    PlaybackStateCompat.ACTION_PLAY or
-                        PlaybackStateCompat.ACTION_PAUSE or
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                        PlaybackStateCompat.ACTION_STOP
-                )
-                .build()
-        )
-        mediaSession.setMetadata(
-            MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Metronome")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "BPM $bpm")
-                .build()
-        )
-        notificationManager.notify(NOTIFICATION_ID, buildNotification())
+    private fun updateSessionAndNotification(running: Boolean, bpm: Int, controlsEnabled: Boolean = isControlsEnabled) {
+        if (controlsEnabled) {
+            mediaSession.isActive = true
+            mediaSession.setPlaybackState(
+                PlaybackStateCompat.Builder()
+                    .setState(
+                        if (running) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                        0,
+                        1f
+                    )
+                    .setActions(
+                        PlaybackStateCompat.ACTION_PLAY or
+                            PlaybackStateCompat.ACTION_PAUSE or
+                            PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                            PlaybackStateCompat.ACTION_STOP or
+                            PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                    )
+                    .build()
+            )
+            mediaSession.setMetadata(
+                MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Metronome")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "BPM $bpm")
+                    .build()
+            )
+        } else {
+            mediaSession.isActive = false
+        }
+        notificationManager.notify(NOTIFICATION_ID, buildNotification(controlsEnabled))
     }
 
-    private fun buildNotification(): android.app.Notification {
+    private fun buildNotification(controlsEnabled: Boolean = isControlsEnabled): android.app.Notification {
         val intent = Intent(this, MetronomeService::class.java)
             .setAction(MetronomeController.ACTION_TOGGLE)
         val pi = PendingIntent.getService(
@@ -177,7 +296,7 @@ class MetronomeService : Service() {
             R.drawable.ic_media_play
         }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_metronome)
             .setColor(0xFF4F46E5.toInt())
             .setContentTitle("Metronome")
@@ -186,13 +305,17 @@ class MetronomeService : Service() {
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setStyle(
+            .addAction(icon, "Play/Pause", pi)
+
+        if (controlsEnabled) {
+            builder.setStyle(
                 MediaStyle()
                     .setMediaSession(mediaSession.sessionToken)
                     .setShowActionsInCompactView(0)
             )
-            .addAction(icon, "Play/Pause", pi)
-            .build()
+        }
+
+        return builder.build()
     }
 
     override fun onDestroy() {
@@ -211,3 +334,19 @@ class MetronomeService : Service() {
         private const val CHANNEL_ID = "metronome"
     }
 }
+
+private data class MetronomeConfigState(
+    val running: Boolean,
+    val bpm: Int,
+    val controlsEnabled: Boolean,
+    val customSingle: Boolean,
+    val customDouble: Boolean,
+    val customTriple: Boolean
+)
+
+private data class SettingsConfig(
+    val controlsEnabled: Boolean,
+    val customSingle: Boolean,
+    val customDouble: Boolean,
+    val customTriple: Boolean
+)

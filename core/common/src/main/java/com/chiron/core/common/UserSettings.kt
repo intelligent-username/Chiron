@@ -29,6 +29,10 @@ class UserSettingsRepository(private val context: Context) {
         private val CURRENT_TAB = stringPreferencesKey("current_tab")
         private val EDITING_WORKOUT_ID = longPreferencesKey("editing_workout_id")
         private val HAS_BACKFILLED_1RM = booleanPreferencesKey("has_backfilled_1rm")
+        private val METRONOME_CONTROLS_ENABLED = booleanPreferencesKey("metronome_controls_enabled")
+        private val METRONOME_CUSTOMIZE_SINGLE_TAP = booleanPreferencesKey("metronome_customize_single_tap")
+        private val METRONOME_CUSTOMIZE_DOUBLE_TAP = booleanPreferencesKey("metronome_customize_double_tap")
+        private val METRONOME_CUSTOMIZE_TRIPLE_TAP = booleanPreferencesKey("metronome_customize_triple_tap")
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -124,6 +128,46 @@ class UserSettingsRepository(private val context: Context) {
     suspend fun setBackfilled1rm(value: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[HAS_BACKFILLED_1RM] = value
+        }
+    }
+
+    val metronomeControlsEnabledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[METRONOME_CONTROLS_ENABLED] ?: false
+    }
+
+    suspend fun setMetronomeControlsEnabled(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[METRONOME_CONTROLS_ENABLED] = value
+        }
+    }
+
+    val metronomeCustomizeSingleTapFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[METRONOME_CUSTOMIZE_SINGLE_TAP] ?: false
+    }
+
+    suspend fun setMetronomeCustomizeSingleTap(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[METRONOME_CUSTOMIZE_SINGLE_TAP] = value
+        }
+    }
+
+    val metronomeCustomizeDoubleTapFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[METRONOME_CUSTOMIZE_DOUBLE_TAP] ?: false
+    }
+
+    suspend fun setMetronomeCustomizeDoubleTap(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[METRONOME_CUSTOMIZE_DOUBLE_TAP] = value
+        }
+    }
+
+    val metronomeCustomizeTripleTapFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[METRONOME_CUSTOMIZE_TRIPLE_TAP] ?: false
+    }
+
+    suspend fun setMetronomeCustomizeTripleTap(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[METRONOME_CUSTOMIZE_TRIPLE_TAP] = value
         }
     }
 }
