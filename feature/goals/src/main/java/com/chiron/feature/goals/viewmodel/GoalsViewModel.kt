@@ -7,7 +7,7 @@ import com.chiron.core.database.ChironRepository
 import com.chiron.core.model.Exercise
 import com.chiron.core.model.Goal
 import com.chiron.core.model.GoalExercise
-import com.chiron.core.common.Jaccard
+import com.chiron.core.common.SearchRanker
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,17 +67,29 @@ class GoalsViewModel(
         progressJob?.cancel()
         progressJob = viewModelScope.launch {
             val allExerciseIds = junctions.map { it.exerciseId }.distinct()
+            val currentWeek = _uiState.value.currentWeekStart
+            val zone = ZoneId.systemDefault()
+            val startUtc = currentWeek.atStartOfDay(zone).toInstant().toEpochMilli()
+            val endUtc = currentWeek.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+
             val dailyMap = mutableMapOf<LocalDate, MutableSet<Long>>()
             if (allExerciseIds.isNotEmpty()) {
-                val zone = ZoneId.systemDefault()
-                repository.getSetTimestampsForExercises(allExerciseIds).forEach { row ->
+                val earliestUtc = repository.getEarliestSetTimestampForExercises(allExerciseIds)
+                if (earliestUtc != null && earliestUtc > 0L) {
+                    val earliestDate = Instant.ofEpochMilli(earliestUtc).atZone(zone).toLocalDate()
+                    firstWeekStart = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                } else {
+                    firstWeekStart = GoalsUiState.currentSunday()
+                }
+
+                repository.getSetTimestampsForExercisesInRange(allExerciseIds, startUtc, endUtc).forEach { row ->
                     val date = Instant.ofEpochMilli(row.timestampUtc).atZone(zone).toLocalDate()
                     dailyMap.getOrPut(date) { mutableSetOf() }.add(row.exerciseId)
                 }
+            } else {
+                firstWeekStart = GoalsUiState.currentSunday()
             }
             allDailySets = dailyMap
-            firstWeekStart = (dailyMap.keys.minOrNull() ?: LocalDate.now())
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
             _uiState.update { buildGoals(it.copy(isLoading = false)) }
         }
     }
@@ -87,7 +99,7 @@ class GoalsViewModel(
             val results = if (form.exerciseSearchQuery.isBlank()) {
                 exercises
             } else {
-                Jaccard.rankBySimilarity(form.exerciseSearchQuery, exercises, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(form.exerciseSearchQuery, exercises, { it.name }, limit = 100)
             }
             form.copy(allExercises = exercises, searchResults = results)
         }
@@ -136,16 +148,18 @@ class GoalsViewModel(
         _uiState.update { state ->
             val newWeek = state.currentWeekStart.minusWeeks(1)
             if (newWeek < firstWeekStart) return@update state
-            buildGoals(state.copy(currentWeekStart = newWeek))
+            state.copy(currentWeekStart = newWeek)
         }
+        refreshProgress()
     }
 
     fun goToNextWeek() {
         _uiState.update { state ->
             val newWeek = state.currentWeekStart.plusWeeks(1)
             if (newWeek > GoalsUiState.currentSunday()) return@update state
-            buildGoals(state.copy(currentWeekStart = newWeek))
+            state.copy(currentWeekStart = newWeek)
         }
+        refreshProgress()
     }
 
     // ── Detail / dialog ───────────────────────────────────────────────────────
@@ -246,7 +260,7 @@ class GoalsViewModel(
             val results = if (query.isBlank()) {
                 form.allExercises
             } else {
-                Jaccard.rankBySimilarity(query, form.allExercises, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(query, form.allExercises, { it.name }, limit = 100)
             }
             form.copy(exerciseSearchQuery = query, searchResults = results)
         }

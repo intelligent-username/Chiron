@@ -163,12 +163,14 @@ fun HistoryScreen(
             }
 
             val baseWorkouts = if (state.showArchivedWorkouts) state.archivedWorkouts else state.workouts
-            val filteredWorkouts = baseWorkouts.filter { workout ->
-                val dayMatch = state.selectedDayTag == null ||
-                    (state.selectedDayTag == "Untitled Workout" && (workout.dayTag == "Untitled Workout" || workout.dayTag.isBlank())) ||
-                    workout.dayTag == state.selectedDayTag
-                val locMatch = state.selectedLocationTag == null || workout.locationTag == state.selectedLocationTag
-                dayMatch && locMatch
+            val filteredWorkouts = remember(baseWorkouts, state.selectedDayTag, state.selectedLocationTag) {
+                baseWorkouts.filter { workout ->
+                    val dayMatch = state.selectedDayTag == null ||
+                        (state.selectedDayTag == "Untitled Workout" && (workout.dayTag == "Untitled Workout" || workout.dayTag.isBlank())) ||
+                        workout.dayTag == state.selectedDayTag
+                    val locMatch = state.selectedLocationTag == null || workout.locationTag == state.selectedLocationTag
+                    dayMatch && locMatch
+                }
             }
 
             LazyColumn(
@@ -176,7 +178,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
-                items(filteredWorkouts) { workout ->
+                items(filteredWorkouts, key = { it.id }) { workout ->
                     Box {
                         WorkoutCard(workout = workout, onClick = { viewModel.openEditor(workout.id) }, onLongClick = { expandedWorkoutId = workout.id })
                         DropdownMenu(expanded = expandedWorkoutId == workout.id, onDismissRequest = { expandedWorkoutId = null }) {
@@ -207,6 +209,7 @@ fun HistoryScreen(
         }
 
         if (showCreateDialog && !state.showArchivedWorkouts) {
+            val existingLocations = remember(state.workouts) { state.workouts.map { it.locationTag }.distinct() }
             WorkoutCreationDialog(
                 onDismiss = { showCreateDialog = false },
                 onCreate = { dayTag, locationTag, dateIso -> 
@@ -214,7 +217,7 @@ fun HistoryScreen(
                     viewModel.createNewWorkout(dayTag, locationTag, dateIso) 
                 },
                 settingsRepository = viewModel.getSettingsRepository(),
-                existingLocations = state.workouts.map { it.locationTag }.distinct(),
+                existingLocations = existingLocations,
                 existingDayTags = state.dayTags
             )
         }

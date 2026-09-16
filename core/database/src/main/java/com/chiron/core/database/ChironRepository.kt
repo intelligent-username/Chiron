@@ -386,6 +386,18 @@ class ChironRepository(
     suspend fun getSetTimestampsForExercises(exerciseIds: List<Long>): List<SetTimestampRow> =
         if (exerciseIds.isEmpty()) emptyList() else goalDao.getSetTimestampsForExercises(exerciseIds)
 
+    suspend fun getSetTimestampsForExercisesInRange(
+        exerciseIds: List<Long>,
+        startUtc: Long,
+        endUtc: Long
+    ): List<SetTimestampRow> =
+        if (exerciseIds.isEmpty()) emptyList()
+        else goalDao.getSetTimestampsForExercisesInRange(exerciseIds, startUtc, endUtc)
+
+    suspend fun getEarliestSetTimestampForExercises(exerciseIds: List<Long>): Long? =
+        if (exerciseIds.isEmpty()) null
+        else goalDao.getEarliestSetTimestampForExercises(exerciseIds)
+
     /** Inserts or updates a goal and replaces its junction rows in one transaction. */
     suspend fun saveGoalWithExercises(goal: Goal, exerciseIds: List<Long>) =
         goalDao.saveGoalWithExercises(goal, exerciseIds)

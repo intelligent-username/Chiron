@@ -21,6 +21,8 @@ import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import com.chiron.core.common.UnitConversion
 
+private val SetPillShape = RoundedCornerShape(4.dp)
+
 /**
  * Primary SetPill overload: accepts a pre-built display string.
  * All other overloads delegate here.
@@ -34,7 +36,6 @@ fun SetPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(4.dp)
     val backgroundColor = when {
         highlighted -> PrGold.copy(alpha = 0.22f)
         else -> SolidSlate
@@ -67,9 +68,9 @@ fun SetPill(
     Box(
         modifier = modifier
             .height(if (compact) 28.dp else 32.dp)
-            .clip(shape)
+            .clip(SetPillShape)
             .background(backgroundColor)
-            .border(1.dp, borderColor, shape)
+            .border(1.dp, borderColor, SetPillShape)
             .clickable(onClick = onClick)
             .padding(horizontal = if (compact) 8.dp else 12.dp),
         contentAlignment = Alignment.Center

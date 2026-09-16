@@ -49,6 +49,9 @@ import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 
+private val SearchBoxShape = RoundedCornerShape(8.dp)
+private val ListItemShape = RoundedCornerShape(6.dp)
+
 @Composable
 fun PrExerciseListPanel(
     uiState: ExercisesUiState,
@@ -73,9 +76,9 @@ fun PrExerciseListPanel(
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 6.dp)
                 .height(36.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(SearchBoxShape)
                 .background(SolidSlate)
-                .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                .border(1.dp, ThinOutline, SearchBoxShape)
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -133,12 +136,12 @@ fun PrExerciseListPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 6.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(ListItemShape)
                         .background(if (isSelected) SolidSlate else Color.Transparent)
                         .border(
                             width = if (isSelected) 1.dp else 0.dp,
                             color = ThinOutline,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = ListItemShape
                         )
                         .clickable { onSelectExercise(exercise) }
                         .padding(horizontal = 8.dp, vertical = 8.dp)

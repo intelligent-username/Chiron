@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 
+private val ExerciseIconShape = RoundedCornerShape(8.dp)
+
 /**
  * Dedicated composable for asynchronously rendering an exercise SVG asset or file.
  */
@@ -29,23 +31,26 @@ fun ExerciseAsyncIcon(
 ) {
     val context = LocalContext.current
     val url = remember(iconName) { ExerciseIconResolver.getIconUrl(iconName, context) }
+    val imageRequest = remember(url, context) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .crossfade(true)
+            .listener(
+                onError = { _, result ->
+                    android.util.Log.e("ExerciseAsyncIcon", "Failed to load icon '$iconName' from url '$url'", result.throwable)
+                }
+            )
+            .build()
+    }
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(ExerciseIconShape)
             .background(Color.White)
             .padding(3.dp),
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(url)
-                .crossfade(true)
-                .listener(
-                    onError = { _, result ->
-                        android.util.Log.e("ExerciseAsyncIcon", "Failed to load icon '$iconName' from url '$url'", result.throwable)
-                    }
-                )
-                .build(),
+            model = imageRequest,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             colorFilter = if (tint != Color.Unspecified) ColorFilter.tint(tint) else null

@@ -30,6 +30,8 @@ import com.chiron.core.ui.components.ExerciseAsyncIcon
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 
+private val ExerciseGridItemShape = RoundedCornerShape(8.dp)
+
 @Composable
 fun ExerciseGridItem(
     exercise: Exercise,
@@ -45,9 +47,9 @@ fun ExerciseGridItem(
             .fillMaxWidth()
             .aspectRatio(1f)
             .alpha(containerAlpha)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(ExerciseGridItemShape)
             .background(SolidSlate)
-            .border(1.dp, ThinOutline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .border(1.dp, ThinOutline.copy(alpha = 0.2f), ExerciseGridItemShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

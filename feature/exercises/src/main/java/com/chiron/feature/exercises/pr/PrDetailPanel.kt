@@ -177,6 +177,9 @@ fun PrDetailPanel(
     }
 }
 
+private val DistanceChipShape = RoundedCornerShape(6.dp)
+private val PrRowShape = RoundedCornerShape(12.dp)
+
 @Composable
 fun DistanceSelectorBar(
     distances: List<Double>,
@@ -195,12 +198,12 @@ fun DistanceSelectorBar(
             val isSelected = dist == selectedDistance
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(DistanceChipShape)
                     .background(if (isSelected) ElectricBlue else SolidSlate)
                     .border(
                         width = if (isSelected) 0.dp else 1.dp,
                         color = ThinOutline,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = DistanceChipShape
                     )
                     .clickable { onDistanceSelected(dist) }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -236,7 +239,7 @@ fun PrRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(PrRowShape)
             .background(PrGold.copy(alpha = 0.08f))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),

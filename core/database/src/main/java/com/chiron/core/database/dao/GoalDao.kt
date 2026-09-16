@@ -49,6 +49,24 @@ abstract class GoalDao {
     )
     abstract suspend fun getSetTimestampsForExercises(exerciseIds: List<Long>): List<SetTimestampRow>
 
+    @Query(
+        "SELECT s.timestamp_utc AS timestampUtc, e.exercise_id AS exerciseId " +
+            "FROM set_entry s INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id " +
+            "WHERE e.exercise_id IN (:exerciseIds) AND s.timestamp_utc >= :startUtc AND s.timestamp_utc <= :endUtc"
+    )
+    abstract suspend fun getSetTimestampsForExercisesInRange(
+        exerciseIds: List<Long>,
+        startUtc: Long,
+        endUtc: Long
+    ): List<SetTimestampRow>
+
+    @Query(
+        "SELECT MIN(s.timestamp_utc) " +
+            "FROM set_entry s INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id " +
+            "WHERE e.exercise_id IN (:exerciseIds) AND s.timestamp_utc > 0"
+    )
+    abstract suspend fun getEarliestSetTimestampForExercises(exerciseIds: List<Long>): Long?
+
     @Insert
     abstract suspend fun insertGoal(goal: Goal): Long
 
