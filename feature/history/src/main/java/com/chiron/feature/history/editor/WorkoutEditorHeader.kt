@@ -183,23 +183,41 @@ fun WorkoutEditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val timeOrDateTimeText = if (!isEditable) {
-                "${DateUtils.formatWorkoutCardDate(workout)}, ${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}"
+            if (!isEditable) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = DateUtils.formatWorkoutCardDate(workout),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Start
+                        )
+                    )
+                    Text(
+                        text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Start
+                        )
+                    )
+                }
             } else {
-                "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}"
+                Text(
+                    text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Start
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { isTimeDialogOpen = true }
+                        .padding(vertical = 8.dp)
+                )
             }
-
-            Text(
-                text = timeOrDateTimeText,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Start
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(enabled = isEditable) { isTimeDialogOpen = true }
-                    .padding(vertical = 8.dp)
-            )
 
             if (isTimeDialogOpen) {
                 WorkoutTimeDialog(

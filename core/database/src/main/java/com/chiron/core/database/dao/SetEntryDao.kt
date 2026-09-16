@@ -166,6 +166,16 @@ interface SetEntryDao {
         }
     }
 
+    @Transaction
+    suspend fun makeSpaceForSetIndex(entryId: Long, targetIndex: Int) {
+        val existing = getSetsForEntrySync(entryId)
+        for (s in existing.asReversed()) {
+            if (s.setIndex >= targetIndex) {
+                updateSetIndex(s.id, s.setIndex + 1)
+            }
+        }
+    }
+
     /**
      * Reset is_pr on all sets for a given exercise.
      * Call this before a full PR rebuild so stale flags are cleared.

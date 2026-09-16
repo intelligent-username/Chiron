@@ -27,6 +27,12 @@ class ExerciseEntryRepository(
     suspend fun getNextSlotIndex(workoutId: Long): Int =
         (exerciseEntryDao.getMaxSlotIndex(workoutId) ?: 0) + 1
 
+    suspend fun makeSpaceForSlotIndices(workoutId: Long, targetSlot: Int, count: Int) =
+        exerciseEntryDao.makeSpaceForSlotIndices(workoutId, targetSlot, count)
+
+    suspend fun getExerciseEntryById(id: Long): ExerciseEntry? =
+        exerciseEntryDao.getById(id)
+
     suspend fun deleteExerciseEntry(workoutId: Long, entryId: Long) {
         val entry = exerciseEntryDao.getById(entryId)
         exerciseEntryDao.deleteAndReindex(workoutId, entryId)

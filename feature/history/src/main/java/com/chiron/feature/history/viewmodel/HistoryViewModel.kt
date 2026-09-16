@@ -104,50 +104,83 @@ class HistoryViewModel(
     fun undoLastDeleted() {
         val item = _lastDeleted.value ?: return
         viewModelScope.launch {
-            when (item) {
-                is DeletedItem.Set -> {
-                    repository.insertSetAndEvaluateHistoricalPr(item.set.copy(id = 0L))
-                }
-                is DeletedItem.ExerciseEntries -> {
-                    val oldToNewEntryId = mutableMapOf<Long, Long>()
-                    for ((entry, sets) in item.entries) {
-                        val newEntryId = repository.insertExerciseEntry(
-                            entry.copy(id = 0L, groupId = null)
+            runCatching {
+                when (item) {
+                    is DeletedItem.Set -> {
+                        val existing = repository.getSetsForEntry(item.entryId).first()
+                        val targetIndex = item.set.setIndex.coerceIn(1, existing.size + 1)
+                        repository.makeSpaceForSetIndex(item.entryId, targetIndex)
+                        repository.insertSetAndEvaluateHistoricalPr(
+                            item.set.copy(id = 0L, setIndex = targetIndex)
                         )
-                        oldToNewEntryId[entry.id] = newEntryId
-                        for (set in sets) {
-                            repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                        val entry = repository.getExerciseEntryById(item.entryId)
+                        if (entry != null) {
+                            repository.rebuildPrsForExercise(entry.exerciseId)
                         }
                     }
-                    // Restore superset group mappings if any
-                    for ((entry, _) in item.entries) {
-                        val oldGroupId = entry.groupId ?: continue
-                        val newEntryId = oldToNewEntryId[entry.id] ?: continue
-                        val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
-                        // Directly restore groupId without relying on async fetch
-                        repository.updateExerciseEntry(entry.copy(id = newEntryId, groupId = newGroupId))
-                    }
-                }
-                is DeletedItem.WorkoutSessionWithEntries -> {
-                    val newWorkoutId = repository.insertWorkout(item.workout.copy(id = 0L))
-                    val oldToNewEntryId = mutableMapOf<Long, Long>()
-                    for (entry in item.entries) {
-                        val newEntryId = repository.insertExerciseEntry(
-                            entry.copy(id = 0L, workoutId = newWorkoutId, groupId = null)
-                        )
-                        oldToNewEntryId[entry.id] = newEntryId
-                        val sets = item.sets[entry.id] ?: emptyList()
-                        for (set in sets) {
-                            repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                    is DeletedItem.ExerciseEntries -> {
+                        val existing = repository.getEntriesForWorkout(item.workoutId).first()
+                        val minSlot = item.entries.minOfOrNull { it.first.slotIndex } ?: 1
+                        val targetSlot = minSlot.coerceIn(1, existing.size + 1)
+                        val count = item.entries.size
+                        repository.makeSpaceForSlotIndices(item.workoutId, targetSlot, count)
+
+                        val oldToNewEntryId = mutableMapOf<Long, Long>()
+                        val sortedEntries = item.entries.sortedBy { it.first.slotIndex }
+                        for ((index, pair) in sortedEntries.withIndex()) {
+                            val (entry, sets) = pair
+                            val newSlot = targetSlot + index
+                            val newEntryId = repository.insertExerciseEntry(
+                                entry.copy(id = 0L, slotIndex = newSlot, groupId = null)
+                            )
+                            oldToNewEntryId[entry.id] = newEntryId
+                            for (set in sets) {
+                                repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                            }
+                        }
+                        // Restore superset group mappings if any
+                        for ((entry, _) in item.entries) {
+                            val oldGroupId = entry.groupId ?: continue
+                            val newEntryId = oldToNewEntryId[entry.id] ?: continue
+                            val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
+                            val currentEntry = repository.getExerciseEntryById(newEntryId)
+                            if (currentEntry != null) {
+                                repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                            }
+                        }
+                        // Rebuild PRs for restored exercises
+                        for ((entry, sets) in item.entries) {
+                            if (sets.isNotEmpty()) {
+                                repository.rebuildPrsForExercise(entry.exerciseId)
+                            }
                         }
                     }
-                    // Restore superset group mappings if any
-                    for (entry in item.entries) {
-                        val oldGroupId = entry.groupId ?: continue
-                        val newEntryId = oldToNewEntryId[entry.id] ?: continue
-                        val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
-                        // Directly restore groupId without relying on async fetch
-                        repository.updateExerciseEntry(entry.copy(id = newEntryId, workoutId = newWorkoutId, groupId = newGroupId))
+                    is DeletedItem.WorkoutSessionWithEntries -> {
+                        val newWorkoutId = repository.insertWorkout(item.workout.copy(id = 0L))
+                        val oldToNewEntryId = mutableMapOf<Long, Long>()
+                        for (entry in item.entries) {
+                            val newEntryId = repository.insertExerciseEntry(
+                                entry.copy(id = 0L, workoutId = newWorkoutId, groupId = null)
+                            )
+                            oldToNewEntryId[entry.id] = newEntryId
+                            val sets = item.sets[entry.id] ?: emptyList()
+                            for (set in sets) {
+                                repository.insertSet(set.copy(id = 0L, exerciseEntryId = newEntryId))
+                            }
+                        }
+                        // Restore superset group mappings if any
+                        for (entry in item.entries) {
+                            val oldGroupId = entry.groupId ?: continue
+                            val newEntryId = oldToNewEntryId[entry.id] ?: continue
+                            val newGroupId = oldToNewEntryId[oldGroupId] ?: continue
+                            val currentEntry = repository.getExerciseEntryById(newEntryId)
+                            if (currentEntry != null) {
+                                repository.updateExerciseEntry(currentEntry.copy(groupId = newGroupId))
+                            }
+                        }
+                        for (entry in item.entries) {
+                            repository.rebuildPrsForExercise(entry.exerciseId)
+                        }
                     }
                 }
             }

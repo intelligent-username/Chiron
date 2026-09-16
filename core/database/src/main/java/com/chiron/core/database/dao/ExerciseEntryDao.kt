@@ -81,4 +81,14 @@ interface ExerciseEntryDao {
             updateSlotIndex(entry.id, index + 1)
         }
     }
+
+    @Transaction
+    suspend fun makeSpaceForSlotIndices(workoutId: Long, targetSlot: Int, count: Int) {
+        val existing = getEntriesForWorkoutSync(workoutId)
+        for (e in existing.asReversed()) {
+            if (e.slotIndex >= targetSlot) {
+                updateSlotIndex(e.id, e.slotIndex + count)
+            }
+        }
+    }
 }

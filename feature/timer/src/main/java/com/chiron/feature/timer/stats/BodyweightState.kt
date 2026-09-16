@@ -37,7 +37,7 @@ data class BodyweightUiState(
     val abridgeGaps: Boolean = true,
     val maxWeekCount: Int = 52,
     val earliestDate: LocalDate? = null,
-    val displayInKg: Boolean = false,
+    val displayInKg: Boolean = true,
     val stats: BodyweightStats = BodyweightStats(),
     val entries: List<BodyWeightEntry> = emptyList(),
     val error: String? = null

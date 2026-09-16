@@ -34,14 +34,6 @@ class BodyweightViewModel(
     private var loadJob: Job? = null
 
     init {
-        // Observe persistent unit preference if repository provided
-        userSettingsRepository?.let { settings ->
-            viewModelScope.launch {
-                settings.displayInKgFlow.collect { isKg ->
-                    _uiState.update { it.copy(displayInKg = isKg) }
-                }
-            }
-        }
         load()
     }
 
@@ -52,9 +44,6 @@ class BodyweightViewModel(
 
     fun setDisplayInKg(value: Boolean) {
         _uiState.update { it.copy(displayInKg = value) }
-        viewModelScope.launch {
-            userSettingsRepository?.setDisplayInKg(value)
-        }
     }
 
     fun setMode(mode: BodyweightMode) {

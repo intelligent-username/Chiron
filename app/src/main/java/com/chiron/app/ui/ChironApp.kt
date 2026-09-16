@@ -67,6 +67,7 @@ fun ChironApp(
     val volumeViewModel: VolumeViewModel = viewModel(factory = ServiceLocator.volumeViewModelFactory)
     val goalsViewModel: GoalsViewModel = viewModel(factory = ServiceLocator.goalsViewModelFactory)
     val bodyweightViewModel: BodyweightViewModel = viewModel(factory = ServiceLocator.bodyweightViewModelFactory)
+    val bodyweightState by bodyweightViewModel.uiState.collectAsState()
 
     val tabs = NavTab.entries.toTypedArray()
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
@@ -299,6 +300,7 @@ fun ChironApp(
                     exercisesViewModel = exercisesViewModel,
                     displayInKg = historyState.displayInKg,
                     distanceUnit = historyState.distanceUnit,
+                    bodyweightDisplayInKg = bodyweightState.displayInKg,
                     onClosePrScreen = {
                         isPrScreenOpen = false
                         prTargetExerciseId = null

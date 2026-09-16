@@ -23,7 +23,6 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun BodyweightStatsScreen(
     viewModel: BodyweightViewModel,
-    displayInKg: Boolean,
     onImportClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {

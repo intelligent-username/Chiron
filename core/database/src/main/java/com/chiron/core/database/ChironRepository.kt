@@ -249,6 +249,12 @@ class ChironRepository(
     suspend fun getNextSlotIndex(workoutId: Long): Int =
         exerciseEntryRepository.getNextSlotIndex(workoutId)
 
+    suspend fun makeSpaceForSlotIndices(workoutId: Long, targetSlot: Int, count: Int) =
+        exerciseEntryRepository.makeSpaceForSlotIndices(workoutId, targetSlot, count)
+
+    suspend fun getExerciseEntryById(id: Long): ExerciseEntry? =
+        exerciseEntryRepository.getExerciseEntryById(id)
+
     suspend fun deleteExerciseEntry(workoutId: Long, entryId: Long) =
         exerciseEntryRepository.deleteExerciseEntry(workoutId, entryId)
 
@@ -273,6 +279,9 @@ class ChironRepository(
 
     suspend fun getNextSetIndex(entryId: Long): Int =
         setEntryRepository.getNextSetIndex(entryId)
+
+    suspend fun makeSpaceForSetIndex(entryId: Long, targetIndex: Int) =
+        setEntryRepository.makeSpaceForSetIndex(entryId, targetIndex)
 
     suspend fun deleteSet(entryId: Long, setId: Long) =
         setEntryRepository.deleteSet(entryId, setId) { exerciseId, reps ->

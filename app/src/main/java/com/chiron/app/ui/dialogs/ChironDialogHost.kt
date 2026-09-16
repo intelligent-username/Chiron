@@ -22,6 +22,7 @@ fun ChironDialogHost(
     exercisesViewModel: ExercisesViewModel,
     displayInKg: Boolean,
     distanceUnit: DistanceUnit,
+    bodyweightDisplayInKg: Boolean = true,
     onClosePrScreen: () -> Unit,
     onOpenWorkoutFromPr: (Long, Long) -> Unit,
     isPresetsOpen: Boolean,
@@ -74,7 +75,7 @@ fun ChironDialogHost(
         BodyweightImportDialog(
             onDismiss = onDismissBodyweightImport,
             onConfirm = onConfirmBodyweightImport,
-            displayInKg = displayInKg
+            displayInKg = bodyweightDisplayInKg
         )
     }
 }

@@ -268,12 +268,14 @@ class VolumeViewModel(
     }
 
     private fun buildLongTermPoints(weekStart: LocalDate, weekCount: Int): List<VolumePoint> {
+        val today = LocalDate.now()
         val clusterStart = weekStart.minusWeeks((weekCount - 1).toLong())
         val points = mutableListOf<VolumePoint>()
         for (w in 0 until weekCount) {
             val currentW = clusterStart.plusWeeks(w.toLong())
             for (d in 0..6) {
                 val date = currentW.plusDays(d.toLong())
+                if (date.isAfter(today)) continue
                 val vol = allDailyVolumes[date] ?: 0.0
                 points.add(
                     VolumePoint(

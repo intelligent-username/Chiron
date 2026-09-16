@@ -161,6 +161,9 @@ class SetEntryRepository(
     suspend fun getNextSetIndex(entryId: Long): Int =
         (setEntryDao.getMaxSetIndex(entryId) ?: 0) + 1
 
+    suspend fun makeSpaceForSetIndex(entryId: Long, targetIndex: Int) =
+        setEntryDao.makeSpaceForSetIndex(entryId, targetIndex)
+
     suspend fun deleteSet(
         entryId: Long,
         setId: Long,

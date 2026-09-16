@@ -120,7 +120,6 @@ fun ChironTabPager(
                 if (isBodyweightMode) {
                     BodyweightStatsScreen(
                         viewModel = bodyweightViewModel,
-                        displayInKg = displayInKg,
                         onImportClick = onOpenBodyweightImport,
                         modifier = Modifier.fillMaxSize()
                     )

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.ui.components.WeekNavigator
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -50,14 +51,15 @@ fun VolumeContent(
 ) {
     val unit = if (displayInKg) "kg" else "lbs"
     val weekLabel = remember(state.currentWeekStart, state.mode, state.weekCount) {
+        val today = LocalDate.now()
+        val fmt = DateTimeFormatter.ofPattern("MMM d")
         if (state.mode == VolumeMode.BY_DAY) {
             val end = state.currentWeekStart.plusDays(6)
-            val fmt = DateTimeFormatter.ofPattern("MMM d")
             "${state.currentWeekStart.format(fmt)} – ${end.format(fmt)}"
         } else {
             val start = state.currentWeekStart.minusWeeks((state.weekCount - 1).toLong())
-            val end = state.currentWeekStart.plusDays(6)
-            val fmt = DateTimeFormatter.ofPattern("MMM d")
+            val tentativeEnd = state.currentWeekStart.plusDays(6)
+            val end = if (tentativeEnd.isAfter(today)) today else tentativeEnd
             "${start.format(fmt)} – ${end.format(fmt)}"
         }
     }
