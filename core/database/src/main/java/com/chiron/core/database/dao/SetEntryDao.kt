@@ -15,6 +15,9 @@ interface SetEntryDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSet(set: SetEntry): Long
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertSets(sets: List<SetEntry>): List<Long>
+
     @Update
     suspend fun updateSet(set: SetEntry)
 

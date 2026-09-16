@@ -52,6 +52,8 @@ fun IconPicker(
     }
 }
 
+private val IconPickerDropdownShape = RoundedCornerShape(16.dp)
+
 @Composable
 fun IconPickerDropdown(
     selectedIcon: String?,
@@ -66,8 +68,8 @@ fun IconPickerDropdown(
             modifier = Modifier
                 .fillMaxWidth(0.75f)
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(16.dp))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                .clip(IconPickerDropdownShape)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, IconPickerDropdownShape)
                 .clickable { expanded = true },
             contentAlignment = Alignment.Center
         ) {

@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+private val IconGridItemShape = RoundedCornerShape(8.dp)
+
 /**
  * Reusable grid item cell for selecting an exercise icon.
  */
@@ -28,12 +30,12 @@ fun IconGridItem(
     Box(
         modifier = modifier
             .size(56.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(IconGridItemShape)
             .background(Color.White)
             .border(
                 width = if (isSelected) 3.dp else 1.dp,
                 color = if (isSelected) Color(0xFF64B5F6) else MaterialTheme.colorScheme.outline,
-                shape = RoundedCornerShape(8.dp)
+                shape = IconGridItemShape
             )
             .clickable(onClick = onClick)
             .padding(8.dp),

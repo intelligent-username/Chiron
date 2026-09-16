@@ -69,7 +69,6 @@ fun BodyweightContent(
 
     // Date range label strictly bounded by earliest date
     val weekLabel = remember(state.currentPeriodEnd, state.weekCount, state.earliestDate) {
-        val fmt = DateTimeFormatter.ofPattern("MMM d")
         val daysSpan = (state.weekCount * 7 - 1).toLong()
         val tentativeStart = state.currentPeriodEnd.minusDays(daysSpan)
         val actualStart = if (state.earliestDate != null && tentativeStart < state.earliestDate) {
@@ -77,7 +76,7 @@ fun BodyweightContent(
         } else {
             tentativeStart
         }
-        "${actualStart.format(fmt)} - ${state.currentPeriodEnd.format(fmt)}"
+        "${actualStart.format(MonthDayFormatter)} - ${state.currentPeriodEnd.format(MonthDayFormatter)}"
     }
 
     Column(
@@ -148,3 +147,5 @@ fun BodyweightContent(
         Spacer(modifier = Modifier.height(120.dp))
     }
 }
+
+private val MonthDayFormatter = DateTimeFormatter.ofPattern("MMM d")

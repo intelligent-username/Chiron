@@ -88,4 +88,49 @@ class SessionPreviewRepository(
             )
         } else null
     }
+
+    /**
+     * Unified single-pass lookup: retrieves either superset or solo last-session preview
+     * in a single query pass without redundant workout or entry lookups.
+     */
+    suspend fun getLastSessionCombinedPreview(
+        exerciseId: Long,
+        currentWorkoutId: Long
+    ): Pair<LastSessionPreview?, LastSessionSupersetPreview?> {
+        val currentWorkout = workoutSessionDao.getById(currentWorkoutId) ?: return Pair(null, null)
+        val prevEntry = exerciseEntryDao.getMostRecentEntryForExercise(
+            exerciseId, currentWorkoutId, currentWorkout.dateUtc
+        ) ?: return Pair(null, null)
+
+        val workout = workoutSessionDao.getById(prevEntry.workoutId) ?: return Pair(null, null)
+        val dateLabel = DateUtils.formatWorkoutDateLabel(workout.dateIso)
+
+        val groupId = prevEntry.groupId
+        if (groupId != null && prevEntry.sequenceType != "NONE") {
+            val supersetEntries = exerciseEntryDao.getEntriesByGroupInWorkout(prevEntry.workoutId, groupId)
+            if (supersetEntries.size >= 2) {
+                val exercises = mutableListOf<SupersetExercisePreview>()
+                for (entry in supersetEntries) {
+                    val sets = setEntryDao.getSetsForEntrySync(entry.id)
+                    if (sets.isEmpty()) continue
+                    val exercise = exerciseDao.getById(entry.exerciseId) ?: continue
+                    exercises.add(
+                        SupersetExercisePreview(
+                            exerciseId = entry.exerciseId,
+                            exerciseName = exercise.name,
+                            iconName = exercise.iconName,
+                            sets = sets
+                        )
+                    )
+                }
+                if (exercises.size >= 2) {
+                    return Pair(null, LastSessionSupersetPreview(dateLabel = dateLabel, exercises = exercises, notes = prevEntry.notes))
+                }
+            }
+        }
+
+        val sets = setEntryDao.getSetsForEntrySync(prevEntry.id)
+        if (sets.isEmpty()) return Pair(null, null)
+        return Pair(LastSessionPreview(dateLabel = dateLabel, sets = sets, notes = prevEntry.notes), null)
+    }
 }

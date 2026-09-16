@@ -36,103 +36,112 @@ import com.chiron.feature.timer.TimerViewModel
 fun StopwatchContent(viewModel: TimerViewModel) {
     val state by viewModel.uiState.collectAsState()
 
-    val isRunning = state.isStopwatchRunning
-    val hasTime = state.stopwatchMillis > 0
-
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // ── Monospace time display with gray milliseconds ────────────────
-        val formatted = TimerViewModel.formatStopwatch(state.stopwatchMillis)
-        val parts = formatted.split(".")
-        val timePart = parts.getOrElse(0) { "00:00" }
-        val millisPart = if (parts.size > 1) ".${parts[1]}" else ""
+        StopwatchTimeDisplay(millis = state.stopwatchMillis)
+        StopwatchLapsSection(laps = state.laps)
+    }
+}
 
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.Center
-        ) {
+@Composable
+private fun StopwatchTimeDisplay(millis: Long) {
+    val formatted = TimerViewModel.formatStopwatch(millis)
+    val parts = formatted.split(".")
+    val timePart = parts.getOrElse(0) { "00:00" }
+    val millisPart = if (parts.size > 1) ".${parts[1]}" else ""
+
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = timePart,
+            style = MaterialTheme.typography.displayLarge.copy(
+                fontSize = 84.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = (-2).sp
+            ),
+            modifier = Modifier.alignByBaseline(),
+            maxLines = 1,
+            softWrap = false
+        )
+        if (millisPart.isNotEmpty()) {
             Text(
-                text = timePart,
+                text = millisPart,
                 style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 84.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Medium,
                     fontFamily = FontFamily.Monospace,
-                    letterSpacing = (-2).sp
+                    color = CoolGray
                 ),
-                modifier = Modifier.alignByBaseline(),
+                modifier = Modifier.alignByBaseline().padding(start = 2.dp),
                 maxLines = 1,
                 softWrap = false
             )
-            if (millisPart.isNotEmpty()) {
-                Text(
-                    text = millisPart,
-                    style = MaterialTheme.typography.displayLarge.copy(
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = CoolGray
-                    ),
-                    modifier = Modifier.alignByBaseline().padding(start = 2.dp),
-                    maxLines = 1,
-                    softWrap = false
-                )
-            }
         }
+    }
+}
 
-        // ── Laps ─────────────────────────────────────────────────────────
-        if (state.laps.isNotEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Laps",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = ElectricBlue,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
+@Composable
+private fun StopwatchLapsSection(laps: List<Long>) {
+    if (laps.isEmpty()) return
+
+    val reversedLaps = remember(laps) { laps.asReversed() }
+    val lapDurations = remember(laps) {
+        laps.mapIndexed { index, time ->
+            time - if (index == 0) 0L else laps[index - 1]
+        }
+    }
+    val minLapIndex = remember(lapDurations) {
+        if (lapDurations.size > 1) lapDurations.indices.minByOrNull { lapDurations[it] } else null
+    }
+    val maxLapIndex = remember(lapDurations) {
+        if (lapDurations.size > 1) lapDurations.indices.maxByOrNull { lapDurations[it] } else null
+    }
+    val maxLaps = 6
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Laps",
+            style = MaterialTheme.typography.titleSmall,
+            color = ElectricBlue,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = (maxLaps * 44).dp)
+        ) {
+            itemsIndexed(reversedLaps, key = { index, lapTime -> "$index-$lapTime" }) { index, lapTime ->
+                val originalIndex = laps.size - 1 - index
+                val lapDuration = lapDurations[originalIndex]
+                val lapNumber = laps.size - index
+                val isFastest = originalIndex == minLapIndex
+                val isSlowest = originalIndex == maxLapIndex
+
+                LapRow(
+                    lapNumber = lapNumber,
+                    lapDuration = TimerViewModel.formatStopwatch(lapDuration),
+                    lapTimestamp = TimerViewModel.formatStopwatch(lapTime),
+                    isFastest = isFastest,
+                    isSlowest = isSlowest
                 )
 
-                val reversedLaps = state.laps.asReversed()
-                val maxLaps = 6
-
-                val lapDurations = state.laps.mapIndexed { index, time ->
-                    time - if (index == 0) 0L else state.laps[index - 1]
-                }
-                val minLapIndex = if (lapDurations.size > 1) lapDurations.indices.minByOrNull { lapDurations[it] } else null
-                val maxLapIndex = if (lapDurations.size > 1) lapDurations.indices.maxByOrNull { lapDurations[it] } else null
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = (maxLaps * 44).dp)
-                ) {
-                    itemsIndexed(reversedLaps) { index, lapTime ->
-                        val originalIndex = state.laps.size - 1 - index
-                        val lapDuration = lapDurations[originalIndex]
-                        val lapNumber = state.laps.size - index
-                        val isFastest = originalIndex == minLapIndex
-                        val isSlowest = originalIndex == maxLapIndex
-
-                        LapRow(
-                            lapNumber = lapNumber,
-                            lapDuration = TimerViewModel.formatStopwatch(lapDuration),
-                            lapTimestamp = TimerViewModel.formatStopwatch(lapTime),
-                            isFastest = isFastest,
-                            isSlowest = isSlowest
-                        )
-
-                        if (index < reversedLaps.lastIndex) {
-                            HorizontalDivider(
-                                thickness = 1.dp,
-                                color = ThinOutline,
-                                modifier = Modifier.padding(horizontal = 14.dp)
-                            )
-                        }
-                    }
+                if (index < reversedLaps.lastIndex) {
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = ThinOutline,
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
                 }
             }
         }

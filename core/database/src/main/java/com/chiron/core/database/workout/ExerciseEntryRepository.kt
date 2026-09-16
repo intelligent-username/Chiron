@@ -46,6 +46,7 @@ class ExerciseEntryRepository(
         val sourceEntries = exerciseEntryDao.getEntriesForWorkoutSync(sourceWorkoutId)
         val entryIdMap = mutableMapOf<Long, Long>()
 
+        val allNewSets = mutableListOf<SetEntry>()
         for (entry in sourceEntries) {
             val newEntry = entry.copy(
                 id = 0L,
@@ -57,7 +58,7 @@ class ExerciseEntryRepository(
 
             val sourceSets = setEntryDao.getSetsForEntrySync(entry.id)
             for (set in sourceSets) {
-                setEntryDao.insertSet(
+                allNewSets.add(
                     set.copy(
                         id = 0L,
                         exerciseEntryId = newEntryId,
@@ -65,6 +66,9 @@ class ExerciseEntryRepository(
                     )
                 )
             }
+        }
+        if (allNewSets.isNotEmpty()) {
+            setEntryDao.insertSets(allNewSets)
         }
 
         // Remap groupId references for superset entries

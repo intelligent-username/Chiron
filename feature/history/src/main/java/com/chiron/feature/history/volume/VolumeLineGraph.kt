@@ -133,11 +133,8 @@ fun VolumeLineGraph(
                                     val padRight = 10f
                                     val graphW = w - padLeft - padRight
                                     val n = points.size
-                                    fun xOf(i: Int) = padLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * graphW
-                                    val closest = (0 until n).minByOrNull { abs(xOf(it) - startPos.x) }
-                                    if (closest != null) {
-                                        onPointTap(points[closest])
-                                    }
+                                    val closest = (((startPos.x - padLeft) / graphW) * (n - 1).coerceAtLeast(1)).roundToInt().coerceIn(0, n - 1)
+                                    onPointTap(points[closest])
                                 }
                                 break
                             }
@@ -223,70 +220,71 @@ fun VolumeLineGraph(
             // Tooltip
             if (hoveredX != null && points.isNotEmpty()) {
                 val hx = hoveredX!!
-                val closestIndex = (0 until n).minByOrNull { abs(xOf(it) - hx) }
-                if (closestIndex != null) {
-                    val p = points[closestIndex]
-                    val px = xOf(closestIndex)
-                    val py = yOf(p.volumeLbs * animProgress)
+                val closestIndex = (((hx - padLeft) / graphW) * (n - 1)).roundToInt().coerceIn(0, n - 1)
+                val p = points[closestIndex]
+                val px = xOf(closestIndex)
+                val py = yOf(p.volumeLbs * animProgress)
 
-                    drawLine(
-                        color = textLabelColor.copy(alpha = 0.5f),
-                        start = Offset(px, padTop),
-                        end = Offset(px, padTop + graphH),
-                        strokeWidth = 1f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                drawLine(
+                    color = textLabelColor.copy(alpha = 0.5f),
+                    start = Offset(px, padTop),
+                    end = Offset(px, padTop + graphH),
+                    strokeWidth = 1f,
+                    pathEffect = VolumeTooltipDashEffect
+                )
+
+                drawCircle(color = lineAccentColor, radius = 5f, center = Offset(px, py))
+
+                val dateStr = p.date.format(VolumeTooltipDateFormatter)
+                val tooltipText = "$dateStr, ${p.volumeLbs.formatVolume(displayInKg)} $unit"
+
+                val textLayoutResult = textMeasurer.measure(
+                    text = tooltipText,
+                    style = TextStyle(
+                        color = onSurfaceColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = MonospaceFamily
                     )
+                )
 
-                    drawCircle(color = lineAccentColor, radius = 5f, center = Offset(px, py))
+                val tw = textLayoutResult.size.width.toFloat()
+                val th = textLayoutResult.size.height.toFloat()
+                val tooltipPad = 12f
 
-                    val dateFmt = DateTimeFormatter.ofPattern("EEEE MMM d")
-                    val dateStr = p.date.format(dateFmt)
-                    val tooltipText = "$dateStr, ${p.volumeLbs.formatVolume(displayInKg)} $unit"
+                var tx = px - tw / 2f
+                if (tx < padLeft) tx = padLeft
+                if (tx + tw > w - padRight) tx = w - padRight - tw
 
-                    val textLayoutResult = textMeasurer.measure(
-                        text = tooltipText,
-                        style = TextStyle(
-                            color = onSurfaceColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = MonospaceFamily
-                        )
-                    )
+                val ty = padTop - 20f
 
-                    val tw = textLayoutResult.size.width.toFloat()
-                    val th = textLayoutResult.size.height.toFloat()
-                    val tooltipPad = 12f
+                // Flat tooltip with SolidSlate background and ThinOutline border
+                drawRoundRect(
+                    color = tooltipBgColor,
+                    topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
+                    size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
+                    cornerRadius = VolumeTooltipCornerRadius
+                )
+                drawRoundRect(
+                    color = tooltipBorderColor,
+                    topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
+                    size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
+                    cornerRadius = VolumeTooltipCornerRadius,
+                    style = Stroke(width = 1f)
+                )
 
-                    var tx = px - tw / 2f
-                    if (tx < padLeft) tx = padLeft
-                    if (tx + tw > w - padRight) tx = w - padRight - tw
-
-                    val ty = padTop - 20f
-
-                    // Flat tooltip with SolidSlate background and ThinOutline border
-                    drawRoundRect(
-                        color = tooltipBgColor,
-                        topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
-                        size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-                    )
-                    drawRoundRect(
-                        color = tooltipBorderColor,
-                        topLeft = Offset(tx - tooltipPad, ty - tooltipPad),
-                        size = androidx.compose.ui.geometry.Size(tw + tooltipPad * 2, th + tooltipPad * 2),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
-                        style = Stroke(width = 1f)
-                    )
-
-                    drawText(
-                        textLayoutResult = textLayoutResult,
-                        topLeft = Offset(tx, ty)
-                    )
-                }
+                drawText(
+                    textLayoutResult = textLayoutResult,
+                    topLeft = Offset(tx, ty)
+                )
             }
         }
     }
 }
+
+private val VolumeTooltipDateFormatter = DateTimeFormatter.ofPattern("EEEE MMM d")
+private val VolumeTooltipDashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+private val VolumeTooltipCornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
 
 private fun formatVolumeTick(v: Double): String {
     return when {

@@ -37,28 +37,26 @@ class SetEntryRepository(
     suspend fun insertSetAndEvaluateHistoricalPr(set: SetEntry): Long {
         val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId)
         val exercise = if (exerciseId != null) exerciseDao.getById(exerciseId) else null
+        val workoutId = if (exerciseId != null) setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) else null
+        val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
 
         val reps = set.reps
         val weight = set.weightLbs
         val shouldCheck = exercise != null && exercise.prCategory() == PrCategory.WEIGHT_REPS &&
             reps != null && weight != null && set.isFailed == 0
 
-        val isPr = if (shouldCheck && exerciseId != null) {
-            val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
-            val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
-            if (workout != null) {
-                val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
-                    exerciseId = exerciseId,
-                    reps = reps!!,
-                    upToWorkoutDateUtc = workout.dateUtc,
-                    excludeSetId = 0L
-                )
-                if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
-            } else 0
+        val isPr = if (shouldCheck && exerciseId != null && workout != null) {
+            val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
+                exerciseId = exerciseId,
+                reps = reps!!,
+                upToWorkoutDateUtc = workout.dateUtc,
+                excludeSetId = 0L
+            )
+            if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
         } else 0
 
         val newSetId = setEntryDao.insertSet(set.copy(isPr = isPr))
-        updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
+        updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc, workout)
 
         if (exercise != null && exerciseId != null) {
             val category = exercise.prCategory()
@@ -74,9 +72,15 @@ class SetEntryRepository(
 
     suspend fun updateSet(set: SetEntry) = setEntryDao.updateSet(set)
 
-    private suspend fun updateWorkoutEndTime(exerciseEntryId: Long, timestampUtc: Long) {
-        val workoutId = setEntryDao.getWorkoutIdForEntry(exerciseEntryId) ?: return
-        val workout = workoutSessionDao.getById(workoutId) ?: return
+    private suspend fun updateWorkoutEndTime(
+        exerciseEntryId: Long,
+        timestampUtc: Long,
+        cachedWorkout: com.chiron.core.model.WorkoutSession? = null
+    ) {
+        val workout = cachedWorkout ?: run {
+            val workoutId = setEntryDao.getWorkoutIdForEntry(exerciseEntryId) ?: return
+            workoutSessionDao.getById(workoutId) ?: return
+        }
         val currentEndTime = workout.endTimeUtc
         val newEndTime = if (timestampUtc < workout.dateUtc) workout.dateUtc else timestampUtc
         if (currentEndTime == null || newEndTime > currentEndTime) {
@@ -95,6 +99,8 @@ class SetEntryRepository(
         val oldSet = if (set.id > 0) setEntryDao.getById(set.id) else null
         val exerciseId = setEntryDao.getExerciseIdForEntry(set.exerciseEntryId)
         val exercise = if (exerciseId != null) exerciseDao.getById(exerciseId) else null
+        val workoutId = if (exerciseId != null) setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId) else null
+        val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
 
         val wasPlaceholder = if (oldSet != null && exercise != null) {
             val wasWeightNull = exercise.isWeightBased != 1 || oldSet.weightLbs == null
@@ -111,26 +117,22 @@ class SetEntryRepository(
 
         // Infer and update the workout's end time if a set is newly completed.
         if (isNowCompleted) {
-            updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc)
+            updateWorkoutEndTime(set.exerciseEntryId, set.timestampUtc, workout)
         }
 
         val category = exercise?.prCategory() ?: PrCategory.NONE
-        val newIsPr = if (category == PrCategory.WEIGHT_REPS) {
+        val newIsPr = if (category == PrCategory.WEIGHT_REPS && workout != null) {
             val reps = set.reps
             val weight = set.weightLbs
             val shouldCheck = reps != null && weight != null && set.isFailed == 0
             if (shouldCheck && exerciseId != null) {
-                val workoutId = setEntryDao.getWorkoutIdForEntry(set.exerciseEntryId)
-                val workout = if (workoutId != null) workoutSessionDao.getById(workoutId) else null
-                if (workout != null) {
-                    val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
-                        exerciseId = exerciseId,
-                        reps = reps!!,
-                        upToWorkoutDateUtc = workout.dateUtc,
-                        excludeSetId = set.id
-                    )
-                    if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
-                } else 0
+                val maxWeightSoFar = setEntryDao.getMaxWeightForExerciseRepsUpToWorkoutDate(
+                    exerciseId = exerciseId,
+                    reps = reps!!,
+                    upToWorkoutDateUtc = workout.dateUtc,
+                    excludeSetId = set.id
+                )
+                if (maxWeightSoFar == null || weight!! > maxWeightSoFar) 1 else 0
             } else 0
         } else {
             0
@@ -164,9 +166,9 @@ class SetEntryRepository(
         setId: Long,
         onDeletedSet: suspend (exerciseId: Long, reps: Int) -> Unit
     ) {
-        val workoutId = setEntryDao.getWorkoutIdForEntry(entryId)
-        val set = setEntryDao.getById(setId)
         val entry = exerciseEntryDao.getById(entryId)
+        val workoutId = entry?.workoutId ?: setEntryDao.getWorkoutIdForEntry(entryId)
+        val set = setEntryDao.getById(setId)
         setEntryDao.deleteAndReindex(entryId, setId)
         val reps = set?.reps
         if (entry != null) {

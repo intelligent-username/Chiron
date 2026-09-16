@@ -193,6 +193,12 @@ class ChironRepository(
         currentWorkoutId: Long
     ): LastSessionSupersetPreview? = sessionPreviewRepository.getLastSessionSupersetPreview(exerciseId, currentWorkoutId)
 
+    suspend fun getLastSessionCombinedPreview(
+        exerciseId: Long,
+        currentWorkoutId: Long
+    ): Pair<LastSessionPreview?, LastSessionSupersetPreview?> =
+        sessionPreviewRepository.getLastSessionCombinedPreview(exerciseId, currentWorkoutId)
+
     // ─────────────────────────────────────────────────────────────────────────
     // Workout session operations
     // ─────────────────────────────────────────────────────────────────────────

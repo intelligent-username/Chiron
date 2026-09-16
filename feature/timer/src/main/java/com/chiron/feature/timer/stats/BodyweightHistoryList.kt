@@ -96,7 +96,7 @@ fun BodyweightHistoryList(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SolidSlate),
-        shape = RoundedCornerShape(16.dp),
+        shape = HistoryCardShape,
         border = BorderStroke(1.dp, ThinOutline)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -141,15 +141,15 @@ fun BodyweightHistoryList(
                 if (isEditing) {
                     val parsedDate = runCatching { LocalDate.parse(editDateIso) }.getOrDefault(LocalDate.now())
                     val currentTime = LocalTime.of(editHour, editMinute)
-                    val formattedDate = parsedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d, yyyy"))
-                    val formattedTime = currentTime.format(DateTimeFormatter.ofPattern("h:mm a"))
+                    val formattedDate = parsedDate.format(EditDateFormatter)
+                    val formattedTime = currentTime.format(EditTimeFormatter)
 
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 6.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF161F30)),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = EditCardShape,
                         border = BorderStroke(1.dp, ElectricBlue.copy(alpha = 0.5f))
                     ) {
                         Column(
@@ -547,9 +547,14 @@ fun BodyweightHistoryList(
     }
 }
 
+private val HistoryCardShape = RoundedCornerShape(16.dp)
+private val EditCardShape = RoundedCornerShape(14.dp)
+private val EditDateFormatter = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy")
+private val EditTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+private val HistoryTimestampFormatter = DateTimeFormatter.ofPattern("EEEE MMM d, h:mm a")
+
 private fun formatHistoryTimestamp(timestampUtc: Long): String {
-    val fmt = DateTimeFormatter.ofPattern("EEEE MMM d, h:mm a")
     return runCatching {
-        Instant.ofEpochMilli(timestampUtc).atZone(ZoneId.systemDefault()).format(fmt)
+        Instant.ofEpochMilli(timestampUtc).atZone(ZoneId.systemDefault()).format(HistoryTimestampFormatter)
     }.getOrDefault("Unknown date")
 }

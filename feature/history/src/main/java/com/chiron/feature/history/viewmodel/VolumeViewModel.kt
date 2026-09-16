@@ -83,18 +83,16 @@ class VolumeViewModel(
                     ceil(maxDays / 7.0).toInt().coerceAtLeast(2)
                 }
 
-                val weeklyTotals = mutableListOf<Double>()
-                var w = firstWeekStart
-                var loopGuard = 0
-                while (w <= todayWeek && loopGuard < 500) {
-                    var total = 0.0
-                    for (d in 0..6) {
-                        total += byDate[w.plusDays(d.toLong())] ?: 0.0
+                val totalWeeks = (ChronoUnit.WEEKS.between(firstWeekStart, todayWeek).toInt() + 1).coerceIn(1, 520)
+                val weeklyTotalsArray = DoubleArray(totalWeeks)
+                for ((date, vol) in byDate) {
+                    if (vol <= 0.0) continue
+                    val weekIndex = ChronoUnit.WEEKS.between(firstWeekStart, date.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))).toInt()
+                    if (weekIndex in 0 until totalWeeks) {
+                        weeklyTotalsArray[weekIndex] += vol
                     }
-                    weeklyTotals.add(total)
-                    w = w.plusWeeks(1)
-                    loopGuard++
                 }
+                val weeklyTotals = weeklyTotalsArray.toList()
 
                 val thisWeek = weeklyTotals.lastOrNull() ?: 0.0
                 val lastWeek = if (weeklyTotals.size >= 2) weeklyTotals[weeklyTotals.size - 2] else 0.0
@@ -272,8 +270,6 @@ class VolumeViewModel(
     private fun buildLongTermPoints(weekStart: LocalDate, weekCount: Int): List<VolumePoint> {
         val clusterStart = weekStart.minusWeeks((weekCount - 1).toLong())
         val points = mutableListOf<VolumePoint>()
-        
-        val fmt = DateTimeFormatter.ofPattern("M/d")
         for (w in 0 until weekCount) {
             val currentW = clusterStart.plusWeeks(w.toLong())
             for (d in 0..6) {
@@ -281,7 +277,7 @@ class VolumeViewModel(
                 val vol = allDailyVolumes[date] ?: 0.0
                 points.add(
                     VolumePoint(
-                        label = if (d == 0) currentW.format(fmt) else "",
+                        label = if (d == 0) currentW.format(VolumeDateMonthDayFormatter) else "",
                         volumeLbs = vol,
                         date = date
                     )
@@ -300,3 +296,5 @@ class VolumeViewModel(
             VolumeViewModel(repository, displayInKg) as T
     }
 }
+
+private val VolumeDateMonthDayFormatter = DateTimeFormatter.ofPattern("M/d")

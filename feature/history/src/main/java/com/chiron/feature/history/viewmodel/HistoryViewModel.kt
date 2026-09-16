@@ -357,6 +357,7 @@ class HistoryViewModel(
     suspend fun getAllExercises(): List<Exercise> = repository.getAllExercises()
     suspend fun getLastSessionPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionPreview? = repository.getLastSessionPreview(exerciseId, currentWorkoutId)
     suspend fun getLastSessionSupersetPreview(exerciseId: Long, currentWorkoutId: Long): ChironRepository.LastSessionSupersetPreview? = repository.getLastSessionSupersetPreview(exerciseId, currentWorkoutId)
+    suspend fun getLastSessionCombinedPreview(exerciseId: Long, currentWorkoutId: Long): Pair<ChironRepository.LastSessionPreview?, ChironRepository.LastSessionSupersetPreview?> = repository.getLastSessionCombinedPreview(exerciseId, currentWorkoutId)
 
     // ── Set operations ────────────────────────────────────────────────────────
     fun getSetsForEntry(entryId: Long): Flow<List<SetEntry>> = repository.getSetsForEntry(entryId)

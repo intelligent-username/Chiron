@@ -305,6 +305,10 @@ private fun DrawScope.drawDots(
     }
 }
 
+private val BodyweightTooltipDateFormatter = DateTimeFormatter.ofPattern("EEEE MMM d")
+private val BodyweightTooltipDashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+private val BodyweightTooltipCornerRadius = CornerRadius(8f, 8f)
+
 private fun DrawScope.drawTooltip(
     measurer: androidx.compose.ui.text.TextMeasurer,
     hx: Float,
@@ -329,10 +333,9 @@ private fun DrawScope.drawTooltip(
     onSurface: Color
 ) {
     val n = points.size
-    fun xOf(i: Int) = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
-    val idx = (0 until n).minByOrNull { kotlin.math.abs(xOf(it) - hx) } ?: return
+    val idx = (((hx - plotLeft) / plotW) * (n - 1)).roundToInt().coerceIn(0, n - 1)
     val p = points[idx]
-    val px = xOf(idx)
+    val px = plotLeft + (idx.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
     val py = plotTop + plotH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
 
     // Dashed guide line clamped strictly within the grid vertical boundary
@@ -341,13 +344,13 @@ private fun DrawScope.drawTooltip(
         start = Offset(px, padTop),
         end = Offset(px, padTop + graphH),
         strokeWidth = 1f,
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+        pathEffect = BodyweightTooltipDashEffect
     )
     drawCircle(color = lineColor, radius = 6.5f, center = Offset(px, py))
     drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
 
     val dateStr = Instant.ofEpochMilli(p.timestampUtc).atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("EEEE MMM d"))
+        .format(BodyweightTooltipDateFormatter)
     val displayWeight = if (localInKg) UnitConversion.lbsToKg(p.weightLbs) else p.weightLbs
     val statusTag = if (p.isActualInput) " (Logged)" else " (Est)"
     val text = "$dateStr: ${UnitConversion.formatNumber(displayWeight)} $unit$statusTag"
@@ -366,7 +369,7 @@ private fun DrawScope.drawTooltip(
         py + pad + 12f
     }
 
-    drawRoundRect(tipBg, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8f, 8f))
-    drawRoundRect(tipBorder, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8f, 8f), style = Stroke(1f))
+    drawRoundRect(tipBg, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius)
+    drawRoundRect(tipBorder, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius, style = Stroke(1f))
     drawText(layout, topLeft = Offset(tx, ty))
 }

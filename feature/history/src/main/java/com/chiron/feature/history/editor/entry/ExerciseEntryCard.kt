@@ -98,15 +98,9 @@ fun ExerciseEntryCard(
     }
 
     LaunchedEffect(entry.exerciseId, workoutId) {
-        // Always try superset preview first — if the exercise was last done in a superset,
-        // this will return the full superset context. Otherwise it returns null and we
-        // fall back to the plain solo preview.
-        lastSessionSupersetPreview = viewModel.getLastSessionSupersetPreview(entry.exerciseId, workoutId)
-        if (lastSessionSupersetPreview == null) {
-            lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
-        } else {
-            lastSessionPreview = null // clear stale solo data if superset is available
-        }
+        val (solo, superset) = viewModel.getLastSessionCombinedPreview(entry.exerciseId, workoutId)
+        lastSessionSupersetPreview = superset
+        lastSessionPreview = solo
     }
 
     val hasHistory = lastSessionPreview != null || lastSessionSupersetPreview != null

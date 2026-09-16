@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chiron.core.database.ChironRepository
 import com.chiron.core.model.Exercise
-import com.chiron.core.common.Jaccard
+import com.chiron.core.common.SearchRanker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,12 +27,12 @@ class ExercisesViewModel(
                     val results = if (state.searchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        Jaccard.rankBySimilarity(state.searchQuery, exercises, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.searchQuery, exercises, { it.name }, limit = 100)
                     }
                     val prResults = if (state.prSearchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        Jaccard.rankBySimilarity(state.prSearchQuery, exercises, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.prSearchQuery, exercises, { it.name }, limit = 100)
                     }
                     state.copy(
                         exercises = exercises,
@@ -49,12 +49,12 @@ class ExercisesViewModel(
                     val results = if (state.searchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        Jaccard.rankBySimilarity(state.searchQuery, archived, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.searchQuery, archived, { it.name }, limit = 100)
                     }
                     val prResults = if (state.prSearchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        Jaccard.rankBySimilarity(state.prSearchQuery, archived, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.prSearchQuery, archived, { it.name }, limit = 100)
                     }
                     state.copy(
                         archivedExercises = archived,
@@ -73,7 +73,7 @@ class ExercisesViewModel(
             val results = if (query.isBlank()) {
                 emptyList()
             } else {
-                Jaccard.rankBySimilarity(query, source, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(query, source, { it.name }, limit = 100)
             }
             state.copy(searchQuery = query, searchResults = results)
         }
@@ -89,7 +89,7 @@ class ExercisesViewModel(
             val results = if (query.isBlank()) {
                 emptyList()
             } else {
-                Jaccard.rankBySimilarity(query, source, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(query, source, { it.name }, limit = 100)
             }
             state.copy(prSearchQuery = query, prSearchResults = results)
         }
@@ -203,12 +203,12 @@ class ExercisesViewModel(
             val results = if (state.searchQuery.isBlank()) {
                 emptyList()
             } else {
-                Jaccard.rankBySimilarity(state.searchQuery, source, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(state.searchQuery, source, { it.name }, limit = 100)
             }
             val prResults = if (state.prSearchQuery.isBlank()) {
                 emptyList()
             } else {
-                Jaccard.rankBySimilarity(state.prSearchQuery, source, { it.name }, limit = 100)
+                SearchRanker.rankBySimilarity(state.prSearchQuery, source, { it.name }, limit = 100)
             }
             state.copy(
                 showArchived = newShowArchived,

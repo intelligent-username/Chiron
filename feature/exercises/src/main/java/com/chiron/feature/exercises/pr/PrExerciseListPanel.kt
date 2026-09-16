@@ -130,7 +130,7 @@ fun PrExerciseListPanel(
                     )
                 }
             }
-            items(displayedList) { exercise ->
+            items(displayedList, key = { it.id }) { exercise ->
                 val isSelected = selectedExercise?.id == exercise.id
                 Box(
                     modifier = Modifier

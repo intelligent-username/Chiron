@@ -40,6 +40,10 @@ object DateUtils {
         }
     }
 
+    private val DateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    private val TimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    private val DateTimeCombinedFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
     /**
      * Formats start and end times to: DD/MM/YYYY HH:mm - HH:mm
      */
@@ -48,33 +52,33 @@ object DateUtils {
         val endEpoch = workout.endTimeUtc ?: workout.dateUtc
         val endZdt = Instant.ofEpochMilli(endEpoch).atZone(ZoneId.systemDefault())
 
-        val dateStr = startZdt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-        val startStr = startZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
-        val endStr = endZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
+        val dateStr = startZdt.format(DateFormatter)
+        val startStr = startZdt.format(TimeFormatter)
+        val endStr = endZdt.format(TimeFormatter)
 
         return "$dateStr $startStr - $endStr"
     }
     
     fun getDateStr(workout: WorkoutSession): String {
         val startZdt = Instant.ofEpochMilli(workout.dateUtc).atZone(ZoneId.systemDefault())
-        return startZdt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        return startZdt.format(DateFormatter)
     }
 
     fun getEndDateStr(workout: WorkoutSession): String {
         val endEpoch = workout.endTimeUtc ?: workout.dateUtc
         val endZdt = Instant.ofEpochMilli(endEpoch).atZone(ZoneId.systemDefault())
-        return endZdt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        return endZdt.format(DateFormatter)
     }
     
     fun getStartStr(workout: WorkoutSession): String {
         val startZdt = Instant.ofEpochMilli(workout.dateUtc).atZone(ZoneId.systemDefault())
-        return startZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
+        return startZdt.format(TimeFormatter)
     }
     
     fun getEndStr(workout: WorkoutSession): String {
         val endEpoch = workout.endTimeUtc ?: workout.dateUtc
         val endZdt = Instant.ofEpochMilli(endEpoch).atZone(ZoneId.systemDefault())
-        return endZdt.format(DateTimeFormatter.ofPattern("HH:mm"))
+        return endZdt.format(TimeFormatter)
     }
 
     fun parseWorkoutDateTimes(
@@ -97,14 +101,12 @@ object DateUtils {
         ) return null
 
         return try {
-            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-
             val startZdt = java.time.LocalDateTime
-                .parse("$startDatePart $startTimePart", formatter)
+                .parse("$startDatePart $startTimePart", DateTimeCombinedFormatter)
                 .atZone(ZoneId.systemDefault())
 
             var endZdt = java.time.LocalDateTime
-                .parse("$endDatePart $endTimePart", formatter)
+                .parse("$endDatePart $endTimePart", DateTimeCombinedFormatter)
                 .atZone(ZoneId.systemDefault())
 
             // Preserve old behavior when only times are changed and end becomes earlier than start.

@@ -8,6 +8,7 @@ object SearchRanker {
     /**
      * Rank items by similarity to a query.
      * Exact matches rank highest, followed by prefix matches, then substring matches.
+     * Operates in a single pass without allocating lowercase strings or wrapper objects.
      */
     fun <T> rankBySimilarity(
         query: String,
@@ -15,30 +16,36 @@ object SearchRanker {
         textSelector: (T) -> String,
         limit: Int = 10
     ): List<T> {
-        val q = query.trim().lowercase()
+        val q = query.trim()
         if (q.isEmpty()) return emptyList()
 
-        class ScoredItem(val item: T, val score: Int)
+        val exactMatches = ArrayList<T>()
+        val prefixMatches = ArrayList<T>()
+        val containsMatches = ArrayList<T>()
 
-        val matches = ArrayList<ScoredItem>(items.size.coerceAtMost(limit * 2))
         for (item in items) {
-            val text = textSelector(item).lowercase()
-            val score = when {
-                text == q -> 0
-                text.startsWith(q) -> 1
-                text.contains(q) -> 2
-                else -> -1
-            }
-            if (score != -1) {
-                matches.add(ScoredItem(item, score))
+            val text = textSelector(item)
+            if (text.equals(q, ignoreCase = true)) {
+                exactMatches.add(item)
+            } else if (text.startsWith(q, ignoreCase = true)) {
+                prefixMatches.add(item)
+            } else if (text.contains(q, ignoreCase = true)) {
+                containsMatches.add(item)
             }
         }
 
-        matches.sortBy { it.score }
-        val resultSize = matches.size.coerceAtMost(limit)
-        val result = ArrayList<T>(resultSize)
-        for (i in 0 until resultSize) {
-            result.add(matches[i].item)
+        val result = ArrayList<T>(limit.coerceAtMost(exactMatches.size + prefixMatches.size + containsMatches.size))
+        for (item in exactMatches) {
+            if (result.size >= limit) return result
+            result.add(item)
+        }
+        for (item in prefixMatches) {
+            if (result.size >= limit) return result
+            result.add(item)
+        }
+        for (item in containsMatches) {
+            if (result.size >= limit) return result
+            result.add(item)
         }
         return result
     }

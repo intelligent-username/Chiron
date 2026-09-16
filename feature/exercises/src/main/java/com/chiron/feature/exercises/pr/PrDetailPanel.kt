@@ -118,7 +118,7 @@ fun PrDetailPanel(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(filteredPrs) { pr ->
+                    items(filteredPrs, key = { "${it.exerciseId}_${it.bucket}" }) { pr ->
                         val distMeters = (pr.bucket / 100000.0).roundToHundredth()
                         val reps = (pr.bucket - distMeters * 100000.0).roundToInt()
                         val title = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
@@ -140,7 +140,7 @@ fun PrDetailPanel(
                         }
                     }
 
-                    items(prs) { pr ->
+                    items(prs, key = { "${it.exerciseId}_${it.bucket}" }) { pr ->
                         val (title, value) = when (category) {
                             PrCategory.WEIGHT_REPS -> {
                                 val reps = pr.repsInt
@@ -194,7 +194,7 @@ fun DistanceSelectorBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(end = 16.dp)
     ) {
-        items(distances) { dist ->
+        items(distances, key = { it }) { dist ->
             val isSelected = dist == selectedDistance
             Box(
                 modifier = Modifier
