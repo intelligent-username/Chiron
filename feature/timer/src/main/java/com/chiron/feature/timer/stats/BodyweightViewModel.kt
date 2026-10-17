@@ -42,6 +42,37 @@ class BodyweightViewModel(
         load()
     }
 
+    /** Ensure period end stays anchored to current day if user was viewing current week across midnight rollover. */
+    fun checkDayRollover() {
+        val current = _uiState.value
+        val today = LocalDate.now()
+        if (current.isAtCurrentWeek && current.currentPeriodEnd < today) {
+            val maxWeeks = BodyweightPointCalculator.computeMaxWeeks(earliestDate, today)
+            val clampedWeekCount = current.weekCount.coerceIn(1, maxWeeks)
+            val pts = BodyweightPointCalculator.buildPoints(
+                periodEnd = today,
+                weekCount = clampedWeekCount,
+                earliestDate = earliestDate,
+                allEntries = allEntries
+            )
+            val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
+            val windowStart = today.minusDays((clampedWeekCount * 7 - 1).toLong())
+            val isAtFirst = earliestDate == null || windowStart <= earliestDate
+
+            _uiState.update { state ->
+                state.copy(
+                    currentPeriodEnd = today,
+                    weekCount = clampedWeekCount,
+                    maxWeekCount = maxWeeks,
+                    points = pts,
+                    stats = stats,
+                    isAtFirstWeek = isAtFirst,
+                    isAtCurrentWeek = true
+                )
+            }
+        }
+    }
+
     fun setDisplayInKg(value: Boolean) {
         _uiState.update { it.copy(displayInKg = value) }
     }
@@ -252,7 +283,7 @@ class BodyweightViewModel(
 
         val current = _uiState.value
         val clampedWeekCount = current.weekCount.coerceIn(1, maxWeeks)
-        val periodEnd = current.currentPeriodEnd.coerceAtMost(today)
+        val periodEnd = if (current.isAtCurrentWeek) today else current.currentPeriodEnd.coerceAtMost(today)
 
         val pts = BodyweightPointCalculator.buildPoints(
             periodEnd = periodEnd,

@@ -54,20 +54,23 @@ fun BodyweightLogInput(
     var text by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSubmitMs by rememberSaveable { mutableStateOf(0L) }
-    var logDateIso by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    var customDateIso by rememberSaveable { mutableStateOf<String?>(null) }
     val unit = if (localInKg) "kg" else "lbs"
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
-    val selectedDate = runCatching { LocalDate.parse(logDateIso) }.getOrDefault(today)
-        .coerceAtMost(today)
-    val dateLabel = if (selectedDate == today) "Today"
+    val selectedDate = customDateIso?.let { iso ->
+        runCatching { LocalDate.parse(iso) }.getOrNull()
+    }?.coerceAtMost(today) ?: today
+    val isToday = (selectedDate == today)
+    val dateLabel = if (isToday) "Today"
         else selectedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
 
     fun showDatePicker() {
         DatePickerDialog(
             context,
             { _, year, month, dayOfMonth ->
-                logDateIso = LocalDate.of(year, month + 1, dayOfMonth).coerceAtMost(today).toString()
+                val picked = LocalDate.of(year, month + 1, dayOfMonth).coerceAtMost(today)
+                customDateIso = if (picked == today) null else picked.toString()
             },
             selectedDate.year,
             selectedDate.monthValue - 1,
@@ -94,12 +97,13 @@ fun BodyweightLogInput(
             localError = "Enter a weight between 20 and 1500 lbs"
             return
         }
-        val stampUtc = if (selectedDate == today) now
+        val stampUtc = if (isToday) now
         else selectedDate.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
         lastSubmitMs = now
         localError = null
         onLog(lbs, stampUtc)
         text = ""
+        customDateIso = null
     }
 
     Card(
@@ -120,7 +124,8 @@ fun BodyweightLogInput(
             ) {
                 IconButton(
                     onClick = {
-                        logDateIso = selectedDate.minusDays(1).toString()
+                        val prev = selectedDate.minusDays(1)
+                        customDateIso = prev.toString()
                     },
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -144,7 +149,8 @@ fun BodyweightLogInput(
 
                 IconButton(
                     onClick = {
-                        logDateIso = selectedDate.plusDays(1).coerceAtMost(today).toString()
+                        val next = selectedDate.plusDays(1).coerceAtMost(today)
+                        customDateIso = if (next == today) null else next.toString()
                     },
                     enabled = selectedDate < today,
                     modifier = Modifier.size(32.dp)
