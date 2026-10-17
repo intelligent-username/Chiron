@@ -50,15 +50,3 @@ object SearchRanker {
         return result
     }
 }
-
-/**
- * Legacy alias for [SearchRanker].
- */
-object Jaccard {
-    fun <T> rankBySimilarity(
-        query: String,
-        items: List<T>,
-        textSelector: (T) -> String,
-        limit: Int = 10
-    ): List<T> = SearchRanker.rankBySimilarity(query, items, textSelector, limit)
-}

@@ -304,7 +304,7 @@ fun BodyweightHistoryList(
                                             return@Button
                                         }
                                         if (lbs < 20.0 || lbs > 1500.0) {
-                                            editError = "Weight must be 20-1500 lbs"
+                                            editError = if (localInKg) "Weight must be 9-680 kg" else "Weight must be 20-1500 lbs"
                                             return@Button
                                         }
 

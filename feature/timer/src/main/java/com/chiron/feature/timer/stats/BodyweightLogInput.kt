@@ -94,7 +94,7 @@ fun BodyweightLogInput(
             return
         }
         if (lbs < 20.0 || lbs > 1500.0) {
-            localError = "Enter a weight between 20 and 1500 lbs"
+            localError = if (localInKg) "Enter a weight between 9 and 680 kg" else "Enter a weight between 20 and 1500 lbs"
             return
         }
         val stampUtc = if (isToday) now

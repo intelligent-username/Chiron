@@ -48,12 +48,17 @@ object BodyweightPointCalculator {
     ): LocalDate? {
         val valid = allEntries.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }
         if (valid.isEmpty()) return null
-        val minAllowed = LocalDate.now().minusYears(10)
+        val today = LocalDate.now()
+        val minAllowed = today.minusYears(10)
         val earliest = valid.minOf {
             val millis = if (it.timestampUtc in 1L..9_999_999_999L) it.timestampUtc * 1000L else it.timestampUtc
             Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
         }
-        return if (earliest.isBefore(minAllowed)) minAllowed else earliest
+        return when {
+            earliest.isBefore(minAllowed) -> minAllowed
+            earliest.isAfter(today) -> today
+            else -> earliest
+        }
     }
 
     /**
@@ -62,7 +67,11 @@ object BodyweightPointCalculator {
     fun computeMaxWeeks(earliestDate: LocalDate?, today: LocalDate = LocalDate.now()): Int {
         if (earliestDate == null) return 2
         val minDate = today.minusYears(10)
-        val clampedEarliest = if (earliestDate.isBefore(minDate)) minDate else earliestDate
+        val clampedEarliest = when {
+            earliestDate.isBefore(minDate) -> minDate
+            earliestDate.isAfter(today) -> today
+            else -> earliestDate
+        }
         val days = ChronoUnit.DAYS.between(clampedEarliest, today).toInt() + 1
         return max(2, (days + 6) / 7).coerceAtMost(520)
     }
@@ -97,6 +106,7 @@ object BodyweightPointCalculator {
         val safeEarliest = when {
             earliestDate == null -> null
             earliestDate.isBefore(minAllowed) -> minAllowed
+            earliestDate.isAfter(periodEnd) -> periodEnd
             else -> earliestDate
         }
 

@@ -314,7 +314,7 @@ class BodyweightViewModel(
 
     private fun validate(weightLbs: Double): String? = when {
         !weightLbs.isFinite() || weightLbs <= 0.0 -> "Enter a weight above 0"
-        weightLbs < 20.0 || weightLbs > 1500.0 -> "Enter a weight between 20 and 1500 lbs"
+        weightLbs < 20.0 || weightLbs > 1500.0 -> if (_uiState.value.displayInKg) "Enter a weight between 9 and 680 kg" else "Enter a weight between 20 and 1500 lbs"
         else -> null
     }
 
