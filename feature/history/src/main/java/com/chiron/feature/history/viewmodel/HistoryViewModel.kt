@@ -402,8 +402,7 @@ class HistoryViewModel(
     }
 
     fun updateSet(set: SetEntry) {
-        debounceJob?.cancel()
-        debounceJob = viewModelScope.launch { delay(debounceDelayMs); runCatching { repository.updateSet(set) } }
+        viewModelScope.launch { runCatching { repository.updateSet(set) } }
     }
 
     fun deleteSet(entryId: Long, setId: Long) {

@@ -60,11 +60,13 @@ class VolumeViewModel(
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now()
                 val minAllowedDate = today.minusYears(5)
-                val byDate = rawRows.filter { it.dateUtc > 0L }.associate { row ->
+                val byDate = HashMap<LocalDate, Double>()
+                for (row in rawRows) {
+                    if (row.dateUtc <= 0L) continue
                     val date = runCatching {
                         Instant.ofEpochMilli(row.dateUtc).atZone(zone).toLocalDate()
                     }.getOrDefault(today)
-                    date to row.volumeLbs
+                    byDate[date] = (byDate[date] ?: 0.0) + row.volumeLbs
                 }
                 allDailyVolumes = byDate
 

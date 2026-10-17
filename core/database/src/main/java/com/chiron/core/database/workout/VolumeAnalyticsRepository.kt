@@ -55,10 +55,15 @@ class VolumeAnalyticsRepository(
         val validWeights = weights.filter { it.timestampUtc > 0L }.sortedBy { it.timestampUtc }
         val validRows = rows.filter { it.dateUtc > 0L }
         val cache = validRows.map { it.dateUtc }.toSet()
-        .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, validWeights) }
+            .associateWith { day -> BodyweightResolver.getWeightForTimestamp(day, validWeights) }
         val extra = validRows.groupBy { it.dateUtc }
             .mapValues { (_, dayRows) -> dayRows.sumOf { effectiveVolume(it, cache[it.dateUtc]) } }
-        val totals = base.filter { it.dateUtc > 0L }.associate { it.dateUtc to it.volumeLbs }.toMutableMap()
+        val totals = HashMap<Long, Double>()
+        for (item in base) {
+            if (item.dateUtc > 0L) {
+                totals[item.dateUtc] = (totals[item.dateUtc] ?: 0.0) + item.volumeLbs
+            }
+        }
         for ((day, volume) in extra) totals[day] = (totals[day] ?: 0.0) + volume
         return totals.entries.sortedBy { it.key }
             .map { DailyVolume(it.key, it.value) }

@@ -328,7 +328,7 @@ fun ChironApp(
                     },
                     onOpenAddPresetDialog = { showAddPresetDialog = true },
                     onDeletePreset = { scope.launch { timerViewModel.deletePreset(it) } },
-                    onEditPreset = { scope.launch { timerViewModel.deletePreset(it) } },
+                    onEditPreset = {},
                     onDismissPresets = { isPresetsOpen = false },
                     showAddPresetDialog = showAddPresetDialog,
                     onDismissAddPreset = { showAddPresetDialog = false },
