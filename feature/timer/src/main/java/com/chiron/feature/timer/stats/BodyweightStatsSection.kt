@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
 import com.chiron.core.ui.theme.CoolGray
-import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
@@ -62,7 +61,7 @@ fun BodyweightStatsSection(
             ) {
                 Column {
                     Text(
-                        text = "CURRENT",
+                        text = "Current weight",
                         color = CoolGray,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -91,13 +90,7 @@ fun BodyweightStatsSection(
                 if (stats.change != null) {
                     val changeVal = if (localInKg) UnitConversion.lbsToKg(stats.change) else stats.change
                     val sign = if (changeVal > 0.0) "+" else ""
-                    val isPositive = changeVal > 0.0
-                    val isNeutral = kotlin.math.abs(changeVal) < 0.01
-                    val badgeColor = when {
-                        isNeutral -> CoolGray
-                        isPositive -> Color(0xFFFF7B72) // Subtle coral
-                        else -> Color(0xFF7EE787) // Subtle mint green
-                    }
+                    val badgeColor = CoolGray
 
                     Box(
                         modifier = Modifier
@@ -105,7 +98,7 @@ fun BodyweightStatsSection(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "Net: $sign${UnitConversion.formatNumber(changeVal)} $unit",
+                            text = "$sign${UnitConversion.formatNumber(changeVal)} $unit in range",
                             color = badgeColor,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -125,17 +118,17 @@ fun BodyweightStatsSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatTile(
-                    label = "AVERAGE",
+                    label = "Average",
                     value = "${fmt(stats.average)} $unit",
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    label = "LOWEST",
+                    label = "Lowest",
                     value = "${fmt(stats.min)} $unit",
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    label = "HIGHEST",
+                    label = "Highest",
                     value = "${fmt(stats.max)} $unit",
                     modifier = Modifier.weight(1f)
                 )
@@ -165,8 +158,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
             text = label,
             color = CoolGray,
             fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp
+            fontWeight = FontWeight.Medium
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(

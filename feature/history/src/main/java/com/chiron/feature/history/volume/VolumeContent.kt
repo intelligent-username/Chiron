@@ -33,6 +33,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.ui.components.WeekNavigator
+import com.chiron.core.ui.theme.CoolGray
+import com.chiron.core.ui.theme.MonospaceFamily
+import com.chiron.core.ui.theme.SolidSlate
+import com.chiron.core.ui.theme.ThinOutline
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -99,7 +103,7 @@ fun VolumeContent(
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Abridge Gaps", fontSize = 14.sp, color = Color(0xFF8B949E))
+            Text("Abridge gaps", fontSize = 14.sp, color = CoolGray)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -107,21 +111,31 @@ fun VolumeContent(
         // ── Graph card ────────────────────────────────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+            colors = CardDefaults.cardColors(containerColor = SolidSlate),
             shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, Color(0xFF30363D))
+            border = BorderStroke(1.dp, ThinOutline)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // Total Volume in top right
-                Box(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Volume trend",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    )
                     Text(
                         text = "${totalVolume.formatVolume(displayInKg)} $unit",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        modifier = Modifier.align(Alignment.TopEnd)
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = MonospaceFamily,
+                        fontSize = 14.sp
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
                     Box(
@@ -160,7 +174,7 @@ fun VolumeContent(
                     ) {
                         Text(
                             text = "Range: ${state.weekCount} weeks (${state.weekCount * 7} days)",
-                            color = Color(0xFF8B949E),
+                            color = CoolGray,
                             fontSize = 12.sp
                         )
                     }
@@ -171,7 +185,7 @@ fun VolumeContent(
                             valueRange = 2f..maxWeeks.toFloat(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(24.dp)
+                                .height(48.dp)
                         )
                     }
                 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
 import com.chiron.core.ui.theme.CoolGray
+import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import kotlin.math.roundToInt
@@ -43,22 +44,28 @@ fun BodyweightGraphCard(
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, ThinOutline)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Box(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 val current = state.stats.current
                 val currentDisplay = if (current != null) {
                     val v = if (localInKg) UnitConversion.lbsToKg(current) else current
                     "${UnitConversion.formatNumber(v)} $unit"
                 } else "-- $unit"
 
+                Column {
+                    Text(text = "Weight trend", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "Touch chart to inspect", color = CoolGray, fontSize = 12.sp)
+                }
                 Text(
                     text = currentDisplay,
                     color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.align(Alignment.TopEnd)
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = MonospaceFamily,
+                    fontSize = 16.sp
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             if (state.points.isEmpty() || state.points.all { it.weightLbs == 0.0 }) {
                 Box(
@@ -81,7 +88,7 @@ fun BodyweightGraphCard(
                     mode = state.mode,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
+                        .height(260.dp)
                 )
             }
 
@@ -114,7 +121,7 @@ fun BodyweightGraphCard(
                     valueRange = 1f..maxWeeks.toFloat(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp)
+                        .height(48.dp)
                 )
             }
         }

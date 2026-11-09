@@ -74,7 +74,7 @@ fun BodyweightLineGraph(
 
     val stepCandidates = doubleArrayOf(0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0)
     val targetStep = rawSpan / 4.0
-    val niceStep = stepCandidates.firstOrNull { it >= targetStep } ?: 10.0
+    val niceStep = stepCandidates.firstOrNull { it >= targetStep } ?: ceil(targetStep / 50.0) * 50.0
 
     val niceMin = floor(rawMin / niceStep) * niceStep
     var niceMax = ceil(rawMax / niceStep) * niceStep
@@ -82,7 +82,7 @@ fun BodyweightLineGraph(
         niceMax = niceMin + niceStep * 2
     }
 
-    val tickCount = ((niceMax - niceMin) / niceStep).roundToInt().coerceIn(2, 6)
+    val tickCount = ((niceMax - niceMin) / niceStep).roundToInt().coerceAtLeast(1)
     val ticks = remember(niceMin, niceMax, niceStep, tickCount) {
         (0..tickCount).map { niceMin + it * niceStep }
     }
@@ -119,6 +119,7 @@ fun BodyweightLineGraph(
             } else null
         }
     }
+    val axisWidth = (measuredTicks.maxOfOrNull { it.second.size.width } ?: 0).toFloat()
 
     val linePath = remember { Path() }
 
@@ -126,7 +127,7 @@ fun BodyweightLineGraph(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(points) {
+                .pointerInput(points, axisWidth) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = true)
                         down.consume()
@@ -138,9 +139,9 @@ fun BodyweightLineGraph(
                                 hoveredX = null
                                 val dist = (change.position - down.position).getDistance()
                                 if (dist < 20f && points.isNotEmpty()) {
-                                    val padLeft = 105f
-                                    val padRight = 16f
-                                    val plotInsetX = 14f
+                                    val padLeft = axisWidth + 12.dp.toPx()
+                                    val padRight = 8.dp.toPx()
+                                    val plotInsetX = 8.dp.toPx()
                                     val plotLeft = padLeft + plotInsetX
                                     val plotW = (size.width - padLeft - padRight - plotInsetX * 2f).coerceAtLeast(1f)
                                     onPointTap(nearestPoint(points, down.position.x, plotLeft, plotW))
@@ -153,16 +154,16 @@ fun BodyweightLineGraph(
                     }
                 }
         ) {
-            val padLeft = 105f
-            val padRight = 16f
-            val padTop = 22f
-            val padBottom = 38f
+            val padLeft = axisWidth + 12.dp.toPx()
+            val padRight = 8.dp.toPx()
+            val padTop = 12.dp.toPx()
+            val padBottom = 24.dp.toPx()
             val graphW = size.width - padLeft - padRight
             val graphH = size.height - padTop - padBottom
 
             // Insets inside the grid area so points don't overflow the axes
-            val plotInsetX = 14f
-            val plotInsetY = 10f
+            val plotInsetX = 8.dp.toPx()
+            val plotInsetY = 0f
             val plotLeft = padLeft + plotInsetX
             val plotW = (graphW - plotInsetX * 2f).coerceAtLeast(1f)
             val plotTop = padTop + plotInsetY
@@ -172,7 +173,7 @@ fun BodyweightLineGraph(
             if (points.isEmpty()) return@Canvas
 
             drawLine(linePath, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
-            drawDots(measuredPointLabels, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor)
+            drawDots(measuredPointLabels, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor, tipBg)
             hoveredX?.let { hx ->
                 drawTooltip(
                     textMeasurer, hx, points, localInKg, unit, maxW, minW, animProgress,
@@ -213,7 +214,7 @@ private fun DrawScope.drawGrid(
             color = gridColor.copy(alpha = 0.5f),
             start = Offset(padLeft, y),
             end = Offset(size.width - padRight, y),
-            strokeWidth = 0.5.dp.toPx()
+            strokeWidth = 1.dp.toPx()
         )
         drawText(
             textLayoutResult = layout,
@@ -221,21 +222,6 @@ private fun DrawScope.drawGrid(
         )
     }
 
-    // Explicit Y-axis line separating labels from data area
-    drawLine(
-        color = gridColor,
-        start = Offset(padLeft, padTop),
-        end = Offset(padLeft, padTop + graphH),
-        strokeWidth = 1.dp.toPx()
-    )
-
-    // Explicit X-axis bottom baseline
-    drawLine(
-        color = gridColor,
-        start = Offset(padLeft, padTop + graphH),
-        end = Offset(size.width - padRight, padTop + graphH),
-        strokeWidth = 1.dp.toPx()
-    )
 }
 
 private fun DrawScope.drawLine(
@@ -256,11 +242,22 @@ private fun DrawScope.drawLine(
 
     path.rewind()
     path.moveTo(xOf(0), yOf(points[0].weightLbs))
-    for (i in 1 until n) {
-        val mid = (xOf(i - 1) + xOf(i)) / 2f
-        path.cubicTo(mid, yOf(points[i - 1].weightLbs), mid, yOf(points[i].weightLbs), xOf(i), yOf(points[i].weightLbs))
+    // Monotone tangents keep the line smooth without inventing peaks between measurements.
+    fun tangent(i: Int): Float {
+        if (i == 0 || i == n - 1) return 0f
+        val before = yOf(points[i].weightLbs) - yOf(points[i - 1].weightLbs)
+        val after = yOf(points[i + 1].weightLbs) - yOf(points[i].weightLbs)
+        return if (before * after <= 0f) 0f else 2f * before * after / (before + after)
     }
-    drawPath(path, color = color, style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    for (i in 1 until n) {
+        val startX = xOf(i - 1)
+        val endX = xOf(i)
+        val third = (endX - startX) / 3f
+        val startY = yOf(points[i - 1].weightLbs)
+        val endY = yOf(points[i].weightLbs)
+        path.cubicTo(startX + third, startY + tangent(i - 1) / 3f, endX - third, endY - tangent(i) / 3f, endX, endY)
+    }
+    drawPath(path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 private fun yRatio(w: Double, maxW: Double, minW: Double): Float {
@@ -282,25 +279,29 @@ private fun DrawScope.drawDots(
     padRight: Float,
     padTop: Float,
     graphH: Float,
-    dotColor: Color
+    dotColor: Color,
+    dotBackground: Color
 ) {
     val n = points.size
+    var lastLabelEnd = Float.NEGATIVE_INFINITY
     points.forEachIndexed { i, p ->
         val x = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
         val y = plotTop + plotH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
 
         if (p.weightLbs > 0.0 && p.isActualInput) {
-            // Prominent dots for actual logged weigh-ins inside plot bounds
-            drawCircle(color = dotColor.copy(alpha = 0.25f), radius = 7.5f, center = Offset(x, y))
-            drawCircle(color = dotColor, radius = 5f, center = Offset(x, y))
-            drawCircle(color = Color.White, radius = 2f, center = Offset(x, y))
+            drawCircle(color = dotBackground, radius = 4.dp.toPx(), center = Offset(x, y))
+            drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = Offset(x, y))
         }
 
         val measured = measuredLabels.getOrNull(i)
         if (measured != null) {
             // Clamp X-axis label so it stays nicely bounded
-            val labelX = (x - measured.size.width / 2f).coerceIn(padLeft, size.width - padRight - measured.size.width)
-            drawText(measured, topLeft = Offset(labelX, padTop + graphH + 8f))
+            val maxLabelX = (size.width - padRight - measured.size.width).coerceAtLeast(padLeft)
+            val labelX = (x - measured.size.width / 2f).coerceIn(padLeft, maxLabelX)
+            if (labelX >= lastLabelEnd + 12.dp.toPx()) {
+                drawText(measured, topLeft = Offset(labelX, padTop + graphH + 6.dp.toPx()))
+                lastLabelEnd = labelX + measured.size.width
+            }
         }
     }
 }
@@ -352,8 +353,8 @@ private fun DrawScope.drawTooltip(
     val dateStr = Instant.ofEpochMilli(p.timestampUtc).atZone(ZoneId.systemDefault())
         .format(BodyweightTooltipDateFormatter)
     val displayWeight = if (localInKg) UnitConversion.lbsToKg(p.weightLbs) else p.weightLbs
-    val statusTag = if (p.isActualInput) " (Logged)" else " (Est)"
-    val text = "$dateStr: ${UnitConversion.formatNumber(displayWeight)} $unit$statusTag"
+    val statusTag = if (p.isActualInput) "Logged" else "Estimated"
+    val text = "$dateStr\n${UnitConversion.formatNumber(displayWeight)} $unit · $statusTag"
     val layout = measurer.measure(
         text,
         TextStyle(color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = MonospaceFamily)
@@ -362,7 +363,7 @@ private fun DrawScope.drawTooltip(
     val th = layout.size.height.toFloat()
     val pad = 10f
 
-    val tx = (px - tw / 2f).coerceIn(padLeft, size.width - padRight - tw)
+    val tx = (px - tw / 2f).coerceIn(pad, (size.width - pad - tw).coerceAtLeast(pad))
     val ty = if (py - th - pad * 2 - 12f >= 0f) {
         py - th - pad - 12f
     } else {

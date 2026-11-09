@@ -1,12 +1,7 @@
 package com.chiron.feature.timer
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
@@ -76,25 +70,9 @@ fun CountdownContent(
                 label = "progress"
             )
 
-            val strokeWidthProgressDp = if (state.isCountdownRunning) {
-                val infiniteTransition = rememberInfiniteTransition(label = "circlePulse")
-                val pulseWidthAnimated by infiniteTransition.animateFloat(
-                    initialValue = 4f,
-                    targetValue = 6f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1500, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "width"
-                )
-                pulseWidthAnimated.dp
-            } else {
-                5.dp
-            }
-
             Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                val strokeWidthTrack = 2.dp.toPx()
-                val strokeWidthProgress = strokeWidthProgressDp.toPx()
+                val strokeWidthTrack = 4.dp.toPx()
+                val strokeWidthProgress = 4.dp.toPx()
 
                 // Track (thin and semi-transparent)
                 drawArc(
@@ -156,10 +134,7 @@ fun CountdownContent(
                     )
                 }
             } else {
-                PulsingCountdownText(
-                    countdownRemaining = state.countdownRemaining,
-                    isRunning = state.isCountdownRunning
-                )
+                CountdownText(countdownRemaining = state.countdownRemaining)
             }
         }
 
@@ -178,7 +153,7 @@ fun CountdownContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                "Constant Cycling",
+                "Repeat timer",
                 style = MaterialTheme.typography.titleMedium,
                 color = CoolGray
             )
@@ -187,56 +162,15 @@ fun CountdownContent(
 }
 
 @Composable
-private fun PulsingCountdownText(
-    countdownRemaining: Int,
-    isRunning: Boolean
-) {
+private fun CountdownText(countdownRemaining: Int) {
     val text = remember(countdownRemaining) { TimerViewModel.formatCountdown(countdownRemaining) }
-
-    if (isRunning) {
-        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        val pulseScale by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.05f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1000, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "scale"
+    Text(
+        text = text,
+        style = MaterialTheme.typography.displayLarge.copy(
+            fontSize = 72.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = (-1).sp
         )
-        val pulseAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.8f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "alpha"
-        )
-
-        Text(
-            text = text,
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = 80.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = (-1).sp
-            ),
-            modifier = Modifier.graphicsLayer {
-                scaleX = pulseScale
-                scaleY = pulseScale
-                alpha = pulseAlpha
-            }
-        )
-    } else {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = 80.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = (-1).sp
-            )
-        )
-    }
+    )
 }

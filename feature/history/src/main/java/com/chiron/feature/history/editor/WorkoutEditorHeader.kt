@@ -93,7 +93,7 @@ fun WorkoutEditorHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // Row 1: Workout name + action buttons
         Row(
@@ -105,9 +105,10 @@ fun WorkoutEditorHeader(
 
             Text(
                 text = editableDayTag.ifBlank { "Untitled Workout" },
-                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                 modifier = Modifier
                     .weight(1f)
+                    .padding(end = 8.dp)
                     .clickable(enabled = isEditable) { showNameDialog = true }
             )
 
@@ -156,7 +157,7 @@ fun WorkoutEditorHeader(
                         Icon(
                             Icons.Outlined.ContentCopy,
                             "Duplicate Workout",
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = onShowDeleteDialog) {
@@ -179,7 +180,7 @@ fun WorkoutEditorHeader(
 
         // Row 2: Date + Location
         Row(
-            modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -311,7 +312,7 @@ fun WorkoutEditorHeader(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
                     focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = ThinOutline,
                     cursorColor = ElectricBlue,
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
