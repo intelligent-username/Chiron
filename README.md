@@ -1,78 +1,102 @@
 # Chiron
 
+[![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
+[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/intelligent-username/Chiron?label=release)](https://github.com/intelligent-username/Chiron/releases/latest)
+
+[Features](#features) · [Special features](#special-features) · [Build](#compilation--build) · [License](#license)
+
 ![Cover Image](imgs/Cover.png)
 
-Chiron is a high-speed, customizable, and feature-rich workout tracker designed to eliminate the bloat, forced recommendations, rigid constraints, and invasive tracking found in modern fitness apps. Built with Jetpack Compose and an offline-first Room architecture, Chiron offers deep customization for traditional lifting, calisthenics, cadence training, and complex volume metrics.
+Chiron is a high-speed, customizable, and feature-rich workout tracker designed to eliminate the bloat, forced recommendations, rigid constraints, and invasive tracking found in modern fitness apps.
+
+I built this app with Jetpack Compose and an offline-first Room architecture.
+
+The app offers deep customization for traditional lifting, calisthenics, cadence training, and complex volume metrics, containing basically every feature that I personally need.
 
 Download the latest version from the [releases tab](https://github.com/intelligent-username/Chiron/releases).
 
 ---
 
-## The Three Core Tabs
+## Features
 
-![Screenshots](imgs/demos.webp)
+### The Three Core Tabs
 
-Chiron is organized into three primary tabs, each featuring dedicated sub-modes:
+![Screenshots](imgs/banner1.webp)
 
-### 1. History Tab (Workout Tracking & Volume Analytics)
+#### 1. History
 
-The central hub for logging workouts in real time, reviewing past sessions, and analyzing training volume:
+* Create, review, duplicate, and archive workouts.
+* Add exercises and sets, including supersets.
+  * Track by weight, time, reps, distance, and/or bodyweight.
+* Edit workout details and open linked exercise records.
+  * Keep track of the exact workout duration, including editing the start and end times.
+  * Keep track of where you performed the workout, including editing the location retroactively.
+* See the exact performance of an exercise from the last workout it was performed in.
+* Link directly to exercise PRs
 
-*   **Session Logger & Editor:** Dynamically compose workouts containing individual exercises, sets, reps, weight, distance, and duration.
-*   **Supersets & Dropsets:** Link consecutive exercises into functional supersets or dropsets with a connected visual UI.
-*   **Performance Comparison:** View your "Previous" performance directly within each card to see exactly what numbers you need to match or beat.
-*   **Workout Management:** Duplicate routines, reorder sets, or filter past sessions by exercise or date.
-*   **Volume Analytics (Sub-View):** Tap the Volume icon in the top bar to toggle comprehensive training volume charts:
-    *   *Adaptive Date Windows:* View volume across 7, 14, 30, or up to 90 days (or one-third of your total workout history), automatically capped to your first recorded workout.
-    *   *Even-Rounded Y-Axis Ticks:* Dynamic Y-axis scale rounds cleanly to thousands or half-thousands for intuitive readability.
-    *   *Interactive Navigation:* Tap any volume bar to jump directly into that day's workout log.
+#### 2. Exercises
 
-### 2. Exercises Tab (Exercise Directory, PRs & Goals)
+* Search, create, edit, and archive exercises.
+* Configure wether the exericse is by weight, reps, time, distance, or bodyweight (including what percentage of bodyweight it uses).
+* View personal records and exercise volume history.
 
-A fast, searchable catalog for managing movements, checking personal records, and setting milestones:
+#### 3. Timer
 
-*   **Categorical PR Tracking:** Automatic PR detection across 5 distinct exercise categories:
-    *   *Weight & Reps:* Tracks peak weight per repetition count with integrated 1RM estimation formulas.
-    *   *Time & Weight:* Longest hold duration achieved for a given load (e.g. weighted planks, deadhangs).
-    *   *Distance & Weight (Rep-Based):* Tracks weight achieved for specific distance/repetition buckets.
-    *   *Distance & Weight (Non-Rep):* Tracks longest distance achieved per weight (e.g. farmer carries).
-    *   *Distance & Time:* Fastest duration achieved for a given distance.
-*   **Interactive PR Details & Filter Pills:** High-fidelity PR view with horizontal sliding category pills (e.g. box jump heights).
-*   **Exercise-Specific Volume History:** Each exercise detail screen features a dedicated volume graph spanning from the first logged session to the present day, calculating volume for both weight/rep and time-based movements.
-*   **Custom Exercise Creator & 100+ SVG Icons:** Build custom exercises with full control over tracking dimensions (weight, reps, time, distance, bodyweight percentage). Choose from a built-in library of 100+ custom SVG icons.
-*   **Goals Mode (Sub-View):** Tap the Goals icon to manage long-term strength and endurance targets, complete with target completion dates, milestones, and linked exercises.
+* Run a countdown timer with optional repeats and presets.
+* Use a stopwatch with laps.
+  * Track fastest/slowest lap times.
+* Set a metronome tempo.
+  * Set a custom cadence.
+  * Choose 1 of 3 soudn effects.
 
-### 3. Timer & Tools Tab (Intervals, Metronome & Bodyweight)
+### The Three Sub-tabs
 
-Pacing and biometric tracking utilities built directly into your workflow:
+![More Screenshots](imgs/banner2.webp)
 
-*   **Interval Timer & Stopwatch:** Multi-mode timers featuring customizable preset sheets, quick-increment shortcuts, and background countdown alerts.
-*   **Metronome:** Interactive pendulum metronome for pacing cadence and tempo work, backed by multiple tick audio profiles.
-*   **Bodyweight Stats (Sub-View):** Tap the header to open the Bodyweight tracking suite:
-    *   *Weigh-In Logs:* Record bodyweight entries with timestamps, notes, and flexible units (kg/lbs).
-    *   *Gap-Abridged Trend Graph:* Interactive trend chart that eliminates artificial zero-points, featuring nicely rounded scale ticks (nearest 0.25, 0.5, or 1.0 kg/lb).
-    *   *Inline Editing & Deletion:* Edit past weigh-in values or delete records directly from the history list.
-*   **Flexible Bodyweight Importer:** Import weight logs from plain text files with customizable delimiters (spaces, tabs, commas, pipes), date format detection, live row preview, and idempotent upserts.
+Tap the title of each tab (at the top or bottom) to access its corresponding sub-tab. Tap again to switch back.
+
+These tabs are just for 'add-on' tracking, things that you don't strictly need to exercise well, but are useful for broadly tacking your progress.
+
+#### Volume
+
+* View training volume by day or week.
+* Adjust the range, navigate periods, and inspect chart points.
+* View weekly, rolling, and all-time summaries.
+
+#### Goals
+
+* Create weekly activity goals linked to exercises.
+* Review progress by day and week.
+* Edit, archive, or delete goals.
+
+#### Stats
+
+* Log, edit, import, and delete bodyweight entries.
+* View a weight trend and navigate date ranges.
+* See current, average, lowest, and highest weight.
 
 ---
 
 ## Special Features
 
-*   **Offline Spotify Mini-Player:** A floating mini-player bar communicating locally with the on-device Spotify app via IPC. Includes gesture-driven expansion, animated wave seek bar, and **dynamic UI color shifting** that extracts dominant colors from the current album art to tint the entire app theme.
-*   **Dynamic Bodyweight Volume Pipeline:** Exercises flagged with a bodyweight percentage (e.g., Pull-ups at 100%, Push-ups at 60%, Sit-ups at 50%, Dips at 100%) dynamically compute:
-    $$\text{Effective Load} = (\text{Bodyweight}_{\text{date}} \times \%) + \text{Added Load}$$
-    Past volume history recalculates reactively when weigh-ins are added or edited, treating the set weight field as added external load (e.g., weighted vest/belt).
-*   **Volume Estimation Formulas:**
-    *   *Reps + Weight:* $\text{Effective Weight} \times \text{Reps}$
-    *   *Distance + Reps + Weight:* $\text{Effective Weight} \times \text{Reps} \times (\text{Distance} \times 2.0)$
-    *   *Distance + Weight:* $\text{Effective Weight} \times \frac{\text{Distance}}{5.0}$
-    *   *Time + Weight:* $\text{Effective Weight} \times \frac{\text{Duration}}{3.0}$
-*   **Import / Export:** Full JSON backup and recovery tools to export or restore all workout history, exercise configurations, and weight logs offline.
-*   **Unit Preferences:** Seamless live conversion between Metric (kg, meters) and Imperial (lbs, feet/inches).
+* Personal record tracking for exercises.
+* Bodyweight percentages for exercise tracking.
+* Spotify playback controls if you have the Spotify app installed and turn the setting on.
+* Customizing earbuds actions when the metronome is on (example double tap to skip song, single tap to pause the metronome).
+* ZIP backup export and import for app data and exercise assets.
+* Bodyweight import from pasted text or a file.
+* Weight and distance unit preferences.
 
 ---
 
-## <img src="imgs/Logo.png" width="16" height="16" style="border-radius: 50%"> Compilation & Build
+## Compilation & Build
+
+Now we get to building the app💪💪.
+
+If you're a developer looking to customize it your steps, follow these instructions:
+
 
 ### Prerequisites
 *   [JDK 17+](https://www.oracle.com/java/technologies/downloads/)
@@ -100,10 +124,17 @@ To assemble an optimized, minified release APK:
 The resulting release APK will be located at:
 `app\build\outputs\apk\release\Chiron-release.apk`
 
-For official release binaries, visit the [GitHub Releases](https://github.com/intelligent-username/Chiron/releases).
+For OFFICIAL release binaries (built by me), visit the [GitHub Releases](https://github.com/intelligent-username/Chiron/releases) tab.
+
+Note that you cannot download one of these official releases and then modify the source code and recompile it to get the same APK. In other words, if you download from the official release and make your own build, when you install your own build it will be a separate app from the official release, and you will not be updating the official release with your own build. As a result, you will have two copies of the app on your device that do not share any data.
+
+This happens because the official release is signed with my private key for security reasons. However, if you do want to try this, you can simply build your own release anyway and then export your data from the official app and import it into your own build. You can also try submitting a [Pull Request](https://github.com/intelligent-username/Chiron/pulls) to the official GitHub if you want to contribute to the project :). 
+
 
 ---
 
 ## License
 
 This project is licensed under the Apache 2.0 License.
+
+<img src="imgs/Logo.png" width="64" height="64" style="border-radius: 50%"> 
