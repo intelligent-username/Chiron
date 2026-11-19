@@ -94,7 +94,7 @@ fun MiniPlayerBar(
         buildAnnotatedString {
             when {
                 needsAuthFlow -> append("Spotify: Needs Authorization (Tap to login)")
-                connectionError != null -> { append("Spotify: "); append(connectionError); append(" (Tap to retry)") }
+                connectionError != null -> { append(connectionError); append(" (Tap to retry)") }
                 isConnecting -> append("Connecting to Spotify…")
                 isConnected && track == null -> append("Nothing playing in Spotify")
                 else -> append("Spotify: Disconnected (Tap to connect)")
@@ -759,4 +759,3 @@ fun RepeatIcon(
         }
     }
 }
-

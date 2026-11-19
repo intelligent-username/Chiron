@@ -214,13 +214,15 @@ fun WorkoutEditor(
             focusManager = focusManager
         )
 
-        FloatingActionButton(
-            onClick = { if (isEditable) showAddExerciseDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, "Add Exercise")
+        if (isEditable) {
+            FloatingActionButton(
+                onClick = { showAddExerciseDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, "Add Exercise")
+            }
         }
 
         UndoSnackbar(

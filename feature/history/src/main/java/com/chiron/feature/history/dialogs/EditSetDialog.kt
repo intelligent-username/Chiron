@@ -47,6 +47,8 @@ fun EditSetDialog(
     val hasReps     = exercise.isRepBased == 1
     val hasTime     = exercise.isTimeBased == 1
     val hasDist     = exercise.isDistanceBased == 1
+    val wasPlaceholder = set.weightLbs == null && set.reps == null &&
+            set.durationSeconds == null && set.distanceMeters == null
 
     // Initialise fields from set values, converting to display units for the UI
     val weightLbs = set.weightLbs
@@ -96,7 +98,7 @@ fun EditSetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Set") },
+        title = { Text(if (wasPlaceholder) "Add Set" else "Edit Set") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasWeight) {
@@ -141,10 +143,6 @@ fun EditSetDialog(
             TextButton(
                 onClick = {
                     if (!validate()) return@TextButton
-
-                    // Determine if this was previously a placeholder
-                    val wasPlaceholder = set.weightLbs == null && set.reps == null &&
-                            set.durationSeconds == null && set.distanceMeters == null
 
                     val weightLbs = weightField.toDoubleOrNull()?.let {
                         if (displayInKg) UnitConversion.kgToLbs(it) else it

@@ -150,7 +150,7 @@ object SpotifyManager {
                     _connectionError.value = "Needs Authorization"
                     _needsAuthFlow.value = true
                 } else {
-                    _connectionError.value = error.message ?: "Unknown connection error"
+                    _connectionError.value = "Failed to connect to Spotify"
                 }
 
                 appRemote = null
