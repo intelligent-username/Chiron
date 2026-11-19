@@ -283,14 +283,19 @@ private fun DrawScope.drawDots(
     dotBackground: Color
 ) {
     val n = points.size
+    // Shrink crowded daily markers, but keep a visible minimum at wide time scales.
+    val pointSpacing = plotW / (n - 1).coerceAtLeast(1)
+    val dotScale = (pointSpacing / 16.dp.toPx()).coerceIn(0.6f, 1f)
+    val backgroundRadius = 4.dp.toPx() * dotScale
+    val dotRadius = 2.5.dp.toPx() * dotScale
     var lastLabelEnd = Float.NEGATIVE_INFINITY
     points.forEachIndexed { i, p ->
         val x = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
         val y = plotTop + plotH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
 
         if (p.weightLbs > 0.0 && p.isActualInput) {
-            drawCircle(color = dotBackground, radius = 4.dp.toPx(), center = Offset(x, y))
-            drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = Offset(x, y))
+            drawCircle(color = dotBackground, radius = backgroundRadius, center = Offset(x, y))
+            drawCircle(color = dotColor, radius = dotRadius, center = Offset(x, y))
         }
 
         val measured = measuredLabels.getOrNull(i)

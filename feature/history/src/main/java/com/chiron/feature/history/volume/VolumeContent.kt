@@ -1,5 +1,11 @@
 package com.chiron.feature.history
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,7 +143,17 @@ fun VolumeContent(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
+                AnimatedContent(
+                    targetState = state,
+                    contentKey = { Triple(it.currentWeekStart, it.mode, it.weekCount) },
+                    transitionSpec = {
+                        val direction = if (targetState.currentWeekStart < initialState.currentWeekStart) -1 else 1
+                        slideInHorizontally(tween(220)) { direction * it } togetherWith
+                            slideOutHorizontally(tween(220)) { -direction * it }
+                    },
+                    label = "volumeWindow"
+                ) { window ->
+                if (window.points.isEmpty() || window.points.all { it.volumeLbs == 0.0 }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -153,14 +169,16 @@ fun VolumeContent(
                     }
                 } else {
                     VolumeLineGraph(
-                        points = state.points,
+                        points = window.points,
                         displayInKg = displayInKg,
-                        mode = state.mode,
+                        mode = window.mode,
+                        animateEntry = false,
                         onPointTap = onPointTap,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
                     )
+                }
                 }
 
                 if (state.mode == VolumeMode.BY_WEEK) {

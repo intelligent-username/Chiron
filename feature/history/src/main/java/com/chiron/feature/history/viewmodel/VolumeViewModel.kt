@@ -154,6 +154,7 @@ class VolumeViewModel(
             state.copy(
                 mode = mode,
                 currentWeekStart = clampedWeek,
+                navigationAnchorWeek = clampedWeek,
                 points = buildPoints(mode, clampedWeek, state.weekCount, state.abridgeGaps),
                 isAtFirstWeek = clampedWeek <= minWeek,
                 isAtCurrentWeek = isCurrentWeek(clampedWeek)
@@ -174,6 +175,7 @@ class VolumeViewModel(
             state.copy(
                 weekCount = clampedCount,
                 currentWeekStart = clampedWeek,
+                navigationAnchorWeek = clampedWeek,
                 points = buildPoints(state.mode, clampedWeek, clampedCount, state.abridgeGaps),
                 isAtFirstWeek = clampedWeek <= minWeek,
                 isAtCurrentWeek = isCurrentWeek(clampedWeek)
@@ -186,7 +188,10 @@ class VolumeViewModel(
             val minWeek = minWeekStart(state.mode, state.weekCount)
             if (state.currentWeekStart <= minWeek) return@update state
             val step = if (state.mode == VolumeMode.BY_DAY) 1 else state.weekCount
-            val candidateWeek = state.currentWeekStart.minusWeeks(step.toLong())
+            val offset = ChronoUnit.WEEKS.between(state.navigationAnchorWeek, state.currentWeekStart)
+            // Fixed pages preserve the return path after a shortened boundary step.
+            val page = Math.floorDiv(offset - 1, step.toLong())
+            val candidateWeek = state.navigationAnchorWeek.plusWeeks(page * step)
             val newWeek = if (candidateWeek < minWeek) minWeek else candidateWeek
             state.copy(
                 currentWeekStart = newWeek,
@@ -202,7 +207,9 @@ class VolumeViewModel(
             val todayWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
             if (state.currentWeekStart >= todayWeek) return@update state
             val step = if (state.mode == VolumeMode.BY_DAY) 1 else state.weekCount
-            val candidateWeek = state.currentWeekStart.plusWeeks(step.toLong())
+            val offset = ChronoUnit.WEEKS.between(state.navigationAnchorWeek, state.currentWeekStart)
+            val page = Math.floorDiv(offset, step.toLong()) + 1
+            val candidateWeek = state.navigationAnchorWeek.plusWeeks(page * step)
             val newWeek = if (candidateWeek > todayWeek) todayWeek else candidateWeek
             val minWeek = minWeekStart(state.mode, state.weekCount)
             state.copy(

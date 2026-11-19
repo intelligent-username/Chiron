@@ -28,6 +28,7 @@ data class VolumeUiState(
     val mode: VolumeMode = VolumeMode.BY_DAY,
     /** Sunday of the currently displayed week (day mode) */
     val currentWeekStart: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY)),
+    val navigationAnchorWeek: LocalDate = currentWeekStart,
     /** Points to render on the graph for the current view */
     val points: List<VolumePoint> = emptyList(),
     val displayInKg: Boolean = false,

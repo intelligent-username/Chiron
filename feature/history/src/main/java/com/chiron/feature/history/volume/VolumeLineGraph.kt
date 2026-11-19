@@ -47,10 +47,11 @@ fun VolumeLineGraph(
     displayInKg: Boolean,
     mode: VolumeMode,
     onPointTap: (VolumePoint) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animateEntry: Boolean = true
 ) {
     // Animate in on first composition
-    var triggered by remember { mutableStateOf(false) }
+    var triggered by remember { mutableStateOf(!animateEntry) }
     val animProgress by animateFloatAsState(
         targetValue = if (triggered) 1f else 0f,
         animationSpec = tween(durationMillis = 700),
