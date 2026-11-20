@@ -22,6 +22,7 @@ class UserSettingsRepository(private val context: Context) {
 
     companion object {
         private val DISPLAY_IN_KG = booleanPreferencesKey("display_in_kg")
+        private val SHOW_WORKOUT_VOLUME = booleanPreferencesKey("show_workout_volume")
         private val CUSTOM_LOCATIONS = stringSetPreferencesKey("custom_locations")
         private val SPOTIFY_ENABLED = booleanPreferencesKey("spotify_enabled")
         private val MATCH_THEME_WITH_MEDIA = booleanPreferencesKey("match_theme_with_media")
@@ -42,6 +43,16 @@ class UserSettingsRepository(private val context: Context) {
     suspend fun setDisplayInKg(value: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[DISPLAY_IN_KG] = value
+        }
+    }
+
+    val showWorkoutVolumeFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[SHOW_WORKOUT_VOLUME] ?: false
+    }
+
+    suspend fun setShowWorkoutVolume(value: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[SHOW_WORKOUT_VOLUME] = value
         }
     }
 

@@ -180,7 +180,13 @@ fun HistoryScreen(
             ) {
                 items(filteredWorkouts, key = { it.id }) { workout ->
                     Box {
-                        WorkoutCard(workout = workout, onClick = { viewModel.openEditor(workout.id) }, onLongClick = { expandedWorkoutId = workout.id })
+                        WorkoutCard(
+                            workout = workout,
+                            onClick = { viewModel.openEditor(workout.id) },
+                            onLongClick = { expandedWorkoutId = workout.id },
+                            volumeLbs = if (state.showWorkoutVolume) state.workoutVolumesLbs[workout.id] ?: 0.0 else null,
+                            displayInKg = state.displayInKg
+                        )
                         DropdownMenu(expanded = expandedWorkoutId == workout.id, onDismissRequest = { expandedWorkoutId = null }) {
                             if (state.showArchivedWorkouts) {
                                 DropdownMenuItem(text = { Text("Unarchive") }, onClick = { expandedWorkoutId = null; viewModel.unarchiveWorkout(workout.id) })

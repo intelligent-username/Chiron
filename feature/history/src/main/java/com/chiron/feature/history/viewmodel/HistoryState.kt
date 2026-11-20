@@ -16,6 +16,8 @@ data class HistoryUiState(
     val isEditorOpen: Boolean = false,
     val editingWorkoutId: Long? = null,
     val displayInKg: Boolean = false,
+    val showWorkoutVolume: Boolean = false,
+    val workoutVolumesLbs: Map<Long, Double> = emptyMap(),
     val distanceUnit: DistanceUnit = DistanceUnit.METERS
 )
 

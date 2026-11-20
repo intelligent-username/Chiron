@@ -67,6 +67,29 @@ interface VolumeAnalyticsDao {
     """)
     fun getVolumeSummaryByDayForExerciseFlow(exerciseId: Long): Flow<List<DailyVolume>>
 
+    /** Individual workout totals, including archived workouts, without changing daily analytics. */
+    @Query("""
+        SELECT w.id AS workoutId,
+               COALESCE(SUM(s.weight_lbs * (
+                   CASE
+                       WHEN ex.is_distance_based = 1 AND ex.is_rep_based = 1 AND s.distance_meters IS NOT NULL AND s.reps IS NOT NULL THEN s.reps * (s.distance_meters * 2.0)
+                       WHEN ex.is_distance_based = 1 AND s.distance_meters IS NOT NULL THEN s.distance_meters / 5.0
+                       WHEN ex.is_time_based = 1 AND s.duration_seconds IS NOT NULL THEN s.duration_seconds / 3.0
+                       WHEN s.reps IS NOT NULL THEN s.reps
+                       ELSE NULL
+                   END
+               )), 0) AS volumeLbs
+        FROM set_entry s
+        INNER JOIN exercise_entry e ON s.exercise_entry_id = e.id
+        INNER JOIN exercise ex ON e.exercise_id = ex.id
+        INNER JOIN workout_session w ON e.workout_id = w.id
+        WHERE s.weight_lbs IS NOT NULL
+          AND s.is_failed = 0
+          AND ex.is_bodyweight = 0
+        GROUP BY w.id
+    """)
+    fun getVolumeSummaryByWorkoutFlow(): Flow<List<WorkoutVolume>>
+
     /**
      * Unaggregated bodyweight component rows for the Kotlin dynamic-volume pipeline.
      */
@@ -84,10 +107,10 @@ interface VolumeAnalyticsDao {
         INNER JOIN workout_session w ON e.workout_id = w.id
         WHERE ex.is_bodyweight = 1
           AND s.is_failed = 0
-          AND w.archived = 0
+          AND (:includeArchived OR w.archived = 0)
         ORDER BY w.date_utc ASC
     """)
-    fun getBodyweightSetRowsFlow(): Flow<List<BodyweightSetRow>>
+    fun getBodyweightSetRowsFlow(includeArchived: Boolean = false): Flow<List<BodyweightSetRow>>
 
     @Query("""
         SELECT e.workout_id AS workoutId,
@@ -112,6 +135,11 @@ interface VolumeAnalyticsDao {
 
 data class DailyVolume(
     val dateUtc: Long,
+    val volumeLbs: Double
+)
+
+data class WorkoutVolume(
+    val workoutId: Long,
     val volumeLbs: Double
 )
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
@@ -36,6 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -77,7 +81,9 @@ fun WorkoutEditorHeader(
     onShowDeleteDialog: () -> Unit,
     onShowDuplicateDialog: () -> Unit,
     onResetTimes: (suspend () -> HistoryViewModel.WorkoutTimingReset?)? = null,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    volumeLbs: Double? = null,
+    displayInKg: Boolean = false
 ) {
     var expandedLocation by remember { mutableStateOf(false) }
     var isTimeDialogOpen by remember { mutableStateOf(false) }
@@ -239,42 +245,89 @@ fun WorkoutEditorHeader(
                 allLocations.filter { it.contains(editableLocation, ignoreCase = true) }.take(5)
             }
 
-            Box(modifier = Modifier.width(160.dp)) {
-                TextField(
-                    value = editableLocation,
-                    onValueChange = {
-                        if (!isEditable) return@TextField
-                        onLocationChange(it)
-                        expandedLocation = true
-                    },
-                    readOnly = !isEditable,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        textAlign = TextAlign.End,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    ),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    colors = transparentTextFieldColors(),
-                    singleLine = true,
-                    placeholder = {
-                        Text("Location", textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                DropdownMenu(
-                    expanded = expandedLocation && filteredLocations.isNotEmpty(),
-                    onDismissRequest = { expandedLocation = false },
-                    properties = PopupProperties(focusable = false),
-                    modifier = Modifier.border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-                ) {
-                    filteredLocations.forEach { loc ->
-                        DropdownMenuItem(
-                            text = { Text(loc) },
-                            onClick = {
-                                onLocationChange(loc)
-                                expandedLocation = false
+            Column(
+                modifier = Modifier.width(160.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (volumeLbs != null) {
+                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
+                }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (volumeLbs != null) {
+                        BasicTextField(
+                            value = editableLocation,
+                            onValueChange = {
+                                if (isEditable) {
+                                    onLocationChange(it)
+                                    expandedLocation = true
+                                }
+                            },
+                            readOnly = !isEditable,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                textAlign = TextAlign.End,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { contentDescription = "Location" },
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    if (editableLocation.isBlank()) {
+                                        Text(
+                                            "Location",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    innerTextField()
+                                }
                             }
                         )
+                    } else {
+                        TextField(
+                            value = editableLocation,
+                            onValueChange = {
+                                if (!isEditable) return@TextField
+                                onLocationChange(it)
+                                expandedLocation = true
+                            },
+                            readOnly = !isEditable,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                textAlign = TextAlign.End,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            ),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            colors = transparentTextFieldColors(),
+                            singleLine = true,
+                            placeholder = {
+                                Text("Location", textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = expandedLocation && filteredLocations.isNotEmpty(),
+                        onDismissRequest = { expandedLocation = false },
+                        properties = PopupProperties(focusable = false),
+                        modifier = Modifier.border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                    ) {
+                        filteredLocations.forEach { loc ->
+                            DropdownMenuItem(
+                                text = { Text(loc) },
+                                onClick = {
+                                    onLocationChange(loc)
+                                    expandedLocation = false
+                                }
+                            )
+                        }
                     }
                 }
             }

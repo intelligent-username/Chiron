@@ -317,6 +317,10 @@ class ChironRepository(
         volumeAnalyticsRepository?.getVolumeSummaryByDayFlow(exerciseId)
             ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
+    fun getVolumeSummaryByWorkoutFlow(): Flow<Map<Long, Double>> =
+        volumeAnalyticsRepository?.getVolumeSummaryByWorkoutFlow()
+            ?: kotlinx.coroutines.flow.flowOf(emptyMap())
+
     // ─────────────────────────────────────────────────────────────────────────
     // PR Detection
     // ─────────────────────────────────────────────────────────────────────────

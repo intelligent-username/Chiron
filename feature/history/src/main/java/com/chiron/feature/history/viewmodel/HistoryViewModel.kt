@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -206,6 +207,16 @@ class HistoryViewModel(
         }}
         viewModelScope.launch { repository.archivedWorkoutsFlow.collect { w -> _uiState.update { it.copy(archivedWorkouts = w) } } }
         viewModelScope.launch { settingsRepository.displayInKgFlow.collect { v -> _uiState.update { it.copy(displayInKg = v) } } }
+        viewModelScope.launch {
+            settingsRepository.showWorkoutVolumeFlow.collectLatest { show ->
+                _uiState.update { it.copy(showWorkoutVolume = show, workoutVolumesLbs = emptyMap()) }
+                if (show) {
+                    repository.getVolumeSummaryByWorkoutFlow().collect { volumes ->
+                        _uiState.update { it.copy(workoutVolumesLbs = volumes) }
+                    }
+                }
+            }
+        }
         viewModelScope.launch { settingsRepository.distanceUnitFlow.collect { v -> _uiState.update { it.copy(distanceUnit = v) } } }
         viewModelScope.launch {
             settingsRepository.editingWorkoutIdFlow.collect { id ->

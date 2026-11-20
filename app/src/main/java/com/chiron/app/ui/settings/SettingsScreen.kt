@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,6 +33,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val displayInKg by repository.displayInKgFlow.collectAsState(initial = false)
+    val showWorkoutVolume by repository.showWorkoutVolumeFlow.collectAsState(initial = false)
     val spotifyEnabled by repository.spotifyEnabledFlow.collectAsState(initial = false)
     val matchThemeWithMedia by repository.matchThemeWithMediaFlow.collectAsState(initial = false)
     val distanceUnit by repository.distanceUnitFlow.collectAsState(initial = com.chiron.core.common.DistanceUnit.METERS)
@@ -380,6 +383,30 @@ fun SettingsScreen(
                         }
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = showWorkoutVolume,
+                        role = Role.Switch,
+                        onValueChange = { checked ->
+                            scope.launch { repository.setShowWorkoutVolume(checked) }
+                        }
+                    )
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Show workout volume",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f).padding(end = 16.dp)
+                )
+                Switch(checked = showWorkoutVolume, onCheckedChange = null)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

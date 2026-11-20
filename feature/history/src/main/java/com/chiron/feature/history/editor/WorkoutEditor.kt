@@ -182,6 +182,7 @@ fun WorkoutEditor(
             supersetNumbersByStartId = supersetNumbersByStartId,
             viewModel = viewModel,
             displayInKg = displayInKg,
+            volumeLbs = if (uiState.showWorkoutVolume) uiState.workoutVolumesLbs[workout.id] ?: 0.0 else null,
             distanceUnit = distanceUnit,
             entries = entries,
             highlightedEntryId = highlightedEntryId,

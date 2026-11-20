@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiron.core.common.DateUtils
 import com.chiron.core.model.WorkoutSession
@@ -31,7 +33,9 @@ fun WorkoutCard(
     workout: WorkoutSession,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    volumeLbs: Double? = null,
+    displayInKg: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -44,28 +48,41 @@ fun WorkoutCard(
                 onLongClick = onLongClick
             )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = workout.dayTag.ifBlank { "Untitled Workout" },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                Text(
+                    text = workout.dayTag.ifBlank { "Untitled Workout" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Text(
                     text = DateUtils.formatWorkoutCardDate(workout),
                     style = MaterialTheme.typography.bodyLarge,
                     color = CoolGray
                 )
+            }
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 140.dp)
+                    .align(if (volumeLbs == null) Alignment.Bottom else Alignment.Top),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (volumeLbs != null) {
+                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
+                }
                 if (workout.locationTag.isNotBlank()) {
                     Box(
                         modifier = Modifier
@@ -77,7 +94,9 @@ fun WorkoutCard(
                             text = workout.locationTag,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

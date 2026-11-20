@@ -62,7 +62,8 @@ fun WorkoutEditorGrid(
     onOpenSetInWorkout: (Long) -> Unit,
     onRequestAddExercise: (parentEntryId: Long?, fromIncrement: Boolean) -> Unit,
     focusManager: FocusManager,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    volumeLbs: Double? = null
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -80,6 +81,8 @@ fun WorkoutEditorGrid(
         item(span = { GridItemSpan(2) }) {
             WorkoutEditorHeader(
                 workout = workout,
+                volumeLbs = volumeLbs,
+                displayInKg = displayInKg,
                 isEditable = isEditable,
                 onEnableEdit = onEnableEdit,
                 editableDayTag = editableDayTag,

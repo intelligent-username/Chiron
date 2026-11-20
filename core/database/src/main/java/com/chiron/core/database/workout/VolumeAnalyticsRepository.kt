@@ -9,6 +9,7 @@ import com.chiron.core.model.BodyWeightEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Repository dedicated strictly to aggregating and computing volume metrics across workouts,
@@ -18,6 +19,26 @@ class VolumeAnalyticsRepository(
     private val volumeAnalyticsDao: VolumeAnalyticsDao,
     private val bodyWeightDao: BodyWeightDao? = null
 ) {
+
+    fun getVolumeSummaryByWorkoutFlow(): Flow<Map<Long, Double>> =
+        combine(
+            volumeAnalyticsDao.getVolumeSummaryByWorkoutFlow(),
+            volumeAnalyticsDao.getBodyweightSetRowsFlow(includeArchived = true),
+            bodyWeightDao?.getAllFlow() ?: flowOf(emptyList())
+        ) { base, rows, weights ->
+            val validWeights = weights.filter { it.timestampUtc > 0L }.sortedBy { it.timestampUtc }
+            val bodyweightByDate = rows.asSequence()
+                .map { it.dateUtc }
+                .filter { it > 0L }
+                .distinct()
+                .associateWith { BodyweightResolver.getWeightForTimestamp(it, validWeights) }
+            val totals = base.associate { it.workoutId to it.volumeLbs }.toMutableMap()
+            rows.forEach { row ->
+                totals[row.workoutId] = (totals[row.workoutId] ?: 0.0) +
+                    effectiveVolume(row, bodyweightByDate[row.dateUtc])
+            }
+            totals.toMap()
+        }.distinctUntilChanged()
 
     /**
      * Total volume grouped by workout day, including dynamic bodyweight share.
