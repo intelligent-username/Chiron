@@ -1,11 +1,5 @@
 package com.chiron.feature.history
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +37,6 @@ import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -60,18 +53,11 @@ fun VolumeContent(
     scrollable: Boolean = true
 ) {
     val unit = if (displayInKg) "kg" else "lbs"
-    val weekLabel = remember(state.currentWeekStart, state.mode, state.weekCount) {
-        val today = LocalDate.now()
+    val weekLabel = remember(state.currentPeriodEnd, state.mode, state.weekCount) {
         val fmt = DateTimeFormatter.ofPattern("MMM d")
-        if (state.mode == VolumeMode.BY_DAY) {
-            val end = state.currentWeekStart.plusDays(6)
-            "${state.currentWeekStart.format(fmt)} – ${end.format(fmt)}"
-        } else {
-            val start = state.currentWeekStart.minusWeeks((state.weekCount - 1).toLong())
-            val tentativeEnd = state.currentWeekStart.plusDays(6)
-            val end = if (tentativeEnd.isAfter(today)) today else tentativeEnd
-            "${start.format(fmt)} – ${end.format(fmt)}"
-        }
+        val days = if (state.mode == VolumeMode.BY_DAY) 7 else state.weekCount * 7
+        val start = state.currentPeriodEnd.minusDays(days - 1L)
+        "${start.format(fmt)} – ${state.currentPeriodEnd.format(fmt)}"
     }
 
     val totalVolume = state.points.sumOf { it.volumeLbs }
@@ -143,17 +129,7 @@ fun VolumeContent(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                AnimatedContent(
-                    targetState = state,
-                    contentKey = { Triple(it.currentWeekStart, it.mode, it.weekCount) },
-                    transitionSpec = {
-                        val direction = if (targetState.currentWeekStart < initialState.currentWeekStart) -1 else 1
-                        slideInHorizontally(tween(220)) { direction * it } togetherWith
-                            slideOutHorizontally(tween(220)) { -direction * it }
-                    },
-                    label = "volumeWindow"
-                ) { window ->
-                if (window.points.isEmpty() || window.points.all { it.volumeLbs == 0.0 }) {
+                if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -169,16 +145,15 @@ fun VolumeContent(
                     }
                 } else {
                     VolumeLineGraph(
-                        points = window.points,
+                        points = state.points,
                         displayInKg = displayInKg,
-                        mode = window.mode,
+                        mode = state.mode,
                         animateEntry = false,
                         onPointTap = onPointTap,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
                     )
-                }
                 }
 
                 if (state.mode == VolumeMode.BY_WEEK) {

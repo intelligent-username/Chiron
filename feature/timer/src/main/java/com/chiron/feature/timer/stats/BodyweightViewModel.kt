@@ -4,13 +4,13 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.chiron.core.common.TimelineWindow
 import com.chiron.core.common.UserSettingsRepository
 import com.chiron.core.database.ChironRepository
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
 import com.chiron.core.database.dao.BodyweightUpsertCounts
 import com.chiron.core.model.BodyWeightEntry
 import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +31,7 @@ class BodyweightViewModel(
 
     private var allEntries: List<BodyWeightEntry> = emptyList()
     private var earliestDate: LocalDate? = null
+    private var preparedWeights = BodyweightPointCalculator.prepare(emptyList())
     private var loadJob: Job? = null
 
     init {
@@ -48,27 +49,12 @@ class BodyweightViewModel(
         val today = LocalDate.now()
         if (current.isAtCurrentWeek && current.currentPeriodEnd < today) {
             val maxWeeks = BodyweightPointCalculator.computeMaxWeeks(earliestDate, today)
-            val clampedWeekCount = current.weekCount.coerceIn(1, maxWeeks)
-            val pts = BodyweightPointCalculator.buildPoints(
-                periodEnd = today,
-                weekCount = clampedWeekCount,
-                earliestDate = earliestDate,
-                allEntries = allEntries
-            )
-            val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
-            val windowStart = today.minusDays((clampedWeekCount * 7 - 1).toLong())
-            val isAtFirst = earliestDate == null || windowStart <= earliestDate
-
             _uiState.update { state ->
-                state.copy(
-                    currentPeriodEnd = today,
-                    weekCount = clampedWeekCount,
-                    maxWeekCount = maxWeeks,
-                    points = pts,
-                    stats = stats,
-                    isAtFirstWeek = isAtFirst,
-                    isAtCurrentWeek = true
+                val updated = state.copy(
+                    weekCount = state.weekCount.coerceIn(1, maxWeeks),
+                    maxWeekCount = maxWeeks
                 )
+                withWindow(updated, windowFor(updated, today))
             }
         }
     }
@@ -82,88 +68,29 @@ class BodyweightViewModel(
     }
 
     fun setWeekCount(count: Int) {
-        val current = _uiState.value
-        val clamped = count.coerceIn(1, current.maxWeekCount.coerceAtLeast(1))
-        val pts = BodyweightPointCalculator.buildPoints(
-            periodEnd = current.currentPeriodEnd,
-            weekCount = clamped,
-            earliestDate = earliestDate,
-            allEntries = allEntries
-        )
-        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
-        val windowStart = current.currentPeriodEnd.minusDays((clamped * 7 - 1).toLong())
-        val isAtFirst = earliestDate == null || windowStart <= earliestDate
         _uiState.update { state ->
-            state.copy(
-                weekCount = clamped,
-                points = pts,
-                stats = stats,
-                isAtFirstWeek = isAtFirst
-            )
+            val clamped = count.coerceIn(1, state.maxWeekCount.coerceAtLeast(1))
+            if (clamped == state.weekCount) return@update state
+            val updated = state.copy(weekCount = clamped, isAtCurrentWeek = true)
+            withWindow(updated, windowFor(updated))
         }
     }
 
     fun goToPreviousWeek() {
-        val current = _uiState.value
-        val windowStart = current.currentPeriodEnd.minusDays((current.weekCount * 7 - 1).toLong())
-        if (earliestDate != null && windowStart <= earliestDate) {
-            return // Strictly at earliest date
-        }
-
-        val tentativeEnd = current.currentPeriodEnd.minusWeeks(1)
-        val tentativeStart = tentativeEnd.minusDays((current.weekCount * 7 - 1).toLong())
-        val newEnd = if (earliestDate != null && tentativeStart < earliestDate) {
-            // Clamp so earliest date is the first visible date
-            earliestDate!!.plusDays((current.weekCount * 7 - 1).toLong()).coerceAtMost(LocalDate.now())
-        } else {
-            tentativeEnd
-        }
-
-        if (newEnd == current.currentPeriodEnd) return
-
-        val pts = BodyweightPointCalculator.buildPoints(
-            periodEnd = newEnd,
-            weekCount = current.weekCount,
-            earliestDate = earliestDate,
-            allEntries = allEntries
-        )
-        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
-        val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
-
         _uiState.update { state ->
-            state.copy(
-                currentPeriodEnd = newEnd,
-                points = pts,
-                stats = stats,
-                isAtFirstWeek = earliestDate == null || newStart <= earliestDate,
-                isAtCurrentWeek = newEnd >= LocalDate.now()
-            )
+            val current = windowFor(state)
+            val previous = current.previous()
+            if (previous == current) return@update state
+            withWindow(state, previous)
         }
     }
 
     fun goToNextWeek() {
-        val current = _uiState.value
-        val today = LocalDate.now()
-        if (current.currentPeriodEnd >= today) return
-
-        val newEnd = current.currentPeriodEnd.plusWeeks(1).coerceAtMost(today)
-        val pts = BodyweightPointCalculator.buildPoints(
-            periodEnd = newEnd,
-            weekCount = current.weekCount,
-            earliestDate = earliestDate,
-            allEntries = allEntries
-        )
-        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
-        val newStart = newEnd.minusDays((current.weekCount * 7 - 1).toLong())
-
         _uiState.update { state ->
-            state.copy(
-                currentPeriodEnd = newEnd,
-                points = pts,
-                stats = stats,
-                isAtFirstWeek = earliestDate == null || newStart <= earliestDate,
-                isAtCurrentWeek = newEnd >= today
-            )
+            val current = windowFor(state)
+            val next = current.next()
+            if (next == current) return@update state
+            withWindow(state, next)
         }
     }
 
@@ -261,6 +188,29 @@ class BodyweightViewModel(
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    private fun windowFor(state: BodyweightUiState, today: LocalDate = LocalDate.now()): TimelineWindow =
+        TimelineWindow.endingAt(
+            end = if (state.isAtCurrentWeek) today else state.currentPeriodEnd,
+            spanDays = state.weekCount * 7,
+            earliest = earliestDate,
+            today = today
+        )
+
+    private fun withWindow(state: BodyweightUiState, window: TimelineWindow): BodyweightUiState {
+        val points = BodyweightPointCalculator.buildPoints(
+            periodEnd = window.end,
+            weekCount = state.weekCount,
+            prepared = preparedWeights
+        )
+        return state.copy(
+            currentPeriodEnd = window.end,
+            points = points,
+            stats = BodyweightPointCalculator.computeStats(points, allEntries.size),
+            isAtFirstWeek = !window.canGoPrevious,
+            isAtCurrentWeek = !window.canGoNext
+        )
+    }
+
     private fun load() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
@@ -276,39 +226,29 @@ class BodyweightViewModel(
     }
 
     private suspend fun onRows(rows: List<BodyWeightEntry>) = withContext(Dispatchers.Default) {
-        allEntries = rows.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }.sortedBy { it.timestampUtc }
-        earliestDate = BodyweightPointCalculator.computeEarliestInputDate(allEntries)
+        val entries = rows.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }.sortedBy { it.timestampUtc }
+        val prepared = BodyweightPointCalculator.prepare(entries)
+        val firstDate = BodyweightPointCalculator.computeEarliestInputDate(entries)
+        val descendingEntries = entries.asReversed()
         val today = LocalDate.now()
-        val maxWeeks = BodyweightPointCalculator.computeMaxWeeks(earliestDate, today)
+        val maxWeeks = BodyweightPointCalculator.computeMaxWeeks(firstDate, today)
 
-        val current = _uiState.value
-        val clampedWeekCount = current.weekCount.coerceIn(1, maxWeeks)
-        val periodEnd = if (current.isAtCurrentWeek) today else current.currentPeriodEnd.coerceAtMost(today)
-
-        val pts = BodyweightPointCalculator.buildPoints(
-            periodEnd = periodEnd,
-            weekCount = clampedWeekCount,
-            earliestDate = earliestDate,
-            allEntries = allEntries
-        )
-        val stats = BodyweightPointCalculator.computeStats(pts, allEntries.size)
-        val windowStart = periodEnd.minusDays((clampedWeekCount * 7 - 1).toLong())
-        val isAtFirst = earliestDate == null || windowStart <= earliestDate
-        val isAtCurrent = periodEnd >= today
-
-        _uiState.update { state ->
-            state.copy(
-                isLoading = false,
-                earliestDate = earliestDate,
-                currentPeriodEnd = periodEnd,
-                weekCount = clampedWeekCount,
-                maxWeekCount = maxWeeks,
-                points = pts,
-                stats = stats,
-                entries = allEntries.sortedByDescending { it.timestampUtc },
-                isAtFirstWeek = isAtFirst,
-                isAtCurrentWeek = isAtCurrent
-            )
+        // Publish the cache and rebuild from the latest UI state together; background
+        // processing must not overwrite a navigation action made while it was running.
+        withContext(Dispatchers.Main) {
+            allEntries = entries
+            earliestDate = firstDate
+            preparedWeights = prepared
+            _uiState.update { state ->
+                val updated = state.copy(
+                    isLoading = false,
+                    earliestDate = firstDate,
+                    weekCount = state.weekCount.coerceIn(1, maxWeeks),
+                    maxWeekCount = maxWeeks,
+                    entries = descendingEntries
+                )
+                withWindow(updated, windowFor(updated, today))
+            }
         }
     }
 

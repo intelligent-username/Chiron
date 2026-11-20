@@ -1,14 +1,12 @@
 package com.chiron.feature.history
 
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 
 /** A single point on the volume line graph. */
 data class VolumePoint(
-    val label: String,        // "Mon", "Tue" … for day mode; "W1", "W2" … for week mode
+    val label: String,        // Day name or sparse date label
     val volumeLbs: Double,
-    val date: LocalDate       // Sunday of the week (week mode) or the actual date (day mode)
+    val date: LocalDate
 )
 
 data class VolumeStats(
@@ -26,9 +24,8 @@ enum class VolumeMode { BY_DAY, BY_WEEK }
 data class VolumeUiState(
     val isLoading: Boolean = true,
     val mode: VolumeMode = VolumeMode.BY_DAY,
-    /** Sunday of the currently displayed week (day mode) */
-    val currentWeekStart: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY)),
-    val navigationAnchorWeek: LocalDate = currentWeekStart,
+    /** Inclusive end of the displayed day window in either mode. */
+    val currentPeriodEnd: LocalDate = LocalDate.now(),
     /** Points to render on the graph for the current view */
     val points: List<VolumePoint> = emptyList(),
     val displayInKg: Boolean = false,

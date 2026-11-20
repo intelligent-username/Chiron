@@ -11,6 +11,27 @@ import kotlin.math.max
 
 object BodyweightPointCalculator {
 
+    data class PreparedWeights(
+        val latestByDate: Map<LocalDate, BodyWeightEntry>,
+        val knownDates: List<LocalDate>
+    )
+
+    /** Normalize timestamps and index daily inputs once per repository emission. */
+    fun prepare(allEntries: List<BodyWeightEntry>): PreparedWeights {
+        val zone = ZoneId.systemDefault()
+        val latestByDate = HashMap<LocalDate, BodyWeightEntry>()
+        for (entry in allEntries) {
+            if (entry.timestampUtc <= 0L || entry.weightLbs <= 0.0) continue
+            val millis = if (entry.timestampUtc <= 9_999_999_999L) entry.timestampUtc * 1000L else entry.timestampUtc
+            val date = runCatching { Instant.ofEpochMilli(millis).atZone(zone).toLocalDate() }.getOrNull() ?: continue
+            val previous = latestByDate[date]
+            if (previous == null || millis >= previous.timestampUtc) {
+                latestByDate[date] = entry.copy(timestampUtc = millis)
+            }
+        }
+        return PreparedWeights(latestByDate.toMap(), latestByDate.keys.sorted())
+    }
+
     fun computeStats(points: List<BodyweightPoint>, totalCount: Int = points.count { it.isActualInput }): BodyweightStats {
         val actualPoints = points.filter { it.isActualInput && it.weightLbs > 0.0 }
         val allValidPoints = points.filter { it.weightLbs > 0.0 }
@@ -76,47 +97,18 @@ object BodyweightPointCalculator {
         return max(2, (days + 6) / 7).coerceAtMost(520)
     }
 
-    /**
-     * Build points between actualStart and actualEnd.
-     * actualStart is strictly bounded by [earliestDate].
-     */
+    /** Build the entire requested span; the navigator handles history boundaries. */
     fun buildPoints(
         periodEnd: LocalDate,
         weekCount: Int,
-        earliestDate: LocalDate?,
-        allEntries: List<BodyWeightEntry>
+        prepared: PreparedWeights
     ): List<BodyweightPoint> {
         val zone = ZoneId.systemDefault()
-        val sortedEntries = allEntries.filter { it.timestampUtc > 0L && it.weightLbs > 0.0 }
-            .sortedBy { it.timestampUtc }
-
-        // Find latest entry for each distinct calendar date
-        val latestByDate = HashMap<LocalDate, BodyWeightEntry>()
-        for (entry in sortedEntries) {
-            val millis = if (entry.timestampUtc in 1L..9_999_999_999L) entry.timestampUtc * 1000L else entry.timestampUtc
-            val d = runCatching { Instant.ofEpochMilli(millis).atZone(zone).toLocalDate() }.getOrNull()
-            if (d != null) {
-                latestByDate[d] = entry
-            }
-        }
-        val knownDates = latestByDate.keys.sorted()
-
-        // Determine date span bounded to at most 10 years
-        val minAllowed = periodEnd.minusYears(10)
-        val safeEarliest = when {
-            earliestDate == null -> null
-            earliestDate.isBefore(minAllowed) -> minAllowed
-            earliestDate.isAfter(periodEnd) -> periodEnd
-            else -> earliestDate
-        }
+        val latestByDate = prepared.latestByDate
+        val knownDates = prepared.knownDates
 
         val daysRequested = (weekCount.coerceAtLeast(1) * 7).coerceAtMost(3650)
-        val tentativeStart = periodEnd.minusDays((daysRequested - 1).toLong())
-        val actualStart = when {
-            safeEarliest != null && tentativeStart < safeEarliest -> safeEarliest
-            tentativeStart.isBefore(minAllowed) -> minAllowed
-            else -> tentativeStart
-        }
+        val actualStart = periodEnd.minusDays((daysRequested - 1).toLong())
         val actualEnd = periodEnd
 
         if (actualStart > actualEnd || knownDates.isEmpty()) {
@@ -125,10 +117,6 @@ object BodyweightPointCalculator {
 
         val totalDays = (ChronoUnit.DAYS.between(actualStart, actualEnd).toInt() + 1).coerceIn(1, 3650)
         val points = ArrayList<BodyweightPoint>(totalDays)
-
-        val dayFmt = DateTimeFormatter.ofPattern("EEE")
-        val dateFmt = DateTimeFormatter.ofPattern("M/d")
-        val monthFmt = DateTimeFormatter.ofPattern("MMM")
 
         for (dayOffset in 0 until totalDays) {
             val date = actualStart.plusDays(dayOffset.toLong())
@@ -181,11 +169,11 @@ object BodyweightPointCalculator {
 
             // X-axis label determination based on span
             val label = when {
-                totalDays <= 7 -> date.format(dayFmt)
-                totalDays <= 21 -> if (dayOffset % 3 == 0 || dayOffset == totalDays - 1) date.format(dateFmt) else ""
-                totalDays <= 60 -> if (dayOffset % 7 == 0 || dayOffset == totalDays - 1) date.format(dateFmt) else ""
-                totalDays <= 180 -> if (date.dayOfMonth == 1 || dayOffset == 0 || dayOffset == totalDays - 1) date.format(dateFmt) else ""
-                else -> if (date.dayOfMonth == 1) date.format(monthFmt) else ""
+                totalDays <= 7 -> date.format(BodyweightDayFormatter)
+                totalDays <= 21 -> if (dayOffset % 3 == 0 || dayOffset == totalDays - 1) date.format(BodyweightDateFormatter) else ""
+                totalDays <= 60 -> if (dayOffset % 7 == 0 || dayOffset == totalDays - 1) date.format(BodyweightDateFormatter) else ""
+                totalDays <= 180 -> if (date.dayOfMonth == 1 || dayOffset == 0 || dayOffset == totalDays - 1) date.format(BodyweightDateFormatter) else ""
+                else -> if (date.dayOfMonth == 1) date.format(BodyweightMonthFormatter) else ""
             }
 
             points.add(
@@ -202,3 +190,7 @@ object BodyweightPointCalculator {
         return points
     }
 }
+
+private val BodyweightDayFormatter = DateTimeFormatter.ofPattern("EEE")
+private val BodyweightDateFormatter = DateTimeFormatter.ofPattern("M/d")
+private val BodyweightMonthFormatter = DateTimeFormatter.ofPattern("MMM")

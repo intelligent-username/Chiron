@@ -70,16 +70,10 @@ fun BodyweightContent(
     val localInKg = state.displayInKg
     val unit = if (localInKg) "kg" else "lbs"
 
-    // Date range label strictly bounded by earliest date
-    val weekLabel = remember(state.currentPeriodEnd, state.weekCount, state.earliestDate) {
+    val weekLabel = remember(state.currentPeriodEnd, state.weekCount) {
         val daysSpan = (state.weekCount * 7 - 1).toLong()
-        val tentativeStart = state.currentPeriodEnd.minusDays(daysSpan)
-        val actualStart = if (state.earliestDate != null && tentativeStart < state.earliestDate) {
-            state.earliestDate!!
-        } else {
-            tentativeStart
-        }
-        "${actualStart.format(MonthDayFormatter)} - ${state.currentPeriodEnd.format(MonthDayFormatter)}"
+        val start = state.currentPeriodEnd.minusDays(daysSpan)
+        "${start.format(MonthDayFormatter)} - ${state.currentPeriodEnd.format(MonthDayFormatter)}"
     }
 
     Column(
