@@ -7,9 +7,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
+import androidx.room.withTransaction
+import com.chiron.core.common.UserSettingsRepository
+import com.chiron.core.database.ChironDatabase
 import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.ExerciseEntryDao
-import com.chiron.core.database.dao.ExercisePrDao
 import com.chiron.core.database.dao.GoalDao
 import com.chiron.core.database.dao.SetEntryDao
 import com.chiron.core.database.dao.TimerPresetDao
@@ -21,13 +24,15 @@ import com.chiron.core.model.GoalExercise
 import com.chiron.core.model.SetEntry
 import com.chiron.core.model.TimerPreset
 import com.chiron.core.model.WorkoutSession
-import java.io.BufferedOutputStream
+import com.chiron.core.model.BodyWeightEntry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 
 /**
  * Handles database export (snapshot + SVG icons bundle to Downloads/Chiron)
@@ -43,11 +48,12 @@ class DataTransferRepository(
     private val exerciseEntryDao: ExerciseEntryDao,
     private val setEntryDao: SetEntryDao,
     private val timerPresetDao: TimerPresetDao,
-    private val exercisePrDao: ExercisePrDao,
     private val goalDao: GoalDao,
+    private val database: ChironDatabase,
+    private val settingsRepository: UserSettingsRepository,
     private val onRebuildPrs: suspend (exerciseId: Long) -> Unit,
-    private val onImportLocations: (suspend (List<String>) -> Unit)? = null
 ) {
+    private val transferMutex = Mutex()
     data class ExportedData(
         val uri: Uri,
         val locationLabel: String,
@@ -59,116 +65,91 @@ class DataTransferRepository(
      * as a portable .zip archive into Downloads/Chiron.
      * Returns a MediaStore content URI that can be opened/shared via Android intents.
      */
-    fun exportDataSnapshot(): Result<ExportedData> {
-        return runCatching {
-            val dbName = "chiron_database"
-            val dbFile = context.getDatabasePath(dbName)
-            require(dbFile.exists()) { "Database file not found" }
-
-            val fileName = resolveExportFileName()
-
-            // Best-effort WAL checkpoint so DB + WAL are consistent.
-            try {
-                SQLiteDatabase.openDatabase(
-                    dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE
-                ).use { sqliteDb ->
-                    sqliteDb.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
-                        cursor.moveToFirst()
+    suspend fun exportDataSnapshot(destination: Uri? = null): Result<ExportedData> =
+        withContext(Dispatchers.IO) {
+            transferMutex.withLock {
+                try {
+                    val directory = createStagingDirectory("export")
+                    try {
+                        val snapshot = File(directory, "chiron_database.db")
+                        database.writeBackupSnapshot(snapshot)
+                        val icons = linkedMapOf<String, () -> java.io.InputStream>()
+                        context.assets.list("icons").orEmpty().forEach { name ->
+                            icons[name] = { context.assets.open("icons/$name") }
+                        }
+                        // Custom icons take precedence over bundled icons with the same filename.
+                        File(context.filesDir, "icons").listFiles().orEmpty()
+                            .filter { it.isFile }.forEach { file ->
+                                icons[file.name] = { file.inputStream() }
+                            }
+                        val archive = File(directory, "Chiron.zip")
+                        BackupArchive.write(
+                            output = archive.outputStream(),
+                            database = snapshot,
+                            settings = settingsRepository.exportBackup(),
+                            icons = icons,
+                            images = File(context.filesDir, "images/exercises")
+                                .listFiles().orEmpty().filter { it.isFile }
+                        )
+                        publishArchive(archive, destination)
+                    } finally {
+                        directory.deleteRecursively()
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Result.failure(error)
                 }
-            } catch (_: Exception) {
-                // Continue export even if checkpoint fails.
             }
+        }
 
-            val resolver = context.contentResolver
-            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+    private fun publishArchive(archive: File, destination: Uri?): Result<ExportedData> {
+        val resolver = context.contentResolver
+        val fileName: String
+        val uri: Uri
+        if (destination != null) {
+            uri = destination
+            fileName = getDisplayNameFromUri(uri) ?: "Chiron.zip"
+        } else {
+            require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                "Choose a backup destination using the Save file dialog"
+            }
+            fileName = resolveExportFileName()
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                 put(MediaStore.Downloads.MIME_TYPE, "application/zip")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(
-                        MediaStore.Downloads.RELATIVE_PATH,
-                        "${Environment.DIRECTORY_DOWNLOADS}/Chiron"
-                    )
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
+                put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/Chiron")
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
-
-            val uri = resolver.insert(collection, values)
+            uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: error("Failed to create export file in Downloads")
-
-            try {
-                resolver.openOutputStream(uri)?.use { output ->
-                    ZipOutputStream(BufferedOutputStream(output)).use { zipOut ->
-                        // 1. Database file
-                        zipOut.putNextEntry(ZipEntry("chiron_database.db"))
-                        FileInputStream(dbFile).use { input ->
-                            input.copyTo(zipOut)
-                        }
-                        zipOut.closeEntry()
-
-                        // 2. App-stored custom icons (from filesDir/icons/)
-                        val customIconsDir = File(context.filesDir, "icons")
-                        if (customIconsDir.exists() && customIconsDir.isDirectory) {
-                            customIconsDir.listFiles()?.forEach { iconFile ->
-                                if (iconFile.isFile) {
-                                    zipOut.putNextEntry(ZipEntry("icons/${iconFile.name}"))
-                                    FileInputStream(iconFile).use { input -> input.copyTo(zipOut) }
-                                    zipOut.closeEntry()
-                                }
-                            }
-                        }
-
-                        // 3. App-stored exercise images (from filesDir/images/exercises/)
-                        val imagesDir = File(context.filesDir, "images/exercises")
-                        if (imagesDir.exists() && imagesDir.isDirectory) {
-                            imagesDir.listFiles()?.forEach { imgFile ->
-                                if (imgFile.isFile) {
-                                    zipOut.putNextEntry(ZipEntry("images/${imgFile.name}"))
-                                    FileInputStream(imgFile).use { input -> input.copyTo(zipOut) }
-                                    zipOut.closeEntry()
-                                }
-                            }
-                        }
-
-                        // 4. Bundled asset icons (from assets/icons/)
-                        try {
-                            val assetIcons = context.assets.list("icons") ?: emptyArray()
-                            assetIcons.forEach { assetName ->
-                                zipOut.putNextEntry(ZipEntry("icons/$assetName"))
-                                context.assets.open("icons/$assetName").use { input ->
-                                    input.copyTo(zipOut)
-                                }
-                                zipOut.closeEntry()
-                            }
-                        } catch (_: Exception) {
-                        }
-                    }
-                } ?: error("Unable to open output stream for export")
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val complete = ContentValues().apply {
-                        put(MediaStore.Downloads.IS_PENDING, 0)
-                    }
-                    resolver.update(uri, complete, null, null)
-                }
-            } catch (e: Exception) {
-                runCatching { resolver.delete(uri, null, null) }
-                throw e
+        }
+        try {
+            resolver.openOutputStream(uri, "wt")?.use { output ->
+                archive.inputStream().use { it.copyTo(output) }
+            } ?: error("Unable to open output stream for export")
+            if (destination == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val complete = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
+                check(resolver.update(uri, complete, null, null) == 1) { "Unable to publish backup" }
             }
-
+        } catch (error: Exception) {
+            runCatching { resolver.delete(uri, null, null) }
+            throw error
+        }
+        return Result.success(
             ExportedData(
                 uri = uri,
-                locationLabel = "Downloads/Chiron/$fileName",
+                locationLabel = if (destination == null) "Downloads/Chiron/$fileName" else "Selected file: $fileName",
                 fileName = fileName
             )
-        }
+        )
     }
 
     /**
      * Resolves a unique export filename in Downloads/Chiron.
      * Returns "Chiron.zip" if available, otherwise "Chiron2.zip", "Chiron3.zip", etc.
      */
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun resolveExportFileName(): String {
         val resolver = context.contentResolver
         val projection = arrayOf(MediaStore.Downloads.DISPLAY_NAME)
@@ -209,112 +190,114 @@ class DataTransferRepository(
      * - Goals: appended if new, merged by name.
      * - ExercisePr: rebuilt from scratch post-import for full statistical accuracy.
      */
-    suspend fun importDataFromFile(fileUri: Uri): Result<String> {
-        return runCatching {
-            val displayName = getDisplayNameFromUri(fileUri)
-            require(!displayName.isNullOrBlank()) { "Unable to determine filename" }
-
-            val tempImportFile = File.createTempFile("chiron_import", ".tmp", context.cacheDir)
-
+    suspend fun importDataFromFile(fileUri: Uri): Result<String> = withContext(Dispatchers.IO) {
+        transferMutex.withLock {
             try {
-                context.contentResolver.openInputStream(fileUri)?.use { inputStream ->
-                    FileOutputStream(tempImportFile).use { output ->
-                        inputStream.copyTo(output)
+                val directory = createStagingDirectory("import")
+                var keepRecoveryFiles = false
+                try {
+                    val tempImportFile = File(directory, "import.tmp")
+                    context.contentResolver.openInputStream(fileUri)?.use { input ->
+                        tempImportFile.outputStream().use { output ->
+                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                            var total = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                total += read
+                                require(total <= 512L * 1024 * 1024) { "Backup exceeds the 512 MiB import limit" }
+                                output.write(buffer, 0, read)
+                            }
+                        }
+                    } ?: error("Cannot open import file")
+
+                    val contents = if (isZipFile(tempImportFile)) {
+                        BackupArchive.extract(tempImportFile.inputStream(), File(directory, "extracted"))
+                    } else {
+                        require(isSqliteDatabaseFile(tempImportFile)) {
+                            "Selected file is neither a Chiron backup (.zip) nor a SQLite database (.db)"
+                        }
+                        BackupArchive.Contents(tempImportFile, null, emptyList(), emptyList())
                     }
-                } ?: error("Cannot open import file")
-
-                if (!tempImportFile.exists()) error("File not found")
-
-                var iconsImportedCount = 0
-                val dbFileToMerge: File
-
-                if (isZipFile(tempImportFile)) {
-                    // Extract icons and database from zip
-                    val targetIconsDir = File(context.filesDir, "icons")
-                    if (!targetIconsDir.exists()) targetIconsDir.mkdirs()
-
-                    val targetImagesDir = File(context.filesDir, "images/exercises")
-                    if (!targetImagesDir.exists()) targetImagesDir.mkdirs()
-
-                    val extractedDb = File.createTempFile("extracted_chiron", ".db", context.cacheDir)
-                    var foundDb = false
-
-                    ZipInputStream(FileInputStream(tempImportFile)).use { zipIn ->
-                        var entry = zipIn.nextEntry
-                        while (entry != null) {
-                            val name = entry.name
-                            if (!entry.isDirectory) {
-                                when {
-                                    name.endsWith(".db", ignoreCase = true) || name == "chiron_database" -> {
-                                        FileOutputStream(extractedDb).use { out ->
-                                            zipIn.copyTo(out)
-                                        }
-                                        foundDb = true
-                                    }
-                                    name.startsWith("icons/") -> {
-                                        val iconFileName = name.removePrefix("icons/")
-                                        if (iconFileName.isNotBlank()) {
-                                            val destFile = File(targetIconsDir, iconFileName)
-                                            // Conflict resolution: replace old icons with same name
-                                            if (destFile.exists()) {
-                                                destFile.delete()
-                                            }
-                                            FileOutputStream(destFile).use { out ->
-                                                zipIn.copyTo(out)
-                                            }
-                                            iconsImportedCount++
-                                        }
-                                    }
-                                    name.startsWith("images/") -> {
-                                        val imageFileName = name.removePrefix("images/")
-                                        if (imageFileName.isNotBlank()) {
-                                            val destFile = File(targetImagesDir, imageFileName)
-                                            // Conflict resolution: replace old images with same name
-                                            if (destFile.exists()) {
-                                                destFile.delete()
-                                            }
-                                            FileOutputStream(destFile).use { out ->
-                                                zipIn.copyTo(out)
-                                            }
-                                        }
-                                    }
+                    validateImportDatabase(contents.database)
+                    val importedSettings = contents.settings?.let {
+                        require(it.length() <= 1024 * 1024) { "Settings backup is too large" }
+                        it.readText(Charsets.UTF_8).also(settingsRepository::validateBackup)
+                    }
+                    val previousSettings = settingsRepository.exportBackup()
+                    val files = BackupFileTransaction(File(directory, "original_assets"))
+                    var settingsChanged = false
+                    try {
+                        database.withTransaction {
+                            val locations = mergeImportedDatabase(contents.database, contents.images.map { it.name }.toSet())
+                            contents.icons.forEach {
+                                files.install(it, File(context.filesDir, "icons/${it.name}"))
+                            }
+                            contents.images.forEach {
+                                files.install(it, File(context.filesDir, "images/exercises/${it.name}"))
+                            }
+                            settingsChanged = true
+                            settingsRepository.restoreBackup(importedSettings, locations)
+                        }
+                    } catch (error: Throwable) {
+                        // Room rolls back the rows; compensate the other two stores as well.
+                        withContext(NonCancellable) {
+                            try {
+                                files.rollback()
+                            } catch (rollbackError: Exception) {
+                                keepRecoveryFiles = true
+                                error.addSuppressed(rollbackError)
+                            }
+                            if (settingsChanged) {
+                                try {
+                                    settingsRepository.restoreBackup(previousSettings, mergeLocations = false)
+                                } catch (rollbackError: Exception) {
+                                    keepRecoveryFiles = true
+                                    error.addSuppressed(rollbackError)
                                 }
                             }
-                            zipIn.closeEntry()
-                            entry = zipIn.nextEntry
                         }
+                        if (keepRecoveryFiles) {
+                            throw IllegalStateException(
+                                "Import failed and rollback was incomplete. Recovery files retained at ${directory.absolutePath}",
+                                error
+                            )
+                        }
+                        throw error
                     }
-
-                    require(foundDb && isSqliteDatabaseFile(extractedDb)) {
-                        "Valid database not found inside backup zip"
-                    }
-                    dbFileToMerge = extractedDb
-                } else if (isSqliteDatabaseFile(tempImportFile)) {
-                    dbFileToMerge = tempImportFile
-                } else {
-                    error("Selected file is neither a Chiron backup (.zip) nor a valid SQLite database (.db)")
-                }
-
-                try {
-                    mergeImportedDatabase(dbFileToMerge)
+                    Result.success("Import successful (merged workouts, bodyweight, assets and available settings)")
                 } finally {
-                    if (dbFileToMerge != tempImportFile) {
-                        dbFileToMerge.delete()
-                    }
+                    if (!keepRecoveryFiles) directory.deleteRecursively()
                 }
-
-                if (iconsImportedCount > 0) {
-                    "Import successful (appended data & updated $iconsImportedCount icons)"
-                } else {
-                    "Import successful (appended data)"
-                }
-            } finally {
-                tempImportFile.delete()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
             }
         }
     }
 
     // ─── Private helpers ───────────────────────────────────────────────────────
+
+    private fun createStagingDirectory(operation: String): File =
+        java.nio.file.Files.createTempDirectory(context.cacheDir.toPath(), "chiron_${operation}_").toFile()
+
+    private fun validateImportDatabase(file: File) {
+        require(isSqliteDatabaseFile(file)) { "Valid database not found inside backup" }
+        SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            require(db.version <= database.openHelper.readableDatabase.version) {
+                "This backup is from a newer Chiron version. Update the app before importing it."
+            }
+            db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+                require(cursor.moveToFirst() && cursor.getString(0) == "ok") { "Backup database is corrupt" }
+            }
+            val requiredTables = setOf("exercise", "workout_session", "exercise_entry", "set_entry")
+            val tables = db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'", null).use { cursor ->
+                buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
+            }
+            require(tables.containsAll(requiredTables)) { "Selected database is not a Chiron backup" }
+        }
+    }
 
     private fun getDisplayNameFromUri(uri: Uri): String? {
         return when (uri.scheme) {
@@ -371,7 +354,7 @@ class DataTransferRepository(
      * Merge and append an imported database with the current one, handling ID remapping
      * and conflict resolution for all entity types.
      */
-    private suspend fun mergeImportedDatabase(importDb: File) {
+    private suspend fun mergeImportedDatabase(importDb: File, imageNames: Set<String>): List<String> {
         val db = SQLiteDatabase.openDatabase(
             importDb.absolutePath, null, SQLiteDatabase.OPEN_READONLY
         )

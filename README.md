@@ -137,4 +137,4 @@ This happens because the official release is signed with my private key for secu
 
 This project is licensed under the Apache 2.0 License.
 
-<img src="imgs/Logo.png" width="64" height="64" style="border-radius: 50%"> 
+<img src="imgs/logo.png" width="64" height="64" style="border-radius: 50%"> 

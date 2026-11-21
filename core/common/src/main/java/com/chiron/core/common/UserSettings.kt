@@ -12,6 +12,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_settings")
 
@@ -34,6 +36,71 @@ class UserSettingsRepository(private val context: Context) {
         private val METRONOME_CUSTOMIZE_SINGLE_TAP = booleanPreferencesKey("metronome_customize_single_tap")
         private val METRONOME_CUSTOMIZE_DOUBLE_TAP = booleanPreferencesKey("metronome_customize_double_tap")
         private val METRONOME_CUSTOMIZE_TRIPLE_TAP = booleanPreferencesKey("metronome_customize_triple_tap")
+        private val BACKUP_BOOLEAN_KEYS = listOf(
+            DISPLAY_IN_KG, SHOW_WORKOUT_VOLUME, SPOTIFY_ENABLED, MATCH_THEME_WITH_MEDIA,
+            METRONOME_CONTROLS_ENABLED, METRONOME_CUSTOMIZE_SINGLE_TAP,
+            METRONOME_CUSTOMIZE_DOUBLE_TAP, METRONOME_CUSTOMIZE_TRIPLE_TAP
+        )
+    }
+
+    /** Portable preferences only: never restore device permissions, navigation IDs or migration flags. */
+    suspend fun exportBackup(): String {
+        val prefs = context.dataStore.data.first()
+        return JSONObject().apply {
+            put("version", 1)
+            BACKUP_BOOLEAN_KEYS.forEach { put(it.name, prefs[it] ?: false) }
+            put(DISTANCE_UNIT.name, DistanceUnit.fromString(prefs[DISTANCE_UNIT]).key)
+            put(CUSTOM_LOCATIONS.name, JSONArray((prefs[CUSTOM_LOCATIONS] ?: emptySet()).sorted()))
+        }.toString()
+    }
+
+    fun validateBackup(serialized: String) {
+        parseBackup(serialized)
+    }
+
+    suspend fun restoreBackup(
+        serialized: String?,
+        additionalLocations: List<String> = emptyList(),
+        mergeLocations: Boolean = true
+    ) {
+        val backup = serialized?.let(::parseBackup)
+        context.dataStore.edit { prefs ->
+            backup?.booleans?.forEach { (key, value) -> prefs[key] = value }
+            backup?.distanceUnit?.let { prefs[DISTANCE_UNIT] = it }
+            val locations = (backup?.locations.orEmpty() + additionalLocations)
+                .map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            prefs[CUSTOM_LOCATIONS] =
+                (if (mergeLocations) prefs[CUSTOM_LOCATIONS].orEmpty() else emptySet()) + locations
+        }
+    }
+
+    private data class Backup(
+        val booleans: Map<Preferences.Key<Boolean>, Boolean>,
+        val distanceUnit: String?,
+        val locations: Set<String>
+    )
+
+    private fun parseBackup(serialized: String): Backup {
+        val json = JSONObject(serialized)
+        require(json.getInt("version") == 1) { "Unsupported settings backup version" }
+        val booleans = BACKUP_BOOLEAN_KEYS.filter { json.has(it.name) }.associateWith {
+            val value = json.get(it.name)
+            require(value is Boolean) { "Invalid setting: ${it.name}" }
+            value
+        }
+        val unit = if (json.has(DISTANCE_UNIT.name)) {
+            json.getString(DISTANCE_UNIT.name).also { value ->
+                require(DistanceUnit.entries.any { it.key == value }) { "Invalid distance unit" }
+            }
+        } else null
+        val locations = json.optJSONArray(CUSTOM_LOCATIONS.name)?.let { array ->
+            (0 until array.length()).map { index ->
+                val value = array.get(index)
+                require(value is String) { "Invalid custom location" }
+                value
+            }.toSet()
+        }.orEmpty()
+        return Backup(booleans, unit, locations)
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->

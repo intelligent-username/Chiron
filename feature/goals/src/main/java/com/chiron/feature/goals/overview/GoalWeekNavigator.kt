@@ -18,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,30 +42,30 @@ fun GoalWeekNavigator(
             .clip(RoundedCornerShape(8.dp))
             .background(SolidSlate)
             .border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        IconButton(onClick = onPrev, enabled = canGoPrev, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onPrev, enabled = canGoPrev, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Previous week",
                 modifier = Modifier.size(20.dp),
-                tint = if (canGoPrev) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
+                tint = if (canGoPrev) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
         }
         Text(
             text = weekLabel,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Medium
         )
-        IconButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = "Next week",
                 modifier = Modifier.size(20.dp),
-                tint = if (canGoNext) MaterialTheme.colorScheme.primary else Color(0xFF30363D)
+                tint = if (canGoNext) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
         }
     }
