@@ -2,6 +2,7 @@ package com.chiron.app.ui.settings
 
 import android.app.DownloadManager
 import android.content.Intent
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -28,7 +29,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     repository: UserSettingsRepository,
-    onExportData: () -> Result<ChironRepository.ExportedData>,
+    onExportData: suspend (android.net.Uri?) -> Result<ChironRepository.ExportedData>,
     onImportData: suspend (android.net.Uri) -> Result<String>,
     onBack: () -> Unit
 ) {
@@ -54,9 +55,13 @@ fun SettingsScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
+                if (isImporting || isExporting) return@launch
                 isImporting = true
-                val result = onImportData(uri)
-                isImporting = false
+                val result = try {
+                    onImportData(uri)
+                } finally {
+                    isImporting = false
+                }
                 
                 if (result.isSuccess) {
                     snackbarHostState.showSnackbar(
@@ -69,6 +74,33 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    fun exportData(destination: android.net.Uri?) {
+        if (isExporting || isImporting) return
+        scope.launch {
+            isExporting = true
+            val result = try {
+                onExportData(destination)
+            } finally {
+                isExporting = false
+            }
+            if (result.isSuccess) {
+                lastExport = result.getOrNull()
+                snackbarHostState.showSnackbar("Data exported")
+            } else {
+                snackbarHostState.showSnackbar(
+                    "Export failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                )
+            }
+        }
+    }
+
+    // Android 8/9 have no MediaStore.Downloads API. SAF needs no storage permission.
+    val exportFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { destination ->
+        if (destination != null) exportData(destination)
     }
 
     LaunchedEffect(lastExport?.uri) {
@@ -413,26 +445,11 @@ fun SettingsScreen(
 
             Button(
                 onClick = {
-                    if (isExporting) return@Button
-                    scope.launch {
-                        isExporting = true
-                        val result = onExportData()
-                        if (result.isSuccess) {
-                            val exported = result.getOrNull()
-                            lastExport = exported
-                            snackbarHostState.showSnackbar(
-                                message = "Data exported"
-                            )
-                        } else {
-                            snackbarHostState.showSnackbar(
-                                message = "Export failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
-                            )
-                        }
-                        isExporting = false
-                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) exportData(null)
+                    else exportFileLauncher.launch("Chiron.zip")
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isExporting
+                enabled = !isExporting && !isImporting
             ) {
                 Text(
                     text = if (isExporting) "Exporting…" else "Export Data",
@@ -448,7 +465,7 @@ fun SettingsScreen(
                     filePickerLauncher.launch("*/*")
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isImporting
+                enabled = !isImporting && !isExporting
             ) {
                 Text(
                     text = if (isImporting) "Importing…" else "Import Data",

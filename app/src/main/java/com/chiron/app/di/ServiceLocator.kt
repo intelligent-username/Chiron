@@ -37,7 +37,9 @@ object ServiceLocator {
             goalDao = database.goalDao(),
             onImportLocations = { locations -> userSettingsRepository.addCustomLocations(locations) },
             bodyWeightDao = database.bodyWeightDao(),
-            volumeAnalyticsDao = database.volumeAnalyticsDao()
+            volumeAnalyticsDao = database.volumeAnalyticsDao(),
+            database = database,
+            settingsRepository = userSettingsRepository
         )
     }
 

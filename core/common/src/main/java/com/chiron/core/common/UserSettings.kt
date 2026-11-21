@@ -93,7 +93,7 @@ class UserSettingsRepository(private val context: Context) {
                 require(DistanceUnit.entries.any { it.key == value }) { "Invalid distance unit" }
             }
         } else null
-        val locations = json.optJSONArray(CUSTOM_LOCATIONS.name)?.let { array ->
+        val locations = (if (json.has(CUSTOM_LOCATIONS.name)) json.getJSONArray(CUSTOM_LOCATIONS.name) else null)?.let { array ->
             (0 until array.length()).map { index ->
                 val value = array.get(index)
                 require(value is String) { "Invalid custom location" }

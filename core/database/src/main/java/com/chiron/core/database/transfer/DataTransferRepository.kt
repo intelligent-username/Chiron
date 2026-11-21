@@ -38,8 +38,8 @@ import java.io.FileInputStream
  * Handles database export (snapshot + SVG icons bundle to Downloads/Chiron)
  * and conflict-free appending import.
  *
- * Post-import PR consistency is delegated via [onRebuildPrs], and custom location
- * synchronization via [onImportLocations].
+ * Post-import PR consistency is delegated via [onRebuildPrs]. Assets are staged,
+ * then installed with rollback copies while all database merges run in one transaction.
  */
 class DataTransferRepository(
     private val context: Context,
@@ -291,6 +291,9 @@ class DataTransferRepository(
             db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
                 require(cursor.moveToFirst() && cursor.getString(0) == "ok") { "Backup database is corrupt" }
             }
+            db.rawQuery("PRAGMA foreign_key_check", null).use { cursor ->
+                require(!cursor.moveToFirst()) { "Backup contains broken record references" }
+            }
             val requiredTables = setOf("exercise", "workout_session", "exercise_entry", "set_entry")
             val tables = db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'", null).use { cursor ->
                 buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
@@ -379,19 +382,29 @@ class DataTransferRepository(
                     val iIsRep = cursor.getColumnIndex("is_rep_based")
                     val iIsTime = cursor.getColumnIndex("is_time_based")
                     val iIsDist = cursor.getColumnIndex("is_distance_based")
+                    val iIsBodyweight = cursor.getColumnIndex("is_bodyweight")
+                    val iPercentBodyweight = cursor.getColumnIndex("percent_bodyweight")
                     while (cursor.moveToNext()) {
                         val importedId = cursor.getLong(iId)
                         val name = cursor.getString(iName)?.trim() ?: continue
                         if (name.isBlank()) continue
 
                         val importedArchived = if (iArchived >= 0) cursor.getInt(iArchived) else 0
-                        val importedImageUri = if (iImageUri >= 0 && !cursor.isNull(iImageUri)) cursor.getString(iImageUri) else null
+                        val originalImageUri = if (iImageUri >= 0 && !cursor.isNull(iImageUri)) cursor.getString(iImageUri) else null
+                        val importedImageUri = originalImageUri?.let { original ->
+                            val name = Uri.parse(original).lastPathSegment
+                            if (name != null && name in imageNames) {
+                                Uri.fromFile(File(context.filesDir, "images/exercises/$name")).toString()
+                            } else original
+                        }
                         val importedDesc = if (iDesc >= 0 && !cursor.isNull(iDesc)) cursor.getString(iDesc) else null
                         val importedIcon = if (iIcon >= 0 && !cursor.isNull(iIcon)) cursor.getString(iIcon) else "default"
                         val importedIsWeight = if (iIsWeight >= 0) cursor.getInt(iIsWeight) else 1
                         val importedIsRep = if (iIsRep >= 0) cursor.getInt(iIsRep) else 1
                         val importedIsTime = if (iIsTime >= 0) cursor.getInt(iIsTime) else 0
                         val importedIsDist = if (iIsDist >= 0) cursor.getInt(iIsDist) else 0
+                        val importedIsBodyweight = if (iIsBodyweight >= 0) cursor.getInt(iIsBodyweight) else 0
+                        val importedPercentBodyweight = if (iPercentBodyweight >= 0) cursor.getDouble(iPercentBodyweight) else 100.0
 
                         val existing = exerciseDao.getByNameAnyStatus(name)
                         if (existing != null) {
@@ -400,19 +413,27 @@ class DataTransferRepository(
                             if (importedArchived == 0 && existing.archived != 0) {
                                 exerciseDao.unarchive(existing.id)
                             }
-                            // Update metadata if existing had placeholder / missing details
-                            val needsUpdate = (existing.description.isNullOrBlank() && !importedDesc.isNullOrBlank()) ||
-                                    (existing.iconName == "default" && importedIcon != "default") ||
-                                    (existing.imageUri.isNullOrBlank() && !importedImageUri.isNullOrBlank())
-                            if (needsUpdate) {
-                                exerciseDao.updateExercise(
-                                    existing.copy(
-                                        description = existing.description ?: importedDesc,
-                                        iconName = if (existing.iconName == "default") importedIcon else existing.iconName,
-                                        imageUri = existing.imageUri ?: importedImageUri
-                                    )
+                            // Keep existing metadata, but restore tracking configuration when present.
+                            // Also repair an old installation path when the same image was bundled.
+                            val existingImageName = existing.imageUri?.let { Uri.parse(it).lastPathSegment }
+                            val restoredImageUri = if (
+                                existing.imageUri.isNullOrBlank() ||
+                                (existingImageName != null && existingImageName in imageNames &&
+                                    existingImageName == importedImageUri?.let { Uri.parse(it).lastPathSegment })
+                            ) importedImageUri else existing.imageUri
+                            exerciseDao.updateExercise(
+                                existing.copy(
+                                    description = existing.description?.takeIf { it.isNotBlank() } ?: importedDesc,
+                                    iconName = if (existing.iconName == "default") importedIcon else existing.iconName,
+                                    imageUri = restoredImageUri,
+                                    isWeightBased = if (iIsWeight >= 0) importedIsWeight else existing.isWeightBased,
+                                    isRepBased = if (iIsRep >= 0) importedIsRep else existing.isRepBased,
+                                    isTimeBased = if (iIsTime >= 0) importedIsTime else existing.isTimeBased,
+                                    isDistanceBased = if (iIsDist >= 0) importedIsDist else existing.isDistanceBased,
+                                    isBodyweight = if (iIsBodyweight >= 0) importedIsBodyweight else existing.isBodyweight,
+                                    percentBodyweight = if (iPercentBodyweight >= 0) importedPercentBodyweight else existing.percentBodyweight
                                 )
-                            }
+                            )
                         } else {
                             val newId = exerciseDao.insertExercise(
                                 Exercise(
@@ -424,7 +445,9 @@ class DataTransferRepository(
                                     isWeightBased = importedIsWeight,
                                     isRepBased = importedIsRep,
                                     isTimeBased = importedIsTime,
-                                    isDistanceBased = importedIsDist
+                                    isDistanceBased = importedIsDist,
+                                    isBodyweight = importedIsBodyweight,
+                                    percentBodyweight = importedPercentBodyweight
                                 )
                             )
                             exerciseIdMap[importedId] = newId
@@ -570,6 +593,7 @@ class DataTransferRepository(
                 val iTempo = cursor.getColumnIndex("tempo")
                 val iNotes = cursor.getColumnIndex("notes")
                 val iTs = cursor.getColumnIndex("timestamp_utc")
+                val iIsPr = cursor.getColumnIndex("is_pr")
                 while (cursor.moveToNext()) {
                     if (iEntryId < 0 || iSetIndex < 0) continue
                     val localEntryId = entryIdMap[cursor.getLong(iEntryId)] ?: continue
@@ -582,6 +606,7 @@ class DataTransferRepository(
                     val tempo = if (iTempo >= 0 && !cursor.isNull(iTempo)) cursor.getString(iTempo) else null
                     val notes = if (iNotes >= 0 && !cursor.isNull(iNotes)) cursor.getString(iNotes) else null
                     val timestamp = if (iTs >= 0) cursor.getLong(iTs) else System.currentTimeMillis()
+                    val isPr = if (iIsPr >= 0) cursor.getInt(iIsPr) else 0
 
                     val existingSet = setEntryDao.findMatchingSet(localEntryId, setIndex)
                     if (existingSet == null) {
@@ -597,7 +622,7 @@ class DataTransferRepository(
                                 tempo = tempo,
                                 notes = notes,
                                 timestampUtc = timestamp,
-                                isPr = 0 // accurately computed on rebuild
+                                isPr = isPr
                             )
                         )
                     } else if (existingSet.weightLbs == null && existingSet.reps == null && (weight != null || reps != null || duration != null || distance != null)) {
@@ -704,9 +729,32 @@ class DataTransferRepository(
                 }
             }
 
-            // ── 7. Locations Synchronization ─────────────────────────────────
-            if (importedLocations.isNotEmpty()) {
-                onImportLocations?.invoke(importedLocations.toList())
+            // Bodyweight history is optional in legacy backups. Match values rather than IDs:
+            // source IDs can already belong to unrelated local entries.
+            val hasBodyweightTable = db.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='body_weight_entry'", null
+            ).use { it.moveToFirst() }
+            if (hasBodyweightTable) {
+                val bodyweightDao = database.bodyWeightDao()
+                val existing = bodyweightDao.getAllSync().map { it.copy(id = 0L) }.toMutableSet()
+                db.rawQuery("SELECT * FROM body_weight_entry ORDER BY timestamp_utc, id", null).use { cursor ->
+                    val iTimestamp = cursor.getColumnIndexOrThrow("timestamp_utc")
+                    val iWeight = cursor.getColumnIndexOrThrow("weight_lbs")
+                    val iNote = cursor.getColumnIndex("note")
+                    val iSource = cursor.getColumnIndex("source")
+                    while (cursor.moveToNext()) {
+                        val entry = BodyWeightEntry(
+                            timestampUtc = cursor.getLong(iTimestamp),
+                            weightLbs = cursor.getDouble(iWeight),
+                            note = if (iNote >= 0 && !cursor.isNull(iNote)) cursor.getString(iNote) else null,
+                            source = if (iSource >= 0 && !cursor.isNull(iSource)) cursor.getString(iSource) else null
+                        )
+                        require(entry.weightLbs.isFinite() && entry.weightLbs > 0.0) {
+                            "Backup contains an invalid bodyweight entry"
+                        }
+                        if (existing.add(entry)) bodyweightDao.insert(entry)
+                    }
+                }
             }
 
             // ── 8. Fix Workout End Times ───────────────────────────────────────
@@ -716,6 +764,7 @@ class DataTransferRepository(
             for (exerciseId in affectedExerciseIds) {
                 onRebuildPrs(exerciseId)
             }
+            return importedLocations.toList()
 
         } finally {
             db.close()

@@ -2,6 +2,7 @@ package com.chiron.core.database
 
 import android.content.Context
 import android.net.Uri
+import com.chiron.core.common.UserSettingsRepository
 import com.chiron.core.database.dao.ExerciseDao
 import com.chiron.core.database.dao.BodyWeightDao
 import com.chiron.core.database.dao.ExerciseEntryDao
@@ -65,7 +66,9 @@ class ChironRepository(
     private val goalDao: GoalDao,
     private val onImportLocations: (suspend (List<String>) -> Unit)? = null,
     private val bodyWeightDao: BodyWeightDao? = null,
-    private val volumeAnalyticsDao: VolumeAnalyticsDao? = null
+    private val volumeAnalyticsDao: VolumeAnalyticsDao? = null,
+    private val database: ChironDatabase? = null,
+    private val settingsRepository: UserSettingsRepository? = null
 ) {
     // ─── Nested data classes (kept here so existing call-sites don't change) ──
 
@@ -132,18 +135,18 @@ class ChironRepository(
 
     private val timerPresetRepository = TimerPresetRepository(timerPresetDao)
 
-    private val dataTransferRepository = DataTransferRepository(
+    private val dataTransferRepository by lazy { DataTransferRepository(
         context = context,
         exerciseDao = exerciseDao,
         workoutSessionDao = workoutSessionDao,
         exerciseEntryDao = exerciseEntryDao,
         setEntryDao = setEntryDao,
         timerPresetDao = timerPresetDao,
-        exercisePrDao = exercisePrDao,
         goalDao = goalDao,
+        database = requireNotNull(database) { "Database is required for backup/restore" },
+        settingsRepository = requireNotNull(settingsRepository) { "Settings are required for backup/restore" },
         onRebuildPrs = { exerciseId -> prRepository.rebuildPrsForExercise(exerciseId) },
-        onImportLocations = onImportLocations
-    )
+    ) }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Exercise ops
@@ -447,8 +450,8 @@ class ChironRepository(
     // Data export / import
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun exportDataSnapshot(): Result<ExportedData> {
-        return dataTransferRepository.exportDataSnapshot().map { data ->
+    suspend fun exportDataSnapshot(destination: Uri? = null): Result<ExportedData> {
+        return dataTransferRepository.exportDataSnapshot(destination).map { data ->
             ExportedData(
                 uri = data.uri,
                 locationLabel = data.locationLabel,

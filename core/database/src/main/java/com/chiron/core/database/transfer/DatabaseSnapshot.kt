@@ -14,11 +14,13 @@ internal suspend fun ChironDatabase.writeBackupSnapshot(destination: File) {
     withTransaction {
         val source = openHelper.writableDatabase
         SQLiteDatabase.openOrCreateDatabase(destination, null).use { snapshot ->
+            snapshot.disableWriteAheadLogging()
             snapshot.beginTransaction()
             try {
                 val schema = source.query(
                     "SELECT type, name, sql FROM sqlite_master " +
-                        "WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type, name"
+                        "WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' " +
+                        "AND name != 'android_metadata' ORDER BY type, name"
                 ).use { cursor ->
                     buildList {
                         while (cursor.moveToNext()) {

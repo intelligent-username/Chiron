@@ -148,7 +148,7 @@ fun ChironApp(
     if (!isAppLoading && isSettingsOpen) {
         SettingsScreen(
             repository = historyViewModel.getSettingsRepository(),
-            onExportData = { ServiceLocator.repository.exportDataSnapshot() },
+            onExportData = { destination -> ServiceLocator.repository.exportDataSnapshot(destination) },
             onImportData = { uri -> ServiceLocator.repository.importDataFromFile(uri) },
             onBack = { isSettingsOpen = false }
         )
