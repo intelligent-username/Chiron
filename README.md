@@ -135,6 +135,6 @@ This happens because the official release is signed with my private key for secu
 
 ## License
 
-This project is licensed under the Apache 2.0 License.
+This project is licensed under the Apache 2.0 License. Feel free to contribute
 
 <img src="imgs/logo.png" width="64" height="64" style="border-radius: 50%"> 
