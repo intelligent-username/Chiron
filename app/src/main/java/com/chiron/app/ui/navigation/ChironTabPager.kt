@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import com.chiron.core.model.Exercise
 import com.chiron.core.ui.components.NavTab
@@ -42,6 +45,7 @@ fun ChironTabPager(
     goalsViewModel: GoalsViewModel,
     exercisesViewModel: ExercisesViewModel,
     onOpenExerciseDetail: (Long) -> Unit,
+    onNavigateExercise: (Long) -> Unit,
     onExercisesSearchQueryChange: (Boolean) -> Unit,
     isExerciseDetailOpen: Boolean,
     activeExerciseId: Long?,
@@ -62,7 +66,10 @@ fun ChironTabPager(
 ) {
     HorizontalPager(
         state = pagerState,
-        userScrollEnabled = !isEditorOpen,
+        userScrollEnabled = !isEditorOpen && !(
+            isExerciseDetailOpen && !isGoalsMode &&
+                tabs.getOrNull(pagerState.currentPage) == NavTab.EXERCISES
+            ),
         beyondViewportPageCount = 0,
         modifier = modifier.fillMaxSize()
     ) { page ->
@@ -100,19 +107,30 @@ fun ChironTabPager(
                     if (isExerciseDetailOpen) {
                         val exercise = exercises.find { it.id == activeExerciseId }
                             ?: archivedExercises.find { it.id == activeExerciseId }
-                        ExerciseDetailScreen(
-                            exercise = exercise,
-                            volumeViewModel = volumeViewModel,
-                            displayInKg = displayInKg,
-                            onSave = onExerciseSave,
-                            onDelete = onExerciseDelete,
-                            onUnarchive = onExerciseUnarchive,
-                            onDeletePermanently = onExerciseDeletePermanently,
-                            onOpenPrForExercise = onExerciseOpenPr,
-                            onOpenWorkoutFromDate = onExerciseOpenWorkoutFromDate,
-                            onClose = onExerciseDetailClose,
-                            modifier = Modifier.fillMaxSize()
+                        val exerciseState by exercisesViewModel.uiState.collectAsState()
+                        val (previous, next) = adjacentExerciseIds(
+                            currentId = activeExerciseId,
+                            exercises = exercises,
+                            archivedExercises = archivedExercises,
+                            searchResults = exerciseState.searchResults.takeIf { exerciseState.searchQuery.isNotBlank() }
                         )
+                        key(activeExerciseId) {
+                            ExerciseDetailScreen(
+                                exercise = exercise,
+                                volumeViewModel = volumeViewModel,
+                                displayInKg = displayInKg,
+                                onSave = onExerciseSave,
+                                onDelete = onExerciseDelete,
+                                onUnarchive = onExerciseUnarchive,
+                                onDeletePermanently = onExerciseDeletePermanently,
+                                onOpenPrForExercise = onExerciseOpenPr,
+                                onOpenWorkoutFromDate = onExerciseOpenWorkoutFromDate,
+                                onClose = onExerciseDetailClose,
+                                onPreviousExercise = previous?.let { { onNavigateExercise(it) } },
+                                onNextExercise = next?.let { { onNavigateExercise(it) } },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }

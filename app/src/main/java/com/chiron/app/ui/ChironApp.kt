@@ -256,6 +256,9 @@ fun ChironApp(
                         isExerciseDetailOpen = true
                         exerciseDetailOpenedFromHistory = false
                     },
+                    onNavigateExercise = { exId ->
+                        activeExerciseId = exId
+                    },
                     onExercisesSearchQueryChange = { exercisesSearchHasText = it },
                     isExerciseDetailOpen = isExerciseDetailOpen,
                     activeExerciseId = activeExerciseId,
