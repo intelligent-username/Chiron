@@ -28,6 +28,14 @@ class CalorieTrackingTest {
         assertEquals(newer, history.targetFor(day.plusDays(3)))
     }
 
+    @Test
+    fun globalTargetUsesLatestSavedTargetRegardlessOfViewedDate() {
+        val old = CalorieTarget(day, 2000.0, 120.0)
+        val newer = CalorieTarget(day.plusDays(3), 2500.0, 150.0)
+        assertEquals(newer, CalorieHistory(targets = listOf(newer, old)).globalTarget())
+        assertNull(CalorieHistory().globalTarget())
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun nonFiniteCaloriesAreRejected() {
         CalorieEntry("a", day, "", Double.NaN, 0.0, 1.0)

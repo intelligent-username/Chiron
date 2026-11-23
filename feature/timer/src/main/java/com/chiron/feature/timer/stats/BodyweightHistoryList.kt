@@ -118,7 +118,8 @@ fun BodyweightHistoryList(
             }
 
             // Paginated log rows
-            displayedEntries.forEach { entry ->
+            displayedEntries.forEachIndexed { index, entry ->
+                if (index > 0) HorizontalDivider(color = ThinOutline.copy(alpha = 0.7f), thickness = 1.dp)
                 val isEditing = editingId == entry.id
                 val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
 

@@ -83,6 +83,7 @@ fun BodyweightStatsScreen(
                             weightState = state,
                             error = calorieError,
                             onSaveEntries = viewModel::saveCalorieEntries,
+                            onSaveDay = viewModel::saveCalorieDay,
                             onDelete = viewModel::deleteCalorieEntry,
                             onSaveTarget = viewModel::saveCalorieTarget
                         )

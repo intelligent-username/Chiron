@@ -78,6 +78,7 @@ fun CalorieScreen(
     weightState: BodyweightUiState,
     error: String?,
     onSaveEntries: (List<CalorieEntry>) -> Unit,
+    onSaveDay: (List<CalorieEntry>, Set<String>) -> Unit,
     onDelete: (String) -> Unit,
     onSaveTarget: (CalorieTarget) -> Unit
 ) {
@@ -89,6 +90,7 @@ fun CalorieScreen(
     var graphEnd by remember { mutableStateOf(LocalDate.now()) }
     var editingDate by remember { mutableStateOf(date) }
     var editing by remember { mutableStateOf<List<FoodDraft>?>(null) }
+    var editingOriginalIds by remember { mutableStateOf<Set<String>?>(null) }
     var showTargets by remember { mutableStateOf(false) }
     var showTransfer by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
@@ -103,7 +105,7 @@ fun CalorieScreen(
     val graphWindow = remember(graphEnd, displayedWeeks, history.entries, today) {
         CalorieGraphCalculator.window(graphEnd, displayedWeeks, history.entries, today)
     }
-    val target = history.targetFor(date)
+    val target = history.globalTarget()
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
@@ -132,7 +134,7 @@ fun CalorieScreen(
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Crossfade(targetState = date, animationSpec = tween(180), label = "dailyNutrition") { shownDate ->
                     val dailyEntries = history.entries.filter { it.date == shownDate }
-                    val dailyTarget = history.targetFor(shownDate)
+                    val dailyTarget = target
                     Box(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         NutritionTotal("Calories", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
@@ -161,7 +163,7 @@ fun CalorieScreen(
             }
         }
         item {
-            Button(onClick = { editingDate = date; editing = listOf(FoodDraft()) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            Button(onClick = { editingDate = date; editingOriginalIds = null; editing = listOf(FoodDraft()) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("Log food", modifier = Modifier.padding(start = 8.dp))
@@ -195,10 +197,14 @@ fun CalorieScreen(
         item {
             CalorieHistoryList(
                 entries = entries,
-                onEdit = { entry ->
-                    editingDate = entry.date
-                    editing = listOf(FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
-                        entry.proteinPerServing.toString(), entry.servings.toString()))
+                onEdit = { selectedDate ->
+                    val dayEntries = history.entries.filter { it.date == selectedDate }
+                    editingDate = selectedDate
+                    editingOriginalIds = dayEntries.map { it.id }.toSet()
+                    editing = dayEntries.map { entry ->
+                        FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
+                            entry.proteinPerServing.toString(), entry.servings.toString())
+                    }
                 },
                 onDelete = { deleteEntry = it }
             )
@@ -206,19 +212,26 @@ fun CalorieScreen(
     }
     editing?.let { drafts ->
         FoodDialog(editingDate, drafts, history.entries, onDismiss = { editing = null }, onSave = {
-            onSaveEntries(it)
+            val originalIds = editingOriginalIds
+            if (originalIds != null) onSaveDay(it, originalIds) else onSaveEntries(it)
+            editingOriginalIds = null
             editing = null
         })
     }
     if (showTargets) {
-        TargetDialog(date, target, onDismiss = { showTargets = false }, onSave = {
+        TargetDialog(target, onDismiss = { showTargets = false }, onSave = {
             onSaveTarget(it)
             showTargets = false
         })
     }
     if (showTransfer) {
-        CalorieTransferDialog(history, onDismiss = { showTransfer = false }, onImport = { imported ->
+        CalorieTransferDialog(history, showCalorieGoal, onDismiss = { showTransfer = false }, onImport = { imported, targets, graphGoal ->
             onSaveEntries(imported)
+            targets.forEach(onSaveTarget)
+            graphGoal?.let {
+                showCalorieGoal = it
+                graphPreferences.edit().putBoolean("show_goal", it).apply()
+            }
             imported.maxOfOrNull { it.date }?.let { importedDate ->
                 date = importedDate.coerceAtMost(LocalDate.now())
                 graphEnd = importedDate.coerceAtMost(LocalDate.now())
@@ -352,11 +365,11 @@ private fun FoodDialog(
 }
 
 @Composable
-private fun TargetDialog(date: LocalDate, target: CalorieTarget?, onDismiss: () -> Unit, onSave: (CalorieTarget) -> Unit) {
+private fun TargetDialog(target: CalorieTarget?, onDismiss: () -> Unit, onSave: (CalorieTarget) -> Unit) {
     var calories by remember { mutableStateOf(target?.calories?.toString() ?: "") }
     var protein by remember { mutableStateOf(target?.protein?.toString() ?: "") }
     var message by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Targets from $date") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Daily targets") },
         text = {
             Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Leave a target blank to turn it off.")
@@ -369,7 +382,7 @@ private fun TargetDialog(date: LocalDate, target: CalorieTarget?, onDismiss: () 
         },
         confirmButton = { TextButton(onClick = {
             runCatching {
-                CalorieTarget(date, calories.takeIf { it.isNotBlank() }?.toDouble(),
+                CalorieTarget(maxOf(LocalDate.now(), target?.date ?: LocalDate.now()), calories.takeIf { it.isNotBlank() }?.toDouble(),
                     protein.takeIf { it.isNotBlank() }?.toDouble())
             }.onSuccess(onSave).onFailure { message = "Targets must be positive numbers or blank." }
         }) { Text("Save") } },

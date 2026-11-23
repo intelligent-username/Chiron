@@ -63,6 +63,11 @@ class BodyweightViewModel(
         history.copy(entries = history.entries.filterNot { it.id in ids } + entries)
     }
 
+    fun saveCalorieDay(entries: List<CalorieEntry>, originalIds: Set<String>) = updateCalories { history ->
+        val updatedIds = entries.map { it.id }.toSet()
+        history.copy(entries = history.entries.filterNot { it.id in originalIds || it.id in updatedIds } + entries)
+    }
+
     fun deleteCalorieEntry(id: String) = updateCalories { history ->
         history.copy(entries = history.entries.filterNot { it.id == id })
     }

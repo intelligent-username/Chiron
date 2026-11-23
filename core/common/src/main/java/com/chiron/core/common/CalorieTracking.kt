@@ -56,6 +56,7 @@ data class CalorieHistory(
     val targets: List<CalorieTarget> = emptyList()
 ) {
     fun targetFor(date: LocalDate): CalorieTarget? = targets.filter { it.date <= date }.maxByOrNull { it.date }
+    fun globalTarget(): CalorieTarget? = targets.maxByOrNull { it.date }
 
     fun toJson(): String = JSONObject().apply {
         put("version", 1)

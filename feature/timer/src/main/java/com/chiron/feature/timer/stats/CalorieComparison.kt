@@ -123,7 +123,9 @@ internal fun CalorieComparison(
     val weightMax = (validWeights.maxOrNull() ?: weightMin).coerceAtLeast(weightMin + if (state.displayInKg) 0.5 else 1.0)
 
     // Missing or zero-calorie days should not determine the visible calorie range.
-    val calorieValuesForScale = points.map { it.calories }.filter { it > 0.0 }
+    val dailyTarget = history.globalTarget()?.calories
+    val calorieValuesForScale = points.map { it.calories }.filter { it > 0.0 } +
+        listOfNotNull(dailyTarget.takeIf { showCalorieGoal })
     val calorieMin = calorieValuesForScale.minOrNull()?.let { floor(it / 500.0) * 500.0 } ?: 0.0
     val calorieMax = (ceil((calorieValuesForScale.maxOrNull() ?: 0.0) / 500.0) * 500.0)
         .coerceAtLeast(calorieMin + 500.0)
@@ -142,9 +144,6 @@ internal fun CalorieComparison(
     }
     val leftWidth = calorieTicks.maxOf { it.size.width }.toFloat()
     val rightWidth = if (showWeightAxis) weightTicks.maxOf { it.size.width }.toFloat() else 0f
-
-    // Daily target for the target line
-    val dailyTarget = history.targetFor(end)?.calories
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -241,8 +240,6 @@ internal fun CalorieComparison(
                     TargetLineColor,
                     style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
                 )
-                val targetLabel = measurer.measure("Target ${formatCalorieNumber(target)}", axisStyle)
-                drawText(targetLabel, topLeft = Offset(left - targetLabel.size.width - 6.dp.toPx(), targetY - targetLabel.size.height / 2f))
                 }
             }
 

@@ -78,14 +78,25 @@ object NutritionNotebookParser {
     )
 }
 
-data class CalorieTextPreview(val entries: List<CalorieEntry>, val errors: List<String>, val ignoredLines: Int)
+data class CalorieTextPreview(
+    val entries: List<CalorieEntry>,
+    val errors: List<String>,
+    val ignoredLines: Int,
+    val targets: List<CalorieTarget> = emptyList(),
+    val showCalorieGoal: Boolean? = null
+)
 
 object CalorieTextImporter {
     fun parse(text: String, referenceYear: Int = LocalDate.now().year): CalorieTextPreview {
         val input = text.trim().removePrefix("\uFEFF").trim()
         require(input.isNotEmpty()) { "Paste a nutrition log or calorie export first" }
         if (input.startsWith("{")) {
-            return CalorieTextPreview(CalorieHistory.parse(input).entries, emptyList(), 0)
+            val history = CalorieHistory.parse(input)
+            val json = org.json.JSONObject(input)
+            val showGoal = if (json.has("showCalorieGoal") && !json.isNull("showCalorieGoal")) {
+                json.getBoolean("showCalorieGoal")
+            } else null
+            return CalorieTextPreview(history.entries, emptyList(), 0, history.targets, showGoal)
         }
         val notebook = NutritionNotebookParser.parse(input, referenceYear)
         require(notebook.foods.isNotEmpty() || notebook.errors.isNotEmpty()) {

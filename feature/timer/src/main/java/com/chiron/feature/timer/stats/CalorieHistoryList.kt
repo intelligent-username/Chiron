@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,13 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
+import com.chiron.core.ui.theme.ThinOutline
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
@@ -37,17 +39,18 @@ private val FoodLogDateFormatter = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy
 @Composable
 fun CalorieHistoryList(
     entries: List<CalorieEntry>,
-    onEdit: (CalorieEntry) -> Unit,
+    onEdit: (LocalDate) -> Unit,
     onDelete: (CalorieEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
-    val totalPages = max(1, (entries.size + pageSize - 1) / pageSize)
+    val days = remember(entries) { entries.groupBy { it.date }.toSortedMap(compareByDescending { it }).entries.toList() }
+    val totalPages = max(1, (days.size + pageSize - 1) / pageSize)
     val safePage = currentPage.coerceIn(0, totalPages - 1)
-    val displayedEntries = remember(entries, safePage, pageSize) {
-        entries.drop(safePage * pageSize).take(pageSize)
+    val displayedDays = remember(days, safePage, pageSize) {
+        days.drop(safePage * pageSize).take(pageSize)
     }
 
     HistoryListCard(
@@ -70,7 +73,10 @@ fun CalorieHistoryList(
                     .heightIn(max = 360.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                displayedEntries.forEach { entry ->
+                displayedDays.forEachIndexed { dayIndex, day ->
+                    if (dayIndex > 0) HorizontalDivider(color = ThinOutline, thickness = 1.5.dp)
+                    day.value.forEachIndexed { index, entry ->
+                    if (index > 0) HorizontalDivider(color = ThinOutline.copy(alpha = 0.3f), thickness = 0.5.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -87,25 +93,18 @@ fun CalorieHistoryList(
                                 fontSize = 15.sp
                             )
                             Text(
-                                entry.name.ifBlank { "Food" },
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${entry.date.format(FoodLogDateFormatter)} · " +
-                                    "${formatCalorieNumber(entry.protein)} g protein",
+                                "${entry.date.format(FoodLogDateFormatter)} · ${formatCalorieNumber(entry.protein)} g protein",
                                 color = CoolGray,
                                 fontSize = 12.sp
                             )
                         }
-                        TextButton(onClick = { onEdit(entry) }) {
+                        if (index == 0) TextButton(onClick = { onEdit(day.key) }) {
                             Text("Edit", color = ElectricBlue)
                         }
                         TextButton(onClick = { onDelete(entry) }) {
                             Text("Delete", color = MaterialTheme.colorScheme.error)
                         }
+                    }
                     }
                 }
             }

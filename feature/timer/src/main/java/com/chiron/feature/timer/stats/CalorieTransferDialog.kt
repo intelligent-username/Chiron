@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
+import com.chiron.core.common.CalorieTarget
 import com.chiron.core.common.CalorieTextImporter
 import com.chiron.core.common.CalorieTextPreview
 import com.chiron.core.ui.theme.MonospaceFamily
@@ -42,8 +43,9 @@ import java.time.LocalDate
 @Composable
 internal fun CalorieTransferDialog(
     history: CalorieHistory,
+    showCalorieGoal: Boolean,
     onDismiss: () -> Unit,
-    onImport: (List<CalorieEntry>) -> Unit
+    onImport: (List<CalorieEntry>, List<CalorieTarget>, Boolean?) -> Unit
 ) {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -54,8 +56,13 @@ internal fun CalorieTransferDialog(
     var parsing by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
     val existingById = remember(history.entries) { history.entries.associateBy { it.id } }
-    val conflicts = preview?.entries?.count { it.id in existingById } ?: 0
-    val canImport = !parsing && preview?.let { it.entries.isNotEmpty() && it.errors.isEmpty() } == true
+    val existingTargetDates = remember(history.targets) { history.targets.map { it.date }.toSet() }
+    val conflicts = preview?.let { data ->
+        data.entries.count { it.id in existingById } + data.targets.count { it.date in existingTargetDates }
+    } ?: 0
+    val canImport = !parsing && preview?.let {
+        (it.entries.isNotEmpty() || it.targets.isNotEmpty() || it.showCalorieGoal != null) && it.errors.isEmpty()
+    } == true
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (exporting) "Export calories" else "Import calories") },
@@ -71,7 +78,7 @@ internal fun CalorieTransferDialog(
                 if (exporting) {
                     val dailyText = remember(history.entries) { calorieDailyText(history.entries) }
                     Text("${history.entries.size} entries", style = MaterialTheme.typography.titleMedium)
-                    Text("Daily text copies one dated total per day and imports back here. JSON keeps every food row and is the lossless backup. Dated targets are included in the app’s ZIP backup.",
+                    Text("Daily text copies one dated total per day. JSON keeps every food row and the graph goal setting; targets are not exported.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
@@ -79,7 +86,9 @@ internal fun CalorieTransferDialog(
                             message = "Daily text copied"
                         }) { Text("Copy text") }
                         TextButton(onClick = {
-                            clipboard.setText(AnnotatedString(CalorieHistory(entries = history.entries).toJson()))
+                            val json = org.json.JSONObject(CalorieHistory(entries = history.entries).toJson())
+                                .put("showCalorieGoal", showCalorieGoal)
+                            clipboard.setText(AnnotatedString(json.toString()))
                             message = "JSON export copied"
                         }) { Text("Copy JSON") }
                     }
@@ -132,7 +141,7 @@ internal fun CalorieTransferDialog(
                     }) { Text(if (parsing) "Reading…" else "Preview import") }
                     preview?.let { data ->
                         HorizontalDivider()
-                        Text("${data.entries.size} entries · $conflicts conflicts", style = MaterialTheme.typography.titleSmall)
+                        Text("${data.entries.size} entries · ${data.targets.size} targets · $conflicts conflicts", style = MaterialTheme.typography.titleSmall)
                         Text("${data.ignoredLines} headers, averages and weight rows ignored",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (data.entries.isNotEmpty()) {
@@ -153,7 +162,7 @@ internal fun CalorieTransferDialog(
                                 }
                             }
                         }
-                        if (conflicts > 0) Text("Existing entries will stay unchanged unless you choose Replace conflicts.",
+                        if (conflicts > 0) Text("Existing entries and targets will stay unchanged unless you choose Replace conflicts.",
                             style = MaterialTheme.typography.bodySmall)
                         data.errors.take(5).forEach { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                         if (data.errors.size > 5) Text("${data.errors.size - 5} more errors", color = MaterialTheme.colorScheme.error)
@@ -168,11 +177,14 @@ internal fun CalorieTransferDialog(
             if (!exporting && canImport) {
                 Column {
                     Button(onClick = {
-                        onImport(preview!!.entries.filterNot { it.id in existingById })
+                        val data = preview!!
+                        onImport(data.entries.filterNot { it.id in existingById },
+                            data.targets.filterNot { it.date in existingTargetDates }, data.showCalorieGoal)
                         onDismiss()
                     }) { Text(if (conflicts > 0) "Skip conflicts" else "Import ${preview!!.entries.size} entries") }
                     if (conflicts > 0) TextButton(onClick = {
-                        onImport(preview!!.entries)
+                        val data = preview!!
+                        onImport(data.entries, data.targets, data.showCalorieGoal)
                         onDismiss()
                     }) { Text("Replace conflicts") }
                 }
@@ -190,4 +202,3 @@ fun calorieDailyText(entries: List<CalorieEntry>): String =
         .joinToString("\n") { (date, foods) ->
             "$date: ${formatCalorieNumber(foods.sumOf { it.calories })}, ${formatCalorieNumber(foods.sumOf { it.protein })}"
         }
-
