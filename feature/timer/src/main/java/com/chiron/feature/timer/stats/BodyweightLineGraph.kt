@@ -52,7 +52,8 @@ fun BodyweightLineGraph(
     localInKg: Boolean,
     mode: BodyweightMode,
     modifier: Modifier = Modifier,
-    onPointTap: (BodyweightPoint) -> Unit = {}
+    onPointTap: (BodyweightPoint) -> Unit = {},
+    calorieOverlay: WeightCalorieOverlay? = null
 ) {
     var triggered by remember { mutableStateOf(false) }
     val animProgress by animateFloatAsState(
@@ -95,6 +96,7 @@ fun BodyweightLineGraph(
     var hoveredX by remember { mutableStateOf<Float?>(null) }
 
     val lineColor = ElectricBlue
+    val calorieColor = Color(0xFFFFA726)
     val labelColor = CoolGray
     val tipBg = SolidSlate
     val tipBorder = ThinOutline
@@ -119,15 +121,33 @@ fun BodyweightLineGraph(
             } else null
         }
     }
+    val measuredCalorieTicks = remember(calorieOverlay?.axisMaximum, tickCount, textMeasurer, calorieColor) {
+        calorieOverlay?.let { overlay ->
+            (0..tickCount).map { index ->
+                val value = overlay.axisMaximum * index / tickCount
+                textMeasurer.measure(
+                    "%.0f".format(value) + if (index == tickCount) " kcal" else "",
+                    TextStyle(color = calorieColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
+                )
+            }
+        }.orEmpty()
+    }
+    val rightAxisWidth = (measuredCalorieTicks.maxOfOrNull { it.size.width } ?: 0).toFloat()
+    val calorieLinePoints = remember(points, calorieOverlay) {
+        calorieOverlay?.let { overlay ->
+            points.zip(overlay.points).map { (weight, calories) -> weight.copy(weightLbs = calories.calories) }
+        }.orEmpty()
+    }
     val axisWidth = (measuredTicks.maxOfOrNull { it.second.size.width } ?: 0).toFloat()
 
     val linePath = remember { Path() }
+    val calorieLinePath = remember { Path() }
 
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(points, axisWidth) {
+                .pointerInput(points, axisWidth, rightAxisWidth) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = true)
                         down.consume()
@@ -140,7 +160,7 @@ fun BodyweightLineGraph(
                                 val dist = (change.position - down.position).getDistance()
                                 if (dist < 20f && points.isNotEmpty()) {
                                     val padLeft = axisWidth + 12.dp.toPx()
-                                    val padRight = 8.dp.toPx()
+                                    val padRight = rightAxisWidth + if (calorieOverlay == null) 8.dp.toPx() else 12.dp.toPx()
                                     val plotInsetX = 8.dp.toPx()
                                     val plotLeft = padLeft + plotInsetX
                                     val plotW = (size.width - padLeft - padRight - plotInsetX * 2f).coerceAtLeast(1f)
@@ -155,7 +175,7 @@ fun BodyweightLineGraph(
                 }
         ) {
             val padLeft = axisWidth + 12.dp.toPx()
-            val padRight = 8.dp.toPx()
+            val padRight = rightAxisWidth + if (calorieOverlay == null) 8.dp.toPx() else 12.dp.toPx()
             val padTop = 12.dp.toPx()
             val padBottom = 24.dp.toPx()
             val graphW = size.width - padLeft - padRight
@@ -170,14 +190,38 @@ fun BodyweightLineGraph(
             val plotH = (graphH - plotInsetY * 2f).coerceAtLeast(1f)
 
             drawGrid(measuredTicks, niceMin, niceMax, padLeft, padRight, padTop, graphH, tipBorder)
+            measuredCalorieTicks.forEachIndexed { index, layout ->
+                val fraction = index.toFloat() / tickCount
+                val y = padTop + graphH * (1f - fraction)
+                drawText(
+                    textLayoutResult = layout,
+                    topLeft = Offset(size.width - padRight + 6.dp.toPx(), y - layout.size.height / 2f)
+                )
+            }
             if (points.isEmpty()) return@Canvas
 
+            calorieOverlay?.let { overlay ->
+                if (calorieLinePoints.isNotEmpty()) {
+                    // Both series use the exact same plot rectangle; only their y scales differ.
+                    drawLine(calorieLinePath, calorieLinePoints, overlay.axisMaximum, 0.0, animProgress,
+                        plotLeft, plotW, plotTop, plotH, calorieColor)
+                    val radius = (plotW / points.size.coerceAtLeast(1) / 5f).coerceIn(0.6.dp.toPx(), 1.25.dp.toPx())
+                    calorieLinePoints.forEachIndexed { index, point ->
+                        val x = plotLeft + index.toFloat() / (points.size - 1).coerceAtLeast(1) * plotW
+                        val y = plotTop + plotH * (1f - yRatio(point.weightLbs, overlay.axisMaximum, 0.0) * animProgress)
+                        drawCircle(calorieColor, radius, Offset(x, y))
+                    }
+                }
+            }
             drawLine(linePath, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
             drawDots(measuredPointLabels, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor, tipBg)
             hoveredX?.let { hx ->
                 drawTooltip(
                     textMeasurer, hx, points, localInKg, unit, maxW, minW, animProgress,
-                    plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, labelColor, lineColor, tipBg, tipBorder, onSurface
+                    plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, labelColor, lineColor, tipBg, tipBorder, onSurface,
+                    caloriePoint = calorieOverlay?.points?.getOrNull(
+                        (((hx - plotLeft) / plotW) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
+                    )
                 )
             }
         }
@@ -336,7 +380,8 @@ private fun DrawScope.drawTooltip(
     lineColor: Color,
     tipBg: Color,
     tipBorder: Color,
-    onSurface: Color
+    onSurface: Color,
+    caloriePoint: WeightCaloriePoint? = null
 ) {
     val n = points.size
     val idx = (((hx - plotLeft) / plotW) * (n - 1)).roundToInt().coerceIn(0, n - 1)
@@ -359,7 +404,12 @@ private fun DrawScope.drawTooltip(
         .format(BodyweightTooltipDateFormatter)
     val displayWeight = if (localInKg) UnitConversion.lbsToKg(p.weightLbs) else p.weightLbs
     val statusTag = if (p.isActualInput) "Logged" else "Estimated"
-    val text = "$dateStr\n${UnitConversion.formatNumber(displayWeight)} $unit · $statusTag"
+    val text = buildString {
+        append("$dateStr\n${UnitConversion.formatNumber(displayWeight)} $unit · $statusTag")
+        caloriePoint?.let {
+            append("\n${UnitConversion.formatNumber(it.calories)} kcal · ${it.calorieDate}")
+        }
+    }
     val layout = measurer.measure(
         text,
         TextStyle(color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = MonospaceFamily)
@@ -369,11 +419,11 @@ private fun DrawScope.drawTooltip(
     val pad = 10f
 
     val tx = (px - tw / 2f).coerceIn(pad, (size.width - pad - tw).coerceAtLeast(pad))
-    val ty = if (py - th - pad * 2 - 12f >= 0f) {
+    val ty = (if (py - th - pad * 2 - 12f >= 0f) {
         py - th - pad - 12f
     } else {
         py + pad + 12f
-    }
+    }).coerceIn(pad, (size.height - th - pad).coerceAtLeast(pad))
 
     drawRoundRect(tipBg, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius)
     drawRoundRect(tipBorder, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius, style = Stroke(1f))

@@ -145,14 +145,8 @@ fun BodyweightContent(
             state = state,
             localInKg = localInKg,
             unit = unit,
-            onWeekCountChange = onWeekCountChange
-        )
-        CalorieComparison(
-            history = calorieHistory,
-            state = state,
-            end = state.currentPeriodEnd,
-            weeks = state.weekCount,
-            primaryCalories = false
+            onWeekCountChange = onWeekCountChange,
+            calorieHistory = calorieHistory
         )
 
         Spacer(modifier = Modifier.height(12.dp))
