@@ -42,14 +42,18 @@ fun GoalsScreen(
             }
             state.isDetailOpen -> {
                 state.selectedGoal?.let { goal ->
+                    val currentIndex = state.goals.indexOfFirst { it.id == goal.id }
                     GoalDetailScreen(
                         goal = goal,
+                        allGoals = state.goals,
+                        currentIndex = currentIndex,
                         exercises = state.selectedGoalExercises,
                         weekStart = state.currentWeekStart,
                         onEdit = { viewModel.openEditDialog(goal) },
                         onArchive = viewModel::archiveSelected,
                         onDelete = viewModel::deleteSelected,
                         onBack = viewModel::closeDetail,
+                        onNavigate = viewModel::openDetailAtIndex,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

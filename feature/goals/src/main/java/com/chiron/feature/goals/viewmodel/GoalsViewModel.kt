@@ -170,6 +170,14 @@ class GoalsViewModel(
         }
     }
 
+    fun openDetailAtIndex(index: Int) {
+        _uiState.update { currentState ->
+            val state = currentState ?: return@update currentState
+            val goal = state.goals.getOrNull(index)
+            goal?.let { buildGoals(state.copy(isDetailOpen = true, selectedGoal = it)) } ?: state
+        }
+    }
+
     fun closeDetail() {
         _uiState.update { it.copy(isDetailOpen = false, selectedGoal = null, selectedGoalExercises = emptyList()) }
     }

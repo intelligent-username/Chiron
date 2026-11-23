@@ -183,7 +183,7 @@ internal fun CalorieTransferDialog(
 }
 
 /** One parseable line per day so the daily text export re-imports through [CalorieTextImporter]. */
-internal fun calorieDailyText(entries: List<CalorieEntry>): String =
+fun calorieDailyText(entries: List<CalorieEntry>): String =
     entries.groupBy { it.date }
         .toSortedMap()
         .entries

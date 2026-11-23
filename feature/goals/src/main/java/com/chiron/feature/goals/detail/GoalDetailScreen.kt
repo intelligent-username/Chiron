@@ -16,6 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,12 +46,15 @@ import java.time.LocalDate
 @Composable
 fun GoalDetailScreen(
     goal: GoalWithProgress,
+    allGoals: List<GoalWithProgress>,
+    currentIndex: Int,
     exercises: List<Exercise>,
     weekStart: LocalDate,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
+    onNavigate: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -69,6 +74,12 @@ fun GoalDetailScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = CoolGray)
             }
+            IconButton(
+                onClick = { if (currentIndex > 0) onNavigate(currentIndex - 1) },
+                enabled = currentIndex > 0
+            ) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
+            }
             Text(
                 text = goal.name,
                 style = MaterialTheme.typography.headlineLarge,
@@ -76,6 +87,12 @@ fun GoalDetailScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
+            IconButton(
+                onClick = { if (currentIndex < allGoals.size - 1) onNavigate(currentIndex + 1) },
+                enabled = currentIndex < allGoals.size - 1
+            ) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Next goal", tint = if (currentIndex < allGoals.size - 1) Color.White else CoolGray.copy(alpha = 0.4f))
+            }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Default.Archive, contentDescription = "Archive", tint = CoolGray)
             }

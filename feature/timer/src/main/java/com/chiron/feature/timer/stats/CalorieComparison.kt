@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -57,6 +58,7 @@ import kotlin.math.sqrt
 
 private val WeightColor = Color(0xFF42A5F5)
 private val CalorieColor = Color(0xFFFFA726)
+private val TargetLineColor = Color(0xFFEF5350)
 
 internal fun correlation(pairs: List<Pair<Double, Double>>): Double? {
     if (pairs.size < 2) return null
@@ -98,7 +100,13 @@ internal fun CalorieComparison(
     val showWeightAxis = overlay && validWeights.isNotEmpty()
     val weightMin = validWeights.minOrNull() ?: 0.0
     val weightMax = (validWeights.maxOrNull() ?: weightMin).coerceAtLeast(weightMin + if (state.displayInKg) 0.5 else 1.0)
-    val calorieMax = (ceil((points.maxOfOrNull { it.calories } ?: 0.0) / 500.0) * 500.0).coerceAtLeast(500.0)
+
+    // Calorie scale: exclude today's 0 from max calculation if it would distort the scale
+    val today = LocalDate.now()
+    val calorieValuesForScale = points.filter { it.date != today }.map { it.calories }
+    val maxForScale = calorieValuesForScale.maxOrNull() ?: points.maxOfOrNull { it.calories } ?: 0.0
+    val calorieMax = (ceil(maxForScale / 500.0) * 500.0).coerceAtLeast(500.0)
+
     val measurer = rememberTextMeasurer()
     val colors = MaterialTheme.colorScheme
     val axisStyle = TextStyle(color = colors.onSurfaceVariant, fontSize = 10.sp, fontFamily = MonospaceFamily)
@@ -110,6 +118,10 @@ internal fun CalorieComparison(
     }
     val leftWidth = calorieTicks.maxOf { it.size.width }.toFloat()
     val rightWidth = if (showWeightAxis) weightTicks.maxOf { it.size.width }.toFloat() else 0f
+
+    // Daily target for the target line
+    val dailyTarget = history.targetFor(end)?.calories
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
@@ -139,19 +151,23 @@ internal fun CalorieComparison(
         }
         val selectedPoint = points.getOrNull(selected)
         Canvas(
-            Modifier.fillMaxWidth().height(260.dp).semantics {
-                contentDescription = selectedPoint?.let { "${it.date}: ${it.calories} calories, ${it.protein} grams protein" }
-                    ?: "Calorie graph from ${points.first().date} to $end"
-                onClick(label = "Inspect latest day") { selected = points.lastIndex; true }
-            }.pointerInput(points, leftWidth, rightWidth, showWeightAxis) {
-                detectTapGestures(onPress = { position ->
-                    val left = leftWidth + 12.dp.toPx()
-                    val right = rightWidth + 12.dp.toPx()
-                    val width = (size.width - left - right).coerceAtLeast(1f)
-                    selected = (((position.x - left) / width) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
-                    tryAwaitRelease()
-                })
-            }
+            Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .semantics {
+                    contentDescription = selectedPoint?.let { "${it.date}: ${it.calories} calories, ${it.protein} grams protein" }
+                        ?: "Calorie graph from ${points.first().date} to $end"
+                    onClick(label = "Inspect latest day") { selected = points.lastIndex; true }
+                }
+                .pointerInput(points, leftWidth, rightWidth, showWeightAxis) {
+                    detectTapGestures(onPress = { position ->
+                        val left = leftWidth + 12.dp.toPx()
+                        val right = rightWidth + 12.dp.toPx()
+                        val width = (size.width - left - right).coerceAtLeast(1f)
+                        selected = (((position.x - left) / width) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
+                        tryAwaitRelease()
+                    })
+                }
         ) {
             val left = leftWidth + 12.dp.toPx()
             val right = rightWidth + 12.dp.toPx()
@@ -161,6 +177,8 @@ internal fun CalorieComparison(
             fun x(index: Int) = left + plotWidth * index / (points.size - 1).coerceAtLeast(1)
             fun y(value: Double, min: Double, max: Double) =
                 top + plotHeight * (1f - ((value - min) / (max - min)).toFloat().coerceIn(0f, 1f))
+
+            // Grid lines and axis labels
             for (tick in 0..4) {
                 val py = top + plotHeight * (1f - tick / 4f)
                 drawLine(colors.outline.copy(alpha = 0.6f), Offset(left, py), Offset(left + plotWidth, py), 1.dp.toPx())
@@ -171,6 +189,23 @@ internal fun CalorieComparison(
                     drawText(weightLabel, topLeft = Offset(left + plotWidth + 6.dp.toPx(), py - weightLabel.size.height / 2f))
                 }
             }
+
+            // Daily target line (dotted red)
+            dailyTarget?.let { target ->
+                val targetY = y(target.toDouble(), 0.0, calorieMax)
+                val dashPath = Path().apply {
+                    moveTo(left, targetY)
+                    lineTo(left + plotWidth, targetY)
+                }
+                drawPath(
+                    dashPath,
+                    TargetLineColor,
+                    style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
+                )
+                val targetLabel = measurer.measure("Target ${formatCalorieNumber(target)}", axisStyle)
+                drawText(targetLabel, topLeft = Offset(left - targetLabel.size.width - 6.dp.toPx(), targetY - targetLabel.size.height / 2f))
+            }
+
             fun series(values: List<Double?>, min: Double, max: Double, color: Color, actualOnly: Boolean) {
                 val path = Path()
                 var run = mutableListOf<Int>()
@@ -179,7 +214,6 @@ internal fun CalorieComparison(
                     val xs = run.map { x(it) }
                     val ys = run.map { y(values[it]!!, min, max) }
                     path.moveTo(xs[0], ys[0])
-                    // Monotone tangents: smooth without inventing peaks between points.
                     fun tangent(i: Int): Float {
                         if (i == 0 || i == run.size - 1) return 0f
                         val before = ys[i] - ys[i - 1]
@@ -205,33 +239,64 @@ internal fun CalorieComparison(
                     }
                 }
             }
+
             if (showWeightAxis) series(weights, weightMin, weightMax, WeightColor, true)
             series(points.map { it.calories }, 0.0, calorieMax, CalorieColor, false)
+
             val dateStyle = axisStyle.copy(fontSize = 9.sp)
             listOf(0, points.lastIndex).forEach { index ->
                 val label = measurer.measure(points[index].date.toString(), dateStyle)
                 drawText(label, topLeft = Offset((x(index) - label.size.width / 2f).coerceIn(0f,
                     (size.width - label.size.width).coerceAtLeast(0f)), top + plotHeight + 6.dp.toPx()))
             }
+
+            // Selected point tooltip (same style as weight tab)
             points.getOrNull(selected)?.let { point ->
                 val px = x(selected)
                 val py = y(point.calories, 0.0, calorieMax)
-                drawLine(colors.onSurfaceVariant.copy(alpha = 0.5f), Offset(px, top), Offset(px, top + plotHeight), 1.dp.toPx())
-                drawCircle(CalorieColor, 4.dp.toPx(), Offset(px, py))
+
+                // Dashed vertical guide line
+                drawLine(
+                    color = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                    start = Offset(px, top),
+                    end = Offset(px, top + plotHeight),
+                    strokeWidth = 1f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+                )
+                // Highlight circles
+                drawCircle(color = CalorieColor, radius = 6.5f, center = Offset(px, py))
+                drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
+                // Weight overlay point if applicable
+                if (showWeightAxis && weights[selected] != null) {
+                    val weightPy = y(weights[selected]!!, weightMin, weightMax)
+                    drawCircle(color = WeightColor, radius = 6.5f, center = Offset(px, weightPy))
+                    drawCircle(color = Color.White, radius = 3f, center = Offset(px, weightPy))
+                }
+
                 val text = buildString {
                     append("${point.date}\n${formatCalorieNumber(point.calories)} kcal · ${formatCalorieNumber(point.protein)} g protein")
                     if (showWeightAxis && weights[selected] != null) {
                         append("\n${formatCalorieNumber(weights[selected]!!)} ${if (state.displayInKg) "kg" else "lbs"} · ${point.weightDate}")
                     }
                 }
-                val label = measurer.measure(text, TextStyle(color = colors.onSurface, fontSize = 11.sp, fontFamily = MonospaceFamily))
-                val padding = 8.dp.toPx()
-                val tx = (px - label.size.width / 2f).coerceIn(padding, (size.width - label.size.width - padding).coerceAtLeast(padding))
-                val ty = (py - label.size.height - padding * 2).coerceIn(padding,
-                    (size.height - label.size.height - padding).coerceAtLeast(padding))
-                drawRoundRect(colors.surface, Offset(tx - padding, ty - padding),
-                    Size(label.size.width + padding * 2, label.size.height + padding * 2), CornerRadius(8.dp.toPx()))
-                drawText(label, topLeft = Offset(tx, ty))
+                val layout = measurer.measure(
+                    text,
+                    TextStyle(color = colors.onSurface, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontFamily = MonospaceFamily)
+                )
+                val tw = layout.size.width.toFloat()
+                val th = layout.size.height.toFloat()
+                val pad = 10f
+
+                val tx = (px - tw / 2f).coerceIn(pad, (size.width - pad - tw).coerceAtLeast(pad))
+                val ty = (if (py - th - pad * 2 - 12f >= 0f) {
+                    py - th - pad - 12f
+                } else {
+                    py + pad + 12f
+                }).coerceIn(pad, (size.height - th - pad).coerceAtLeast(pad))
+
+                drawRoundRect(colors.surface, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8.dp.toPx()))
+                drawRoundRect(colors.onSurfaceVariant, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8.dp.toPx()), style = Stroke(1f))
+                drawText(layout, topLeft = Offset(tx, ty))
             }
         }
         if (overlay && !showWeightAxis) Text("No weight history to overlay", style = MaterialTheme.typography.bodySmall,

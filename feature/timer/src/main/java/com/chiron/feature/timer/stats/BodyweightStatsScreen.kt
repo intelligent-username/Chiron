@@ -28,6 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.chiron.core.ui.components.WeekNavigator
+import com.chiron.feature.timer.BodyweightViewModel
+import com.chiron.feature.timer.CalorieScreen
+import com.chiron.feature.timer.BodyweightContent
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -50,7 +53,7 @@ fun BodyweightStatsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         } else {
-            Column {
+            Column(modifier = Modifier.fillMaxSize()) {
                 TabRow(selectedTabIndex = selectedTab) {
                     listOf("Weight", "Calories").forEachIndexed { index, title ->
                         Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
@@ -58,8 +61,8 @@ fun BodyweightStatsScreen(
                 }
                 Crossfade(
                     targetState = selectedTab,
-                    modifier = Modifier.weight(1f),
                     animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    modifier = Modifier.weight(1f).fillMaxSize(),
                     label = "statsSubtabs"
                 ) { tab ->
                     if (tab == 1) {

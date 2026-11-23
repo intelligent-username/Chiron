@@ -1,5 +1,8 @@
 package com.chiron.feature.history
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -129,57 +132,64 @@ fun VolumeContent(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No volume data\nfor this period",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    VolumeLineGraph(
-                        points = state.points,
-                        displayInKg = displayInKg,
-                        mode = state.mode,
-                        animateEntry = false,
-                        onPointTap = onPointTap,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                    )
-                }
-
-                if (state.mode == VolumeMode.BY_WEEK) {
-                    val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
-                    val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Range: ${state.weekCount} weeks (${state.weekCount * 7} days)",
-                            color = CoolGray,
-                            fontSize = 12.sp
-                        )
-                    }
-                    if (maxWeeks > 2) {
-                        Slider(
-                            value = currentWeekVal,
-                            onValueChange = { onWeekCountChange(it.roundToInt()) },
-                            valueRange = 2f..maxWeeks.toFloat(),
+                Crossfade(
+                    targetState = state.mode,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    label = "volumeMode"
+                ) { mode ->
+                    if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
+                                .height(220.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No volume data\nfor this period",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        VolumeLineGraph(
+                            points = state.points,
+                            displayInKg = displayInKg,
+                            mode = mode,
+                            animateEntry = false,
+                            onPointTap = onPointTap,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
                         )
+                    }
+
+                    if (mode == VolumeMode.BY_WEEK) {
+                        val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
+                        val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Range: ${state.weekCount} weeks (${state.weekCount * 7} days)",
+                                    color = CoolGray,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (maxWeeks > 2) {
+                                Slider(
+                                    value = currentWeekVal,
+                                    onValueChange = { onWeekCountChange(it.roundToInt()) },
+                                    valueRange = 2f..maxWeeks.toFloat(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
