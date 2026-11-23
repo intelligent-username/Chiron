@@ -1,0 +1,89 @@
+| ———————————
+| 2026 Counter
+| kc, p
+| ———————————
+|
+| January 1st: 1340, 53
+| January 2nd: 2422, 180
+| January 3rd: 1670, 76
+| 2244
+| ———————————
+| 70.3
+| January 4th: 1913, 102
+| January 5th: 1637, 61
+| January 6th: 1650, 59
+| January 7th: 2030, 98
+| January 8th: 2145, 99
+| January 9th: 1784, 100
+| January 10th: 2939, 113.5
+| 2014
+| ————————————
+| 69.95
+| January 11th: 2210, 161
+| January 12th: 1935, 98
+| January 13th: 2666, 123
+| January 14th: 2435, 140
+| January 15th: 2096, 70
+| January 16th: 426, 44
+| January 17th: 1907, 50
+| 1953
+| ————————————
+| 69.5
+| January 18th: 2400, 154
+| January 19th: 2348, 102
+| January 20th: 2187, 97
+| January 21st: 1770, 113
+| January 22nd: 2048, 97
+| January 23rd: 2531, 107
+| January 24th: 2755, 122
+| 2291.29
+| ————————————
+| 69.5
+| January 25th: 1270, 63
+| January 26th: 2039, 93
+| January 27th: 2410, 104
+| January 28th: 1785, 128
+| January 29th: 2070, 89
+| January 30th: 1989, 121
+| January 31st: 1750, 82
+| 1901
+| ————————————
+| 69.35
+| February 1st: 2235, 84
+| February 2nd: 2013, 50
+| February 3rd: 1835, 75
+| February 4th: 2699, 133
+| February 5th: 2120, 117
+| February 6th: 1251, 59
+| February 7th: 1255, 71
+| 1915.43
+| ————————————
+| 68.1
+| February 8th: 1104, 69
+| February 9th: 1349, 72
+| February 10th: 1333, 64
+| February 11th: 1614, 67
+| February 12th: 1453, 83
+| February 13th: 2215, 102
+| February 14th: 1690, 75
+| 1537
+| ————————————
+| 66.9
+| February 15th: 1844, 79
+| February 16th: 1590, 68
+| February 17th: 1664, 98
+| February 18th: 1776, 75
+| February 19th: 1961, 93
+| February 20th: 1690, 71
+| February 21st: 1885, 114
+| 1772
+| ————————————
+| 66.7
+| February 22nd: 1847, 103
+| February 23rd: 1912, 108
+| February 24th: 1724, 115
+| February 25th: 1981, 100
+| February 26th: 1838, 81
+| February 27th: 2042, 102
+| February 28th: 1545, 87
+| 1841

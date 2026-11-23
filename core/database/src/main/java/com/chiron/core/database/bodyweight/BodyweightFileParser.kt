@@ -1,6 +1,7 @@
 package com.chiron.core.database.bodyweight
 
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.common.NutritionNotebookParser
 import java.io.BufferedReader
 import java.time.Instant
 import java.time.LocalDate
@@ -162,11 +163,29 @@ object BodyweightFileParser {
 
     fun detectPattern(items: List<String>): DetectedImportPattern? {
         if (items.size < 4) return null
+        val notebook = NutritionNotebookParser.parse(items.joinToString("\n"))
+        if (notebook.weights.size >= 2) {
+            val first = notebook.weights.first().line
+            val strides = notebook.weights.zipWithNext { a, b -> b.line - a.line }.distinct()
+            if (strides.size == 1 && strides.single() > 0) {
+                val daySteps = notebook.weights.zipWithNext { a, b ->
+                    kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(a.date, b.date)).toInt()
+                }
+                return DetectedImportPattern(
+                    startRow = first,
+                    stride = strides.single(),
+                    unit = if (notebook.weights.map { it.value }.average() in 40.0..120.0) WeightImportUnit.KG else WeightImportUnit.LBS,
+                    stepDays = daySteps.firstOrNull()?.coerceAtLeast(1) ?: 7,
+                    sampleCount = notebook.weights.size
+                )
+            }
+        }
         val weightCandidates = mutableListOf<Pair<Int, Double>>()
+        val hasStandaloneWeights = items.any { it.trim().replace(',', '.').toDoubleOrNull()?.let { n -> n in 30.0..300.0 } == true }
         items.forEachIndexed { idx, item ->
             val trimmed = item.trim()
-            val num = trimmed.toDoubleOrNull()
-                ?: WEIGHT_NUMBER_REGEX.find(trimmed)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+            val num = trimmed.replace(',', '.').toDoubleOrNull()
+                ?: if (!hasStandaloneWeights) WEIGHT_NUMBER_REGEX.find(trimmed)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() else null
             if (num != null && num in 30.0..300.0) {
                 weightCandidates.add(idx to num)
             }
@@ -174,7 +193,15 @@ object BodyweightFileParser {
         if (weightCandidates.size < 2) return null
 
         val firstIdx = weightCandidates.first().first
-        for (candStride in 2..30) {
+        val bestStride = (2..30).filter { candidate ->
+            val matching = weightCandidates.count { (it.first - firstIdx) % candidate == 0 }
+            matching >= 3 && matching.toDouble() / weightCandidates.size >= 0.5
+        }.maxByOrNull { candidate ->
+            val matching = weightCandidates.count { (it.first - firstIdx) % candidate == 0 }
+            val selected = (items.lastIndex - firstIdx) / candidate + 1
+            matching.toDouble() / selected
+        }
+        for (candStride in listOfNotNull(bestStride)) {
             val matchingCount = weightCandidates.count { (it.first - firstIdx) % candStride == 0 }
             if (matchingCount >= 3 && matchingCount.toDouble() / weightCandidates.size >= 0.5) {
                 val avgWeight = weightCandidates.map { it.second }.average()
@@ -196,7 +223,7 @@ object BodyweightFileParser {
         throwOnInvalid(config)
         val rawList = lines.toList()
         val needsPipeSplit = (config.delimiter == ImportDelimiter.PIPES || config.delimiter == ImportDelimiter.AUTO) &&
-            rawList.any { it.count { c -> c == '|' } >= 2 }
+            rawList.sumOf { it.count { c -> c == '|' } } >= 2
         val all = if (needsPipeSplit) {
             splitText(rawList.joinToString("\n"), config.delimiter)
         } else {
@@ -223,7 +250,12 @@ object BodyweightFileParser {
     private fun parseLineList(all: List<String>, config: BodyweightImportConfig): BodyweightParseResult {
         val kept = mutableListOf<KeptRow>()
         val errors = mutableListOf<ImportParseError>()
-        val refYear = Instant.ofEpochMilli(config.anchorDateUtc).atZone(ZoneOffset.UTC).year
+        val refYear = NutritionNotebookParser.referenceYear(
+            all.joinToString("\n"), Instant.ofEpochMilli(config.anchorDateUtc).atZone(ZoneOffset.UTC).year
+        )
+        val notebookDates = if (config.autoDetectDates) {
+            NutritionNotebookParser.parse(all.joinToString("\n"), refYear).weights.associate { it.line to it.date }
+        } else emptyMap()
         val headerSkip = config.effectiveHeaderSkipLines
 
         all.forEachIndexed { idx, raw ->
@@ -235,7 +267,7 @@ object BodyweightFileParser {
             val cleaned = cleanLine(raw, lineNo == 1)
             var detectedDateMs: Long? = null
             if (config.autoDetectDates) {
-                var date = extractDateFromText(cleaned, refYear)
+                var date = notebookDates[lineNo] ?: extractDateFromText(cleaned, refYear)
                 if (date == null && config.lineStride > 1) {
                     val lookAheadEnd = minOf(all.size - 1, idx + config.lineStride - 1)
                     for (nextIdx in (idx + 1)..lookAheadEnd) {
@@ -279,7 +311,7 @@ object BodyweightFileParser {
             return
         }
         val lbs = if (config.unit == WeightImportUnit.KG) UnitConversion.kgToLbs(rawValue) else rawValue
-        if (lbs < config.minWeightLbs || lbs > config.maxWeightLbs) {
+        if (!lbs.isFinite() || lbs < config.minWeightLbs || lbs > config.maxWeightLbs) {
             errors.add(ImportParseError(lineNo, excerpt(line), REASON_IMPLAUSIBLE_VALUE))
             return
         }

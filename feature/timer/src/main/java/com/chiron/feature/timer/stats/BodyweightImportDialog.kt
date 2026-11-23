@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.common.NutritionNotebookParser
 import com.chiron.core.database.bodyweight.BodyweightFileParser
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
 import com.chiron.core.database.bodyweight.ImportDateStrategy
@@ -122,6 +124,7 @@ fun BodyweightImportDialog(
 
     fun tryAutoConfigure(text: String) {
         if (text.isNotBlank()) {
+            refYearText = NutritionNotebookParser.referenceYear(text, LocalDate.now().year).toString()
             val items = BodyweightFileParser.splitText(text, delimiter, ignoreBlank = true)
             val pattern = BodyweightFileParser.detectPattern(items)
             if (pattern != null) {
@@ -164,7 +167,7 @@ fun BodyweightImportDialog(
     val startChar = (col1Based - 1).coerceAtLeast(0)
     val fieldLength = fieldLengthText.toIntOrNull()?.takeIf { it > 0 }
     val stepDays = stepDaysText.toIntOrNull()?.coerceAtLeast(1) ?: 1
-    val refYear = refYearText.toIntOrNull() ?: LocalDate.now().year
+    val refYear = refYearText.toIntOrNull()?.takeIf { it in 1980..2100 } ?: LocalDate.now().year
     val anchorDateUtc = remember(refYear) {
         LocalDate.of(refYear, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
     }
@@ -219,8 +222,9 @@ fun BodyweightImportDialog(
         text = {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(dialogScrollState),
+                     .fillMaxWidth()
+                     .heightIn(max = 440.dp)
+                     .verticalScroll(dialogScrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Source Selector: Instant Segmented Button Row
