@@ -93,36 +93,20 @@ fun BodyweightHistoryList(
         entries.drop(safePage * pageSize).take(pageSize)
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = SolidSlate),
-        shape = HistoryCardShape,
-        border = BorderStroke(1.dp, ThinOutline)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            // Header: Title, Count, and Mass-Delete Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    if (entries.isNotEmpty()) {
-                        Text("${entries.size} total weigh-in logs", color = CoolGray, fontSize = 12.sp)
-                    }
-                }
-
-                if (entries.isNotEmpty()) {
-                    TextButton(onClick = { showDeleteRangeDialog = true }) {
-                        Text("Delete Range", color = Color(0xFFFF7B72), fontSize = 13.sp)
-                    }
-                }
+    val deleteRangeAction: (@Composable () -> Unit)? = if (entries.isNotEmpty()) {
+        {
+            TextButton(onClick = { showDeleteRangeDialog = true }) {
+                Text("Delete Range", color = Color(0xFFFF7B72), fontSize = 13.sp)
             }
+        }
+    } else null
 
-            Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = ThinOutline, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(6.dp))
+    HistoryListCard(
+        modifier = modifier,
+        title = "History",
+        countLabel = if (entries.isNotEmpty()) "${entries.size} total weigh-in logs" else null,
+        action = deleteRangeAction
+    ) {
 
             if (entries.isEmpty()) {
                 Text(
@@ -365,80 +349,14 @@ fun BodyweightHistoryList(
                 }
             }
 
-            // Pagination Controls Footer
-            if (entries.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = ThinOutline, thickness = 0.5.dp)
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Page Size Stepper: [ - ] 10 rows [ + ]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("Show:", color = CoolGray, fontSize = 12.sp)
-                        IconButton(
-                            onClick = {
-                                val nextSize = (pageSize - 5).coerceIn(5, 50)
-                                pageSize = nextSize
-                                currentPage = 0
-                            },
-                            enabled = pageSize > 5,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Text("-", color = if (pageSize > 5) Color.White else CoolGray.copy(alpha = 0.4f), fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            "$pageSize",
-                            color = ElectricBlue,
-                            fontFamily = MonospaceFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        IconButton(
-                            onClick = {
-                                val nextSize = (pageSize + 5).coerceIn(5, 50)
-                                pageSize = nextSize
-                                currentPage = 0
-                            },
-                            enabled = pageSize < 50,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Text("+", color = if (pageSize < 50) Color.White else CoolGray.copy(alpha = 0.4f), fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    // Back & Forth Navigator: < Page X of Y >
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        TextButton(
-                            onClick = { if (safePage > 0) currentPage = safePage - 1 },
-                            enabled = safePage > 0
-                        ) {
-                            Text("<", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            "${safePage + 1} / $totalPages",
-                            color = Color.White,
-                            fontFamily = MonospaceFamily,
-                            fontSize = 12.sp
-                        )
-                        TextButton(
-                            onClick = { if (safePage < totalPages - 1) currentPage = safePage + 1 },
-                            enabled = safePage < totalPages - 1
-                        ) {
-                            Text(">", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
+        if (entries.isNotEmpty()) {
+            HistoryPaginationFooter(
+                pageSize = pageSize,
+                safePage = safePage,
+                totalPages = totalPages,
+                onPageSizeChange = { pageSize = it; currentPage = 0 },
+                onPageChange = { currentPage = it }
+            )
         }
     }
 
@@ -547,7 +465,6 @@ fun BodyweightHistoryList(
     }
 }
 
-private val HistoryCardShape = RoundedCornerShape(16.dp)
 private val EditCardShape = RoundedCornerShape(14.dp)
 private val EditDateFormatter = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy")
 private val EditTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")

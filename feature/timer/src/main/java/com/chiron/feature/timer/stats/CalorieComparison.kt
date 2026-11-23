@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
@@ -172,14 +173,31 @@ internal fun CalorieComparison(
             }
             fun series(values: List<Double?>, min: Double, max: Double, color: Color, actualOnly: Boolean) {
                 val path = Path()
-                var started = false
-                values.forEachIndexed { index, value ->
-                    if (value == null) { started = false; return@forEachIndexed }
-                    val px = x(index)
-                    val py = y(value, min, max)
-                    if (started) path.lineTo(px, py) else { path.moveTo(px, py); started = true }
+                var run = mutableListOf<Int>()
+                fun flushRun() {
+                    if (run.isEmpty()) return
+                    val xs = run.map { x(it) }
+                    val ys = run.map { y(values[it]!!, min, max) }
+                    path.moveTo(xs[0], ys[0])
+                    // Monotone tangents: smooth without inventing peaks between points.
+                    fun tangent(i: Int): Float {
+                        if (i == 0 || i == run.size - 1) return 0f
+                        val before = ys[i] - ys[i - 1]
+                        val after = ys[i + 1] - ys[i]
+                        return if (before * after <= 0f) 0f else 2f * before * after / (before + after)
+                    }
+                    for (i in 1 until run.size) {
+                        val third = (xs[i] - xs[i - 1]) / 3f
+                        path.cubicTo(xs[i - 1] + third, ys[i - 1] + tangent(i - 1) / 3f,
+                            xs[i] - third, ys[i] - tangent(i) / 3f, xs[i], ys[i])
+                    }
+                    run = mutableListOf()
                 }
-                drawPath(path, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                values.forEachIndexed { index, value ->
+                    if (value == null) flushRun() else run.add(index)
+                }
+                flushRun()
+                drawPath(path, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
                 val radius = (plotWidth / points.size / 5f).coerceIn(0.6.dp.toPx(), if (actualOnly) 2.5.dp.toPx() else 1.25.dp.toPx())
                 values.forEachIndexed { index, value ->
                     if (value != null && (!actualOnly || points[index].actualWeight)) {

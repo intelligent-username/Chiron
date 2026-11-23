@@ -1,5 +1,8 @@
 package com.chiron.feature.timer
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -53,28 +56,35 @@ fun BodyweightStatsScreen(
                         Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
                     }
                 }
-                if (selectedTab == 1) {
-                    CalorieScreen(
-                        history = calories,
-                        weightState = state,
-                        error = calorieError,
-                        onSaveEntries = viewModel::saveCalorieEntries,
-                        onDelete = viewModel::deleteCalorieEntry,
-                        onSaveTarget = viewModel::saveCalorieTarget
+                Crossfade(
+                    targetState = selectedTab,
+                    modifier = Modifier.weight(1f),
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    label = "statsSubtabs"
+                ) { tab ->
+                    if (tab == 1) {
+                        CalorieScreen(
+                            history = calories,
+                            weightState = state,
+                            error = calorieError,
+                            onSaveEntries = viewModel::saveCalorieEntries,
+                            onDelete = viewModel::deleteCalorieEntry,
+                            onSaveTarget = viewModel::saveCalorieTarget
+                        )
+                    } else BodyweightContent(
+                        state = state,
+                        calorieHistory = calories,
+                        onToggleUnit = { viewModel.setDisplayInKg(!state.displayInKg) },
+                        onWeekCountChange = viewModel::setWeekCount,
+                        onPrevWeek = viewModel::goToPreviousWeek,
+                        onNextWeek = viewModel::goToNextWeek,
+                        onLog = { weight, timestamp -> viewModel.logWeight(weight, timestamp) },
+                        onEdit = { id, weight, timestamp -> viewModel.updateEntry(id, weight, timestamp) },
+                        onDelete = viewModel::deleteEntry,
+                        onDeleteRange = viewModel::deleteEntriesInRange,
+                        onImportClick = onImportClick
                     )
-                } else BodyweightContent(
-                state = state,
-                calorieHistory = calories,
-                onToggleUnit = { viewModel.setDisplayInKg(!state.displayInKg) },
-                onWeekCountChange = viewModel::setWeekCount,
-                onPrevWeek = viewModel::goToPreviousWeek,
-                onNextWeek = viewModel::goToNextWeek,
-                onLog = { weight, timestamp -> viewModel.logWeight(weight, timestamp) },
-                onEdit = { id, weight, timestamp -> viewModel.updateEntry(id, weight, timestamp) },
-                onDelete = viewModel::deleteEntry,
-                onDeleteRange = viewModel::deleteEntriesInRange,
-                onImportClick = onImportClick
-                )
+                }
             }
         }
     }

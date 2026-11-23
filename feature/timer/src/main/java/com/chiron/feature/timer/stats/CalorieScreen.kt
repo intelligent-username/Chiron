@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
@@ -174,22 +172,15 @@ fun CalorieScreen(
             )
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Food log", style = MaterialTheme.typography.titleMedium)
-                Text("${entries.size} entries", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (entries.isEmpty()) Text("No food history yet. Log a food or import your history from the options menu.",
-                modifier = Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium)
-        }
-        items(entries, key = { it.id }) { entry ->
-            Text(entry.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            CalorieEntryRow(entry, onEdit = {
-                        editingDate = entry.date
-                        editing = listOf(FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
-                            entry.proteinPerServing.toString(), entry.servings.toString()))
-            }, onDelete = { deleteEntry = entry })
+            CalorieHistoryList(
+                entries = entries,
+                onEdit = { entry ->
+                    editingDate = entry.date
+                    editing = listOf(FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
+                        entry.proteinPerServing.toString(), entry.servings.toString()))
+                },
+                onDelete = { deleteEntry = it }
+            )
         }
     }
     editing?.let { drafts ->
@@ -242,32 +233,6 @@ private fun NutritionTotal(label: String, value: Double, target: Double?, unit: 
                 color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         if (target != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-@Composable
-private fun CalorieEntryRow(entry: CalorieEntry, onEdit: () -> Unit, onDelete: () -> Unit) {
-    var menu by remember(entry.id) { mutableStateOf(false) }
-    Column {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(entry.name.ifBlank { "Food" }, style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("${formatCalorieNumber(entry.protein)} g protein · ${formatCalorieNumber(entry.servings)} servings",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("${formatCalorieNumber(entry.calories)} kcal", fontFamily = MonospaceFamily,
-                style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
-            Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "Options for ${entry.name.ifBlank { "food entry" }}") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                        onClick = { menu = false; onDelete() })
-                }
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
     }
 }
 

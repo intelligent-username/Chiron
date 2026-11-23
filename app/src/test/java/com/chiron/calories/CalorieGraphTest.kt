@@ -1,6 +1,7 @@
 package com.chiron.calories
 
 import com.chiron.core.common.CalorieEntry
+import com.chiron.core.common.CalorieTextImporter
 import com.chiron.core.database.bodyweight.BodyweightFileParser
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
 import com.chiron.core.database.bodyweight.ImportDateStrategy
@@ -8,6 +9,7 @@ import com.chiron.core.database.bodyweight.ImportDelimiter
 import com.chiron.core.database.bodyweight.WeightImportUnit
 import com.chiron.core.model.BodyWeightEntry
 import com.chiron.feature.timer.CalorieGraphCalculator
+import com.chiron.feature.timer.calorieDailyText
 import com.chiron.feature.timer.weightTextExport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -93,6 +95,23 @@ class CalorieGraphTest {
             Instant.ofEpochMilli(it.timestampUtc).atZone(ZoneOffset.UTC).toLocalDate()
         }
         assertEquals(listOf(LocalDate.of(2026, 1, 10), LocalDate.of(2026, 1, 17)), dates)
+    }
+
+    @Test
+    fun dailyTextExportReimportsAsOneEntryPerDay() {
+        val day = LocalDate.of(2026, 2, 1)
+        val entries = listOf(
+            calorie(day, 600.0, 30.0, "a"),
+            calorie(day, 400.0, 20.0, "b"),
+            calorie(day.plusDays(1), 2100.0, 140.0, "c")
+        )
+        val text = calorieDailyText(entries)
+        assertEquals("2026-02-01: 1000, 50\n2026-02-02: 2100, 140", text)
+        val preview = CalorieTextImporter.parse(text, 2026)
+        assertEquals(0, preview.errors.size)
+        assertEquals(2, preview.entries.size)
+        assertEquals(1000.0, preview.entries.first().calories, 0.0)
+        assertEquals(50.0, preview.entries.first().protein, 0.0)
     }
 
     @Test(expected = IllegalArgumentException::class)

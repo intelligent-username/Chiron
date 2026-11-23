@@ -69,13 +69,26 @@ internal fun CalorieTransferDialog(
                     TextButton(onClick = { exporting = true; message = null }) { Text("Export") }
                 }
                 if (exporting) {
+                    val dailyText = remember(history.entries) { calorieDailyText(history.entries) }
                     Text("${history.entries.size} entries", style = MaterialTheme.typography.titleMedium)
-                    Text("Copy a lossless text backup of your food entries. Dated targets are included in the app’s ZIP backup.",
+                    Text("Daily text copies one dated total per day and imports back here. JSON keeps every food row and is the lossless backup. Dated targets are included in the app’s ZIP backup.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = {
-                        clipboard.setText(AnnotatedString(CalorieHistory(entries = history.entries).toJson()))
-                        message = "Export copied"
-                    }) { Text("Copy export") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            clipboard.setText(AnnotatedString(dailyText))
+                            message = "Daily text copied"
+                        }) { Text("Copy text") }
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(CalorieHistory(entries = history.entries).toJson()))
+                            message = "JSON export copied"
+                        }) { Text("Copy JSON") }
+                    }
+                    Text(
+                        text = if (dailyText.isBlank()) "Nothing to export yet." else dailyText,
+                        fontFamily = MonospaceFamily,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).verticalScroll(rememberScrollState())
+                    )
                 } else {
                     Text("Paste a dated calorie / protein log or a previous export.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -168,3 +181,13 @@ internal fun CalorieTransferDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } }
     )
 }
+
+/** One parseable line per day so the daily text export re-imports through [CalorieTextImporter]. */
+internal fun calorieDailyText(entries: List<CalorieEntry>): String =
+    entries.groupBy { it.date }
+        .toSortedMap()
+        .entries
+        .joinToString("\n") { (date, foods) ->
+            "$date: ${formatCalorieNumber(foods.sumOf { it.calories })}, ${formatCalorieNumber(foods.sumOf { it.protein })}"
+        }
+

@@ -2,6 +2,7 @@ package com.chiron.feature.timer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,6 +114,11 @@ fun BodyweightTransferDialog(
                     Box(
                         Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable {
+                                option = item
+                                copied = false
+                            }
                             .background(
                                 if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
                                 RoundedCornerShape(8.dp)
