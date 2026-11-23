@@ -15,6 +15,7 @@ fun BodyweightTopBar(
     localInKg: Boolean,
     onToggleUnit: () -> Unit,
     onImportClick: () -> Unit,
+    onExportClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -23,6 +24,9 @@ fun BodyweightTopBar(
     ) {
         OutlinedButton(onClick = onImportClick) {
             Text("Import")
+        }
+        OutlinedButton(onClick = onExportClick) {
+            Text("Copy export")
         }
         OutlinedButton(
             onClick = onToggleUnit,

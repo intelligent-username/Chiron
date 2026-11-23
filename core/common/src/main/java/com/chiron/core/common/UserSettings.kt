@@ -24,6 +24,7 @@ class UserSettingsRepository(private val context: Context) {
 
     companion object {
         private val DISPLAY_IN_KG = booleanPreferencesKey("display_in_kg")
+        private val CALORIE_HISTORY = stringPreferencesKey("calorie_history")
         private val SHOW_WORKOUT_VOLUME = booleanPreferencesKey("show_workout_volume")
         private val CUSTOM_LOCATIONS = stringSetPreferencesKey("custom_locations")
         private val SPOTIFY_ENABLED = booleanPreferencesKey("spotify_enabled")
@@ -51,6 +52,7 @@ class UserSettingsRepository(private val context: Context) {
             BACKUP_BOOLEAN_KEYS.forEach { put(it.name, prefs[it] ?: false) }
             put(DISTANCE_UNIT.name, DistanceUnit.fromString(prefs[DISTANCE_UNIT]).key)
             put(CUSTOM_LOCATIONS.name, JSONArray((prefs[CUSTOM_LOCATIONS] ?: emptySet()).sorted()))
+            prefs[CALORIE_HISTORY]?.let { put(CALORIE_HISTORY.name, JSONObject(it)) }
         }.toString()
     }
 
@@ -67,6 +69,13 @@ class UserSettingsRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             backup?.booleans?.forEach { (key, value) -> prefs[key] = value }
             backup?.distanceUnit?.let { prefs[DISTANCE_UNIT] = it }
+            backup?.calorieHistory?.let { incoming ->
+                val current = prefs[CALORIE_HISTORY]?.let(CalorieHistory::parse) ?: CalorieHistory()
+                prefs[CALORIE_HISTORY] = CalorieHistory(
+                    entries = (current.entries + incoming.entries).distinctBy { it.id },
+                    targets = (current.targets + incoming.targets).distinctBy { it.date }
+                ).toJson()
+            }
             val locations = (backup?.locations.orEmpty() + additionalLocations)
                 .map { it.trim() }.filter { it.isNotEmpty() }.toSet()
             prefs[CUSTOM_LOCATIONS] =
@@ -77,7 +86,8 @@ class UserSettingsRepository(private val context: Context) {
     private data class Backup(
         val booleans: Map<Preferences.Key<Boolean>, Boolean>,
         val distanceUnit: String?,
-        val locations: Set<String>
+        val locations: Set<String>,
+        val calorieHistory: CalorieHistory?
     )
 
     private fun parseBackup(serialized: String): Backup {
@@ -100,7 +110,23 @@ class UserSettingsRepository(private val context: Context) {
                 value
             }.toSet()
         }.orEmpty()
-        return Backup(booleans, unit, locations)
+        val calorieHistory = if (json.has(CALORIE_HISTORY.name)) {
+            CalorieHistory.parse(json.getJSONObject(CALORIE_HISTORY.name).toString())
+        } else null
+        return Backup(booleans, unit, locations, calorieHistory)
+    }
+
+    val calorieHistoryFlow: Flow<CalorieHistory> = context.dataStore.data.map { prefs ->
+        prefs[CALORIE_HISTORY]?.let(CalorieHistory::parse) ?: CalorieHistory()
+    }
+
+    suspend fun updateCalorieHistory(transform: (CalorieHistory) -> CalorieHistory) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[CALORIE_HISTORY]?.let(CalorieHistory::parse) ?: CalorieHistory()
+            val updated = transform(current)
+            // Validate IDs and dates before committing the new value.
+            prefs[CALORIE_HISTORY] = CalorieHistory.parse(updated.toJson()).toJson()
+        }
     }
 
     val displayInKgFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->

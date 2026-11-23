@@ -6,12 +6,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chiron.core.common.TimelineWindow
 import com.chiron.core.common.UserSettingsRepository
+import com.chiron.core.common.CalorieEntry
+import com.chiron.core.common.CalorieHistory
+import com.chiron.core.common.CalorieTarget
 import com.chiron.core.database.ChironRepository
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
 import com.chiron.core.database.dao.BodyweightUpsertCounts
 import com.chiron.core.model.BodyWeightEntry
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +32,10 @@ class BodyweightViewModel(
 
     private val _uiState = MutableStateFlow(BodyweightUiState())
     val uiState: StateFlow<BodyweightUiState> = _uiState.asStateFlow()
+    private val _calorieHistory = MutableStateFlow(CalorieHistory())
+    val calorieHistory: StateFlow<CalorieHistory> = _calorieHistory.asStateFlow()
+    private val _calorieError = MutableStateFlow<String?>(null)
+    val calorieError: StateFlow<String?> = _calorieError.asStateFlow()
 
     private var allEntries: List<BodyWeightEntry> = emptyList()
     private var earliestDate: LocalDate? = null
@@ -36,6 +44,43 @@ class BodyweightViewModel(
 
     init {
         load()
+        userSettingsRepository?.let { settings ->
+            viewModelScope.launch {
+                try {
+                    settings.calorieHistoryFlow.collect { _calorieHistory.value = it }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _calorieError.value = e.message ?: "Unable to load calorie history"
+                }
+            }
+        }
+    }
+
+    fun saveCalorieEntries(entries: List<CalorieEntry>) = updateCalories { history ->
+        val ids = entries.map { it.id }.toSet()
+        history.copy(entries = history.entries.filterNot { it.id in ids } + entries)
+    }
+
+    fun deleteCalorieEntry(id: String) = updateCalories { history ->
+        history.copy(entries = history.entries.filterNot { it.id == id })
+    }
+
+    fun saveCalorieTarget(target: CalorieTarget) = updateCalories { history ->
+        history.copy(targets = history.targets.filterNot { it.date == target.date } + target)
+    }
+
+    private fun updateCalories(transform: (CalorieHistory) -> CalorieHistory) {
+        val settings = userSettingsRepository
+        if (settings == null) {
+            _calorieError.value = "Calorie storage is unavailable"
+            return
+        }
+        viewModelScope.launch {
+            runCatching { settings.updateCalorieHistory(transform) }
+                .onSuccess { _calorieError.value = null }
+                .onFailure { _calorieError.value = it.message ?: "Could not save calorie data" }
+        }
     }
 
     /** Re-collect repository flow. */

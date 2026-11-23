@@ -10,14 +10,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.chiron.core.ui.components.WeekNavigator
 import java.time.format.DateTimeFormatter
 
@@ -31,6 +38,9 @@ fun BodyweightStatsScreen(
         viewModel.checkDayRollover()
     }
     val state by viewModel.uiState.collectAsState()
+    val calories by viewModel.calorieHistory.collectAsState()
+    val calorieError by viewModel.calorieError.collectAsState()
+    var selectedTab by remember { mutableIntStateOf(0) }
     Box(modifier = modifier.fillMaxSize()) {
         if (state.isLoading) {
             CircularProgressIndicator(
@@ -38,8 +48,24 @@ fun BodyweightStatsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         } else {
-            BodyweightContent(
+            Column {
+                TabRow(selectedTabIndex = selectedTab) {
+                    listOf("Weight", "Calories").forEachIndexed { index, title ->
+                        Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
+                    }
+                }
+                if (selectedTab == 1) {
+                    CalorieScreen(
+                        history = calories,
+                        weightState = state,
+                        error = calorieError,
+                        onSaveEntries = viewModel::saveCalorieEntries,
+                        onDelete = viewModel::deleteCalorieEntry,
+                        onSaveTarget = viewModel::saveCalorieTarget
+                    )
+                } else BodyweightContent(
                 state = state,
+                calorieHistory = calories,
                 onToggleUnit = { viewModel.setDisplayInKg(!state.displayInKg) },
                 onWeekCountChange = viewModel::setWeekCount,
                 onPrevWeek = viewModel::goToPreviousWeek,
@@ -49,7 +75,8 @@ fun BodyweightStatsScreen(
                 onDelete = viewModel::deleteEntry,
                 onDeleteRange = viewModel::deleteEntriesInRange,
                 onImportClick = onImportClick
-            )
+                )
+            }
         }
     }
 }
@@ -57,6 +84,7 @@ fun BodyweightStatsScreen(
 @Composable
 fun BodyweightContent(
     state: BodyweightUiState,
+    calorieHistory: com.chiron.core.common.CalorieHistory,
     onToggleUnit: () -> Unit,
     onWeekCountChange: (Int) -> Unit,
     onPrevWeek: () -> Unit,
@@ -68,6 +96,7 @@ fun BodyweightContent(
     onImportClick: () -> Unit = {}
 ) {
     val localInKg = state.displayInKg
+    val clipboard = LocalClipboardManager.current
     val unit = if (localInKg) "kg" else "lbs"
 
     val weekLabel = remember(state.currentPeriodEnd, state.weekCount) {
@@ -88,7 +117,16 @@ fun BodyweightContent(
         BodyweightTopBar(
             localInKg = localInKg,
             onToggleUnit = onToggleUnit,
-            onImportClick = onImportClick
+            onImportClick = onImportClick,
+            onExportClick = {
+                val text = buildString {
+                    appendLine("timestamp_utc_ms,weight_lbs")
+                    state.entries.sortedBy { it.timestampUtc }.forEach {
+                        appendLine("${it.timestampUtc},${it.weightLbs}")
+                    }
+                }
+                clipboard.setText(AnnotatedString(text))
+            }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -108,6 +146,13 @@ fun BodyweightContent(
             localInKg = localInKg,
             unit = unit,
             onWeekCountChange = onWeekCountChange
+        )
+        CalorieComparison(
+            history = calorieHistory,
+            state = state,
+            end = state.currentPeriodEnd,
+            weeks = state.weekCount,
+            primaryCalories = false
         )
 
         Spacer(modifier = Modifier.height(12.dp))
