@@ -1,6 +1,11 @@
 package com.chiron.feature.timer
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -59,9 +64,15 @@ fun BodyweightStatsScreen(
                         Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
                     }
                 }
-                Crossfade(
+                AnimatedContent(
                     targetState = selectedTab,
-                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    transitionSpec = {
+                        val direction = if (targetState > initialState) 1 else -1
+                        (fadeIn(tween(350, easing = FastOutSlowInEasing)) +
+                            slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { direction * it / 5 })
+                            .togetherWith(fadeOut(tween(350, easing = FastOutSlowInEasing)) +
+                                slideOutHorizontally(tween(350, easing = FastOutSlowInEasing)) { -direction * it / 5 })
+                    },
                     modifier = Modifier.weight(1f).fillMaxSize(),
                     label = "statsSubtabs"
                 ) { tab ->
@@ -168,6 +179,7 @@ fun BodyweightContent(
         // Polished Numerical Statistics Dashboard Section
         BodyweightStatsSection(
             stats = state.stats,
+            entries = state.entries,
             localInKg = localInKg,
             unit = unit
         )

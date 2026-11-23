@@ -74,12 +74,6 @@ fun GoalDetailScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = CoolGray)
             }
-            IconButton(
-                onClick = { if (currentIndex > 0) onNavigate(currentIndex - 1) },
-                enabled = currentIndex > 0
-            ) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
-            }
             Text(
                 text = goal.name,
                 style = MaterialTheme.typography.headlineLarge,
@@ -87,12 +81,6 @@ fun GoalDetailScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(
-                onClick = { if (currentIndex < allGoals.size - 1) onNavigate(currentIndex + 1) },
-                enabled = currentIndex < allGoals.size - 1
-            ) {
-                Icon(Icons.Filled.ChevronRight, contentDescription = "Next goal", tint = if (currentIndex < allGoals.size - 1) Color.White else CoolGray.copy(alpha = 0.4f))
-            }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Default.Archive, contentDescription = "Archive", tint = CoolGray)
             }
@@ -106,6 +94,13 @@ fun GoalDetailScreen(
                 .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {
+            IconButton(
+                onClick = { if (currentIndex > 0) onNavigate(currentIndex - 1) },
+                enabled = currentIndex > 0,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
+            }
             GoalDonut(
                 progress = goal.daysDone.toFloat() / goal.weeklyTarget,
                 modifier = Modifier.size(180.dp),
@@ -118,6 +113,13 @@ fun GoalDetailScreen(
                     fontFamily = MonospaceFamily,
                     fontWeight = FontWeight.Bold
                 )
+            }
+            IconButton(
+                onClick = { if (currentIndex < allGoals.size - 1) onNavigate(currentIndex + 1) },
+                enabled = currentIndex < allGoals.size - 1,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Next goal", tint = if (currentIndex < allGoals.size - 1) Color.White else CoolGray.copy(alpha = 0.4f))
             }
         }
 

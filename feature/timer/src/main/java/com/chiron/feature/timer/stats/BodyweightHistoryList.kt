@@ -174,7 +174,9 @@ fun BodyweightHistoryList(
                                                 parsedDate.year,
                                                 parsedDate.monthValue - 1,
                                                 parsedDate.dayOfMonth
-                                            ).show()
+                                            ).apply {
+                                                datePicker.maxDate = System.currentTimeMillis()
+                                            }.show()
                                         }
                                         .padding(horizontal = 12.dp, vertical = 10.dp)
                                 ) {
@@ -293,6 +295,10 @@ fun BodyweightHistoryList(
                                         }
 
                                         val selectedDate = runCatching { LocalDate.parse(editDateIso) }.getOrDefault(LocalDate.now())
+                                        if (selectedDate.isAfter(LocalDate.now())) {
+                                            editError = FUTURE_WEIGHT_DATE_ERROR
+                                            return@Button
+                                        }
                                         val selectedTime = LocalTime.of(editHour, editMinute)
                                         val newTimestampUtc = selectedDate
                                             .atTime(selectedTime)

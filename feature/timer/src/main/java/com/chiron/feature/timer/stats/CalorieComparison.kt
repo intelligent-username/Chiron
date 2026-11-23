@@ -1,7 +1,8 @@
 package com.chiron.feature.timer
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,10 +39,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -50,15 +51,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.MonospaceFamily
+import com.chiron.core.ui.theme.SolidSlate
+import com.chiron.core.ui.theme.ThinOutline
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 private val WeightColor = Color(0xFF42A5F5)
 private val CalorieColor = Color(0xFFFFA726)
 private val TargetLineColor = Color(0xFFEF5350)
+private val TooltipDateFormatter = DateTimeFormatter.ofPattern("EEEE MMM d")
+private val TooltipDashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+private val TooltipCornerRadius = CornerRadius(8f, 8f)
 
 internal fun correlation(pairs: List<Pair<Double, Double>>): Double? {
     if (pairs.size < 2) return null
@@ -82,7 +91,8 @@ internal fun CalorieComparison(
     history: CalorieHistory,
     state: BodyweightUiState,
     end: LocalDate,
-    weeks: Int
+    weeks: Int,
+    showCalorieGoal: Boolean = true
 ) {
     var overlay by rememberSaveable { mutableStateOf(false) }
     var lag by rememberSaveable { mutableIntStateOf(0) }
@@ -101,17 +111,20 @@ internal fun CalorieComparison(
     val weightMin = validWeights.minOrNull() ?: 0.0
     val weightMax = (validWeights.maxOrNull() ?: weightMin).coerceAtLeast(weightMin + if (state.displayInKg) 0.5 else 1.0)
 
-    // Calorie scale: exclude today's 0 from max calculation if it would distort the scale
-    val today = LocalDate.now()
-    val calorieValuesForScale = points.filter { it.date != today }.map { it.calories }
-    val maxForScale = calorieValuesForScale.maxOrNull() ?: points.maxOfOrNull { it.calories } ?: 0.0
-    val calorieMax = (ceil(maxForScale / 500.0) * 500.0).coerceAtLeast(500.0)
+    // Missing or zero-calorie days should not determine the visible calorie range.
+    val calorieValuesForScale = points.map { it.calories }.filter { it > 0.0 }
+    val calorieMin = calorieValuesForScale.minOrNull()?.let { floor(it / 500.0) * 500.0 } ?: 0.0
+    val calorieMax = (ceil((calorieValuesForScale.maxOrNull() ?: 0.0) / 500.0) * 500.0)
+        .coerceAtLeast(calorieMin + 500.0)
 
     val measurer = rememberTextMeasurer()
     val colors = MaterialTheme.colorScheme
+    val tooltipGuide = CoolGray
+    val tooltipBackground = SolidSlate
+    val tooltipBorder = ThinOutline
     val axisStyle = TextStyle(color = colors.onSurfaceVariant, fontSize = 10.sp, fontFamily = MonospaceFamily)
-    val calorieTicks = remember(calorieMax, axisStyle, measurer) {
-        (0..4).map { measurer.measure("%.0f".format(calorieMax * it / 4), axisStyle) }
+    val calorieTicks = remember(calorieMin, calorieMax, axisStyle, measurer) {
+        (0..4).map { measurer.measure("%.0f".format(calorieMin + (calorieMax - calorieMin) * it / 4), axisStyle) }
     }
     val weightTicks = remember(weightMin, weightMax, axisStyle, measurer) {
         (0..4).map { measurer.measure("%.1f".format(weightMin + (weightMax - weightMin) * it / 4), axisStyle) }
@@ -155,18 +168,32 @@ internal fun CalorieComparison(
                 .fillMaxWidth()
                 .height(260.dp)
                 .semantics {
-                    contentDescription = selectedPoint?.let { "${it.date}: ${it.calories} calories, ${it.protein} grams protein" }
-                        ?: "Calorie graph from ${points.first().date} to $end"
-                    onClick(label = "Inspect latest day") { selected = points.lastIndex; true }
+                    contentDescription = (selectedPoint ?: points.lastOrNull())?.let {
+                        "${it.date}: ${it.calories} calories, ${it.protein} grams protein"
+                    } ?: "Calorie graph"
                 }
                 .pointerInput(points, leftWidth, rightWidth, showWeightAxis) {
-                    detectTapGestures(onPress = { position ->
+                    awaitEachGesture {
                         val left = leftWidth + 12.dp.toPx()
                         val right = rightWidth + 12.dp.toPx()
                         val width = (size.width - left - right).coerceAtLeast(1f)
-                        selected = (((position.x - left) / width) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
-                        tryAwaitRelease()
-                    })
+                        fun select(x: Float) {
+                            selected = (((x - left) / width) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
+                        }
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        down.consume()
+                        select(down.position.x)
+                        try {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                change.consume()
+                                select(change.position.x)
+                            }
+                        } finally {
+                            selected = -1
+                        }
+                    }
                 }
         ) {
             val left = leftWidth + 12.dp.toPx()
@@ -176,7 +203,7 @@ internal fun CalorieComparison(
             val plotHeight = (size.height - top - 24.dp.toPx()).coerceAtLeast(1f)
             fun x(index: Int) = left + plotWidth * index / (points.size - 1).coerceAtLeast(1)
             fun y(value: Double, min: Double, max: Double) =
-                top + plotHeight * (1f - ((value - min) / (max - min)).toFloat().coerceIn(0f, 1f))
+                top + plotHeight * (1f - ((value - min) / (max - min)).toFloat())
 
             // Grid lines and axis labels
             for (tick in 0..4) {
@@ -191,8 +218,9 @@ internal fun CalorieComparison(
             }
 
             // Daily target line (dotted red)
-            dailyTarget?.let { target ->
-                val targetY = y(target.toDouble(), 0.0, calorieMax)
+            dailyTarget?.takeIf { showCalorieGoal }?.let { target ->
+                val targetY = y(target.toDouble(), calorieMin, calorieMax)
+                if (targetY in top..(top + plotHeight)) {
                 val dashPath = Path().apply {
                     moveTo(left, targetY)
                     lineTo(left + plotWidth, targetY)
@@ -204,6 +232,7 @@ internal fun CalorieComparison(
                 )
                 val targetLabel = measurer.measure("Target ${formatCalorieNumber(target)}", axisStyle)
                 drawText(targetLabel, topLeft = Offset(left - targetLabel.size.width - 6.dp.toPx(), targetY - targetLabel.size.height / 2f))
+                }
             }
 
             fun series(values: List<Double?>, min: Double, max: Double, color: Color, actualOnly: Boolean) {
@@ -240,8 +269,10 @@ internal fun CalorieComparison(
                 }
             }
 
-            if (showWeightAxis) series(weights, weightMin, weightMax, WeightColor, true)
-            series(points.map { it.calories }, 0.0, calorieMax, CalorieColor, false)
+            clipRect(left, top, left + plotWidth, top + plotHeight) {
+                if (showWeightAxis) series(weights, weightMin, weightMax, WeightColor, true)
+                series(points.map { it.calories }, calorieMin, calorieMax, CalorieColor, false)
+            }
 
             val dateStyle = axisStyle.copy(fontSize = 9.sp)
             listOf(0, points.lastIndex).forEach { index ->
@@ -253,19 +284,21 @@ internal fun CalorieComparison(
             // Selected point tooltip (same style as weight tab)
             points.getOrNull(selected)?.let { point ->
                 val px = x(selected)
-                val py = y(point.calories, 0.0, calorieMax)
+                val py = y(point.calories, calorieMin, calorieMax).coerceIn(top, top + plotHeight)
 
                 // Dashed vertical guide line
                 drawLine(
-                    color = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                    color = tooltipGuide.copy(alpha = 0.5f),
                     start = Offset(px, top),
                     end = Offset(px, top + plotHeight),
                     strokeWidth = 1f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+                    pathEffect = TooltipDashEffect
                 )
                 // Highlight circles
-                drawCircle(color = CalorieColor, radius = 6.5f, center = Offset(px, py))
-                drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
+                if (point.calories >= calorieMin) {
+                    drawCircle(color = CalorieColor, radius = 6.5f, center = Offset(px, py))
+                    drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
+                }
                 // Weight overlay point if applicable
                 if (showWeightAxis && weights[selected] != null) {
                     val weightPy = y(weights[selected]!!, weightMin, weightMax)
@@ -274,7 +307,7 @@ internal fun CalorieComparison(
                 }
 
                 val text = buildString {
-                    append("${point.date}\n${formatCalorieNumber(point.calories)} kcal · ${formatCalorieNumber(point.protein)} g protein")
+                    append("${point.date.format(TooltipDateFormatter)}\n${formatCalorieNumber(point.calories)} kcal · ${formatCalorieNumber(point.protein)} g protein")
                     if (showWeightAxis && weights[selected] != null) {
                         append("\n${formatCalorieNumber(weights[selected]!!)} ${if (state.displayInKg) "kg" else "lbs"} · ${point.weightDate}")
                     }
@@ -294,8 +327,8 @@ internal fun CalorieComparison(
                     py + pad + 12f
                 }).coerceIn(pad, (size.height - th - pad).coerceAtLeast(pad))
 
-                drawRoundRect(colors.surface, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8.dp.toPx()))
-                drawRoundRect(colors.onSurfaceVariant, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), CornerRadius(8.dp.toPx()), style = Stroke(1f))
+                drawRoundRect(tooltipBackground, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), TooltipCornerRadius)
+                drawRoundRect(tooltipBorder, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), TooltipCornerRadius, style = Stroke(1f))
                 drawText(layout, topLeft = Offset(tx, ty))
             }
         }

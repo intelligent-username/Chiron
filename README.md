@@ -76,6 +76,9 @@ These tabs are just for 'add-on' tracking, things that you don't strictly need t
 * Log, edit, import, and delete bodyweight entries.
 * View a weight trend and navigate date ranges.
 * See current, average, lowest, and highest weight.
+* Log calories and protein, and set daily targets.
+* View calorie trends and compare them with weight.
+* Import and export calorie history.
 
 ---
 

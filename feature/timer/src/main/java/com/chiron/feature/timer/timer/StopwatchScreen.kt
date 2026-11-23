@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlagCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -21,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,7 +45,7 @@ fun StopwatchContent(viewModel: TimerViewModel) {
         modifier = Modifier.fillMaxWidth()
     ) {
         StopwatchTimeDisplay(millis = state.stopwatchMillis)
-        StopwatchLapsSection(laps = state.laps)
+        StopwatchLapsSection(laps = state.laps, isStopwatchRunning = state.isStopwatchRunning)
     }
 }
 
@@ -87,15 +90,13 @@ private fun StopwatchTimeDisplay(millis: Long) {
 }
 
 @Composable
-private fun StopwatchLapsSection(laps: List<Long>) {
+private fun StopwatchLapsSection(laps: List<Long>, isStopwatchRunning: Boolean) {
     if (laps.isEmpty()) return
 
+    val clipboard = LocalClipboardManager.current
     val reversedLaps = remember(laps) { laps.asReversed() }
-    val lapDurations = remember(laps) {
-        laps.mapIndexed { index, time ->
-            time - if (index == 0) 0L else laps[index - 1]
-        }
-    }
+    val lapDurations = remember(laps) { TimerViewModel.completedLapDurations(laps) }
+    val average = remember(laps) { TimerViewModel.averageLapDuration(laps) }
     val minLapIndex = remember(lapDurations) {
         if (lapDurations.size > 1) lapDurations.indices.minByOrNull { lapDurations[it] } else null
     }
@@ -108,13 +109,35 @@ private fun StopwatchLapsSection(laps: List<Long>) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Laps",
-            style = MaterialTheme.typography.titleSmall,
-            color = ElectricBlue,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Row(
+            modifier = Modifier.padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Laps",
+                style = MaterialTheme.typography.titleSmall,
+                color = ElectricBlue,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (average != null) {
+                Text(
+                    text = "Avg ${TimerViewModel.formatStopwatch(average)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CoolGray,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            IconButton(
+                onClick = {
+                    if (!isStopwatchRunning && laps.isNotEmpty()) {
+                        clipboard.setText(AnnotatedString(TimerViewModel.copyLapText(laps)))
+                    }
+                },
+                enabled = !isStopwatchRunning && laps.isNotEmpty()
+            ) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy laps", tint = CoolGray)
+            }
+        }
 
         LazyColumn(
             modifier = Modifier

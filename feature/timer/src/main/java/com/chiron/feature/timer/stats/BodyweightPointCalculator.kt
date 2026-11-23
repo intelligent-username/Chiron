@@ -11,6 +11,35 @@ import kotlin.math.max
 
 object BodyweightPointCalculator {
 
+    data class DatedWeight(val entry: BodyWeightEntry, val date: LocalDate)
+
+    data class LatestWeights(val latest: DatedWeight?, val previousDay: DatedWeight?)
+
+    fun selectLatestWeights(
+        entries: List<BodyWeightEntry>,
+        today: LocalDate,
+        zone: ZoneId
+    ): LatestWeights {
+        val readings = entries.mapNotNull { entry ->
+            if (entry.timestampUtc <= 0L || !entry.weightLbs.isFinite() || entry.weightLbs <= 0.0) {
+                return@mapNotNull null
+            }
+            val millis = if (entry.timestampUtc <= 9_999_999_999L) entry.timestampUtc * 1000L else entry.timestampUtc
+            val date = runCatching { Instant.ofEpochMilli(millis).atZone(zone).toLocalDate() }.getOrNull()
+                ?: return@mapNotNull null
+            if (date.isAfter(today)) return@mapNotNull null
+            DatedWeight(entry.copy(timestampUtc = millis), date)
+        }
+        val order = compareBy<DatedWeight> { it.entry.timestampUtc }.thenBy { it.entry.id }
+        val latest = readings.maxWithOrNull(order)
+        val previousDay = if (latest?.date == today) {
+            readings.filter { it.date.isBefore(today) }.maxWithOrNull(order)
+        } else {
+            null
+        }
+        return LatestWeights(latest, previousDay)
+    }
+
     data class PreparedWeights(
         val latestByDate: Map<LocalDate, BodyWeightEntry>,
         val knownDates: List<LocalDate>

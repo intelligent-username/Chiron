@@ -21,17 +21,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.UnitConversion
+import com.chiron.core.model.BodyWeightEntry
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @Composable
 fun BodyweightStatsSection(
     stats: BodyweightStats,
+    entries: List<BodyWeightEntry>,
     localInKg: Boolean,
     unit: String,
     modifier: Modifier = Modifier
@@ -41,6 +48,11 @@ fun BodyweightStatsSection(
         val v = if (localInKg) UnitConversion.lbsToKg(weightLbs) else weightLbs
         return UnitConversion.formatNumber(v)
     }
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now(zone)
+    val selection = BodyweightPointCalculator.selectLatestWeights(entries, today, zone)
+    val latest = selection.latest
+    val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -59,9 +71,9 @@ fun BodyweightStatsSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Current weight",
+                        text = if (latest == null || latest.date == today) "Current weight" else "Latest weight",
                         color = CoolGray,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -69,8 +81,26 @@ fun BodyweightStatsSection(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
+                        selection.previousDay?.let { previous ->
+                            Column(modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)) {
+                                Text(
+                                    text = previous.date.format(dateFormatter),
+                                    color = CoolGray,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${fmt(previous.entry.weightLbs)} $unit",
+                                    color = CoolGray,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    fontFamily = MonospaceFamily
+                                )
+                            }
+                        }
                         Text(
-                            text = fmt(stats.current),
+                            text = fmt(latest?.entry?.weightLbs),
                             color = Color.White,
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
@@ -84,6 +114,13 @@ fun BodyweightStatsSection(
                             modifier = Modifier.padding(bottom = 3.dp)
                         )
                     }
+                    if (latest != null && latest.date != today) {
+                        Text(
+                            text = latest.date.format(dateFormatter),
+                            color = CoolGray,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
 
                 // Period Change Badge
@@ -94,6 +131,7 @@ fun BodyweightStatsSection(
 
                     Box(
                         modifier = Modifier
+                            .padding(start = 8.dp)
                             .background(Color(0xFF1E293B), RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {

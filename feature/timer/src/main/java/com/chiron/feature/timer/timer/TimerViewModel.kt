@@ -269,6 +269,21 @@ class TimerViewModel(
     // ─────────────────────────────────────────────────────────────────────────
 
     companion object {
+        fun completedLapDurations(laps: List<Long>): List<Long> =
+            laps.mapIndexed { index, time -> time - if (index == 0) 0L else laps[index - 1] }
+
+        fun averageLapDuration(laps: List<Long>): Long? {
+            val durations = completedLapDurations(laps)
+            return if (durations.isEmpty()) null else durations.sum() / durations.size
+        }
+
+        fun copyLapText(laps: List<Long>): String {
+            val durations = completedLapDurations(laps)
+            return laps.indices.reversed().joinToString("\n") { index ->
+                "Lap ${index + 1}: ${formatStopwatch(laps[index])} (+${formatStopwatch(durations[index])})"
+            }
+        }
+
         fun formatCountdown(seconds: Int): String {
             val mins = seconds / 60
             val secs = seconds % 60

@@ -207,7 +207,8 @@ fun BodyweightImportDialog(
         previewResult?.errors?.associateBy { it.lineNumber } ?: emptyMap()
     }
 
-    val canConfirm = previewResult != null && previewResult.rows.isNotEmpty()
+    val hasFutureDates = previewResult?.rows?.any { isFutureWeightDate(it.timestampUtc) } == true
+    val canConfirm = previewResult != null && previewResult.rows.isNotEmpty() && !hasFutureDates
     val validCount = previewResult?.rows?.size ?: 0
 
     AlertDialog(
@@ -696,6 +697,10 @@ fun BodyweightImportDialog(
                             }
                         }
                     }
+                }
+
+                if (hasFutureDates) {
+                    Text(FUTURE_WEIGHT_DATE_ERROR, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
 
                 // Controls Section 4: Auto-detect dates toggle & Status Summary

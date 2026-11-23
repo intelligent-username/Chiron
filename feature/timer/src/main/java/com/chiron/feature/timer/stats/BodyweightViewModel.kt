@@ -11,6 +11,7 @@ import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.CalorieTarget
 import com.chiron.core.database.ChironRepository
 import com.chiron.core.database.bodyweight.BodyweightImportConfig
+import com.chiron.core.database.bodyweight.BodyweightFileParser
 import com.chiron.core.database.dao.BodyweightUpsertCounts
 import com.chiron.core.model.BodyWeightEntry
 import java.time.LocalDate
@@ -141,7 +142,7 @@ class BodyweightViewModel(
 
     /** Log a weigh-in stamped now or at a custom date/time. */
     fun logWeight(weightLbs: Double, timestampUtc: Long = System.currentTimeMillis()) {
-        val err = validate(weightLbs)
+        val err = validate(weightLbs) ?: if (isFutureWeightDate(timestampUtc)) FUTURE_WEIGHT_DATE_ERROR else null
         if (err != null) {
             _uiState.update { it.copy(error = err) }
             return
@@ -172,6 +173,10 @@ class BodyweightViewModel(
             return
         }
         val updatedTimestamp = timestampUtc ?: existing.timestampUtc
+        if (isFutureWeightDate(updatedTimestamp)) {
+            _uiState.update { it.copy(error = FUTURE_WEIGHT_DATE_ERROR) }
+            return
+        }
         viewModelScope.launch {
             runCatching {
                 repository.updateBodyWeight(existing.copy(weightLbs = weightLbs, timestampUtc = updatedTimestamp))
@@ -215,7 +220,20 @@ class BodyweightViewModel(
         onComplete: (Result<BodyweightUpsertCounts>) -> Unit
     ) {
         viewModelScope.launch {
-            val res = repository.importBodyWeightsFromLines(lines, config)
+            val res = try {
+                val items = lines.toList()
+                val parsed = BodyweightFileParser.parse(items.asSequence(), config)
+                if (parsed.rows.any { isFutureWeightDate(it.timestampUtc) }) {
+                    Result.failure(IllegalArgumentException(FUTURE_WEIGHT_DATE_ERROR))
+                } else {
+                    repository.importBodyWeightsFromLines(items.asSequence(), config)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            _uiState.update { it.copy(error = res.exceptionOrNull()?.message) }
             onComplete(res)
         }
     }

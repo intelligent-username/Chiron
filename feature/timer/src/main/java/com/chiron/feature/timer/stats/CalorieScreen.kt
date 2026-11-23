@@ -1,9 +1,11 @@
 package com.chiron.feature.timer
 
+import android.app.DatePickerDialog
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,11 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -39,16 +42,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.CalorieTarget
+import com.chiron.core.common.foodSuggestions
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.math.roundToInt
@@ -75,6 +82,9 @@ fun CalorieScreen(
     onDelete: (String) -> Unit,
     onSaveTarget: (CalorieTarget) -> Unit
 ) {
+    val context = LocalContext.current
+    val graphPreferences = remember(context) { context.getSharedPreferences("calorie_graph", android.content.Context.MODE_PRIVATE) }
+    var showCalorieGoal by remember { mutableStateOf(graphPreferences.getBoolean("show_goal", true)) }
     var date by remember { mutableStateOf(LocalDate.now()) }
     var weeks by remember { mutableStateOf(2) }
     var graphEnd by remember { mutableStateOf(LocalDate.now()) }
@@ -105,23 +115,25 @@ fun CalorieScreen(
                 IconButton(onClick = { date = date.minusDays(1) }) {
                     Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
                 }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f).clickable {
+                    val currentToday = LocalDate.now()
+                    val initial = date.coerceAtMost(currentToday)
+                    DatePickerDialog(
+                        context,
+                        android.R.style.Theme_DeviceDefault_Dialog_Alert,
+                        { _, year, month, day ->
+                            date = LocalDate.of(year, month + 1, day).coerceAtMost(LocalDate.now())
+                        },
+                        initial.year, initial.monthValue - 1, initial.dayOfMonth
+                    ).apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+                }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(if (date == LocalDate.now()) "Today" else date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
                         style = MaterialTheme.typography.titleMedium)
                     Text(date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = { date = date.plusDays(1) }) {
+                IconButton(onClick = { date = date.plusDays(1).coerceAtMost(LocalDate.now()) }, enabled = date < today) {
                     Icon(Icons.Default.ChevronRight, contentDescription = "Next day")
-                }
-                Box {
-                    IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "Calorie options") }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(text = { Text("Daily targets") }, onClick = { showMenu = false; showTargets = true })
-                        DropdownMenuItem(text = { Text("Import / export") }, onClick = { showMenu = false; showTransfer = true })
-                        if (date != LocalDate.now()) DropdownMenuItem(text = { Text("Back to today") },
-                            onClick = { showMenu = false; date = LocalDate.now() })
-                    }
                 }
             }
         }
@@ -132,6 +144,25 @@ fun CalorieScreen(
                     val dailyEntries = history.entries.filter { it.date == shownDate }
                     val dailyTarget = history.targetFor(shownDate)
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Box {
+                                IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.Settings, "Calorie settings") }
+                                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                    DropdownMenuItem(text = { Text("Daily targets") }, onClick = { showMenu = false; showTargets = true })
+                                    DropdownMenuItem(text = { Text("Import / export") }, onClick = { showMenu = false; showTransfer = true })
+                                    DropdownMenuItem(
+                                        text = { Text("Graph Calorie Goal") },
+                                        leadingIcon = { Checkbox(checked = showCalorieGoal, onCheckedChange = null) },
+                                        onClick = {
+                                            showCalorieGoal = !showCalorieGoal
+                                            graphPreferences.edit().putBoolean("show_goal", showCalorieGoal).apply()
+                                        }
+                                    )
+                                    if (date != LocalDate.now()) DropdownMenuItem(text = { Text("Back to today") },
+                                        onClick = { showMenu = false; date = LocalDate.now() })
+                                }
+                            }
+                        }
                         NutritionTotal("Calories", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         NutritionTotal("Protein", dailyEntries.sumOf { it.protein }, dailyTarget?.protein, "g", false)
@@ -151,7 +182,7 @@ fun CalorieScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CalorieComparison(history, weightState, graphWindow.end, displayedWeeks)
+                    CalorieComparison(history, weightState, graphWindow.end, displayedWeeks, showCalorieGoal)
                     Text("Range: $displayedWeeks week${if (displayedWeeks == 1) "" else "s"}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Slider(value = displayedWeeks.toFloat(), onValueChange = {
@@ -184,7 +215,7 @@ fun CalorieScreen(
         }
     }
     editing?.let { drafts ->
-        FoodDialog(editingDate, drafts, onDismiss = { editing = null }, onSave = {
+        FoodDialog(editingDate, drafts, history.entries, onDismiss = { editing = null }, onSave = {
             onSaveEntries(it)
             editing = null
         })
@@ -199,8 +230,8 @@ fun CalorieScreen(
         CalorieTransferDialog(history, onDismiss = { showTransfer = false }, onImport = { imported ->
             onSaveEntries(imported)
             imported.maxOfOrNull { it.date }?.let { importedDate ->
-                date = importedDate
-                graphEnd = importedDate
+                date = importedDate.coerceAtMost(LocalDate.now())
+                graphEnd = importedDate.coerceAtMost(LocalDate.now())
             }
         })
     }
@@ -229,8 +260,10 @@ private fun NutritionTotal(label: String, value: Double, target: Double?, unit: 
                         modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
-            Text(target?.let { "/ ${formatCalorieNumber(it)} $unit" } ?: "No target",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            target?.let {
+                Text("/ ${formatCalorieNumber(it)} $unit",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
         }
         if (target != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
     }
@@ -240,6 +273,7 @@ private fun NutritionTotal(label: String, value: Double, target: Double?, unit: 
 private fun FoodDialog(
     date: LocalDate,
     initial: List<FoodDraft>,
+    history: List<CalorieEntry>,
     onDismiss: () -> Unit,
     onSave: (List<CalorieEntry>) -> Unit
 ) {
@@ -249,10 +283,51 @@ private fun FoodDialog(
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 rows.forEachIndexed { index, row ->
+                    key(row.id) {
                     fun change(updated: FoodDraft) { rows = rows.toMutableList().also { it[index] = updated } }
+                    var menuOpen by remember { mutableStateOf(false) }
+                    var suggestionMessage by remember { mutableStateOf(false) }
+                    val suggestions = remember(history, row.name) { foodSuggestions(history, row.name) }
                     Text("Food ${index + 1}", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(row.name, { change(row.copy(name = it)) }, label = { Text("Name (optional)") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedTextField(row.name, {
+                            change(row.copy(name = it))
+                            menuOpen = true
+                            suggestionMessage = false
+                        }, label = { Text("Name (optional)") },
+                            singleLine = true, modifier = Modifier.fillMaxWidth())
+                        DropdownMenu(
+                            expanded = menuOpen && suggestions.isNotEmpty(),
+                            onDismissRequest = { menuOpen = false },
+                            properties = PopupProperties(focusable = false)
+                        ) {
+                            suggestions.forEach { suggestion ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(suggestion.name)
+                                            Text("${suggestion.caloriesPerServing} kcal · ${suggestion.proteinPerServing} g protein per serving",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        if (row.calories.isNotEmpty() || row.protein.isNotEmpty()) {
+                                            suggestionMessage = true
+                                        } else {
+                                            change(row.copy(name = suggestion.name,
+                                                calories = suggestion.caloriesPerServing.toString(),
+                                                protein = suggestion.proteinPerServing.toString()))
+                                            suggestionMessage = false
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    if (suggestionMessage) Text("Clear calories and protein before choosing a food.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(row.calories, { change(row.copy(calories = it)) }, label = { Text("Calories per serving") },
                         singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(row.protein, { change(row.copy(protein = it)) }, label = { Text("Protein per serving (g)") },
@@ -260,6 +335,7 @@ private fun FoodDialog(
                     OutlinedTextField(row.servings, { change(row.copy(servings = it)) }, label = { Text("Servings") },
                         singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                     if (rows.size > 1) TextButton(onClick = { rows = rows.filterIndexed { i, _ -> i != index } }) { Text("Remove row") }
+                    }
                 }
                 TextButton(onClick = { rows = rows + FoodDraft() }) { Text("+ Add row") }
                 message?.let { Text(it, color = MaterialTheme.colorScheme.error) }

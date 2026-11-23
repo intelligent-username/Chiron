@@ -3,6 +3,7 @@ package com.chiron.core.common
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import java.util.Locale
 
 data class CalorieEntry(
     val id: String,
@@ -21,6 +22,26 @@ data class CalorieEntry(
     }
     val calories: Double get() = caloriesPerServing * servings
     val protein: Double get() = proteinPerServing * servings
+}
+
+fun foodSuggestions(history: List<CalorieEntry>, query: String): List<CalorieEntry> {
+    val normalizedQuery = query.trim().lowercase(Locale.ROOT)
+    if (normalizedQuery.isEmpty()) return emptyList()
+
+    return history.asSequence()
+        .map { it to it.name.trim() }
+        .filter { (_, name) -> name.isNotEmpty() }
+        .groupBy { (_, name) -> name.lowercase(Locale.ROOT) }
+        .asSequence()
+        .filter { (name, _) -> name.contains(normalizedQuery) }
+        .sortedBy { (name, _) -> name }
+        .map { (_, entries) ->
+            val (entry, name) = entries.maxWithOrNull(
+                compareBy<Pair<CalorieEntry, String>> { it.first.date }.thenBy { it.first.id }
+            )!!
+            entry.copy(name = name)
+        }
+        .toList()
 }
 
 data class CalorieTarget(val date: LocalDate, val calories: Double?, val protein: Double?) {
