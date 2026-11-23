@@ -1,5 +1,9 @@
 package com.chiron.feature.goals
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,11 +25,14 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +49,8 @@ import com.chiron.core.ui.components.ExerciseAsyncIcon
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
+import com.chiron.core.ui.theme.SolidSlate
+import com.chiron.core.ui.theme.ThinOutline
 import java.time.LocalDate
 
 @Composable
@@ -58,6 +68,12 @@ fun GoalDetailScreen(
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    val progressAnimation = remember { Animatable(0f) }
+    val progress = if (goal.weeklyTarget > 0) (goal.daysDone.toFloat() / goal.weeklyTarget).coerceIn(0f, 1f) else 0f
+    LaunchedEffect(goal.id, progress) {
+        progressAnimation.snapTo(0f)
+        progressAnimation.animateTo(progress, animationSpec = tween(500, easing = FastOutSlowInEasing))
+    }
 
     Column(
         modifier = modifier
@@ -76,7 +92,7 @@ fun GoalDetailScreen(
             }
             Text(
                 text = goal.name,
-                style = MaterialTheme.typography.headlineLarge,
+                style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
@@ -88,10 +104,17 @@ fun GoalDetailScreen(
 
         val completed = goal.daysDone >= goal.weeklyTarget
 
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = SolidSlate),
+            border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp)) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             IconButton(
@@ -102,9 +125,9 @@ fun GoalDetailScreen(
                 Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
             }
             GoalDonut(
-                progress = goal.daysDone.toFloat() / goal.weeklyTarget,
-                modifier = Modifier.size(180.dp),
-                strokeWidth = 12.dp
+                progress = progressAnimation.value,
+                modifier = Modifier.size(160.dp),
+                strokeWidth = 10.dp
             ) {
                 Text(
                     text = "${goal.daysDone}/${goal.weeklyTarget}",
@@ -123,6 +146,7 @@ fun GoalDetailScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(20.dp))
         GoalDayStrip(
             weekStart = weekStart,
             dayStatus = goal.dayStatus
@@ -142,6 +166,8 @@ fun GoalDetailScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
+        }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
         Row(

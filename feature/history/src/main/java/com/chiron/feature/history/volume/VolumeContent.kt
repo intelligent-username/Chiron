@@ -1,11 +1,6 @@
 package com.chiron.feature.history
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -137,18 +132,12 @@ fun VolumeContent(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                AnimatedContent(
-                    targetState = state,
-                    contentKey = { it.mode },
-                    transitionSpec = {
-                        (fadeIn(tween(350, easing = FastOutSlowInEasing)) +
-                            scaleIn(tween(350, easing = FastOutSlowInEasing), initialScale = 0.96f))
-                            .togetherWith(fadeOut(tween(350, easing = FastOutSlowInEasing)) +
-                                scaleOut(tween(350, easing = FastOutSlowInEasing), targetScale = 1.04f))
-                    },
+                Crossfade(
+                    targetState = state.mode,
+                    animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
                     label = "volumeMode"
-                ) { displayedState ->
-                    if (displayedState.points.isEmpty() || displayedState.points.all { it.volumeLbs == 0.0 }) {
+                ) { mode ->
+                    if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -164,9 +153,9 @@ fun VolumeContent(
                         }
                     } else {
                         VolumeLineGraph(
-                            points = displayedState.points,
+                            points = state.points,
                             displayInKg = displayInKg,
-                            mode = displayedState.mode,
+                            mode = mode,
                             animateEntry = false,
                             onPointTap = onPointTap,
                             modifier = Modifier
@@ -175,17 +164,18 @@ fun VolumeContent(
                         )
                     }
 
-                    if (displayedState.mode == VolumeMode.BY_WEEK) {
-                        val maxWeeks = displayedState.maxWeekCount.coerceAtLeast(2)
-                        val currentWeekVal = displayedState.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
-                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                }
+                    if (state.mode == VolumeMode.BY_WEEK) {
+                        val maxWeeks = state.maxWeekCount.coerceAtLeast(2)
+                        val currentWeekVal = state.weekCount.toFloat().coerceIn(2f, maxWeeks.toFloat())
+                        Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Range: ${displayedState.weekCount} weeks (${displayedState.weekCount * 7} days)",
+                                    text = "Range: ${state.weekCount} weeks (${state.weekCount * 7} days)",
                                     color = CoolGray,
                                     fontSize = 12.sp
                                 )
@@ -202,7 +192,6 @@ fun VolumeContent(
                             }
                         }
                     }
-                }
             }
         }
 

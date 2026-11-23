@@ -1,6 +1,5 @@
 package com.chiron.feature.timer
 
-import android.app.DatePickerDialog
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -116,16 +115,7 @@ fun CalorieScreen(
                     Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
                 }
                 Column(Modifier.weight(1f).clickable {
-                    val currentToday = LocalDate.now()
-                    val initial = date.coerceAtMost(currentToday)
-                    DatePickerDialog(
-                        context,
-                        android.R.style.Theme_DeviceDefault_Dialog_Alert,
-                        { _, year, month, day ->
-                            date = LocalDate.of(year, month + 1, day).coerceAtMost(LocalDate.now())
-                        },
-                        initial.year, initial.monthValue - 1, initial.dayOfMonth
-                    ).apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+                    showStatsDatePicker(context, date) { date = it }
                 }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(if (date == LocalDate.now()) "Today" else date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
                         style = MaterialTheme.typography.titleMedium)
@@ -143,13 +133,16 @@ fun CalorieScreen(
                 Crossfade(targetState = date, animationSpec = tween(180), label = "dailyNutrition") { shownDate ->
                     val dailyEntries = history.entries.filter { it.date == shownDate }
                     val dailyTarget = history.targetFor(shownDate)
+                    Box(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Box {
+                        NutritionTotal("Calories", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        NutritionTotal("Protein", dailyEntries.sumOf { it.protein }, dailyTarget?.protein, "g", false)
+                    }
+                            Box(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
                                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.Settings, "Calorie settings") }
                                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                     DropdownMenuItem(text = { Text("Daily targets") }, onClick = { showMenu = false; showTargets = true })
-                                    DropdownMenuItem(text = { Text("Import / export") }, onClick = { showMenu = false; showTransfer = true })
                                     DropdownMenuItem(
                                         text = { Text("Graph Calorie Goal") },
                                         leadingIcon = { Checkbox(checked = showCalorieGoal, onCheckedChange = null) },
@@ -158,14 +151,11 @@ fun CalorieScreen(
                                             graphPreferences.edit().putBoolean("show_goal", showCalorieGoal).apply()
                                         }
                                     )
+                                    DropdownMenuItem(text = { Text("Import / export") }, onClick = { showMenu = false; showTransfer = true })
                                     if (date != LocalDate.now()) DropdownMenuItem(text = { Text("Back to today") },
                                         onClick = { showMenu = false; date = LocalDate.now() })
                                 }
                             }
-                        }
-                        NutritionTotal("Calories", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                        NutritionTotal("Protein", dailyEntries.sumOf { it.protein }, dailyTarget?.protein, "g", false)
                     }
                 }
             }
@@ -244,7 +234,10 @@ fun CalorieScreen(
 }
 
 @Composable
-private fun NutritionTotal(label: String, value: Double, target: Double?, unit: String, prominent: Boolean) {
+private fun NutritionTotal(
+    label: String, value: Double, target: Double?, unit: String, prominent: Boolean,
+    trailing: @Composable () -> Unit = {}
+) {
     val progress by animateFloatAsState(
         targetValue = target?.let { (value / it).toFloat().coerceIn(0f, 1f) } ?: 0f,
         animationSpec = tween(220), label = "nutritionProgress"
@@ -260,9 +253,12 @@ private fun NutritionTotal(label: String, value: Double, target: Double?, unit: 
                         modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
-            target?.let {
-                Text("/ ${formatCalorieNumber(it)} $unit",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                target?.let {
+                    Text("/ ${formatCalorieNumber(it)} $unit",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                trailing()
             }
         }
         if (target != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())

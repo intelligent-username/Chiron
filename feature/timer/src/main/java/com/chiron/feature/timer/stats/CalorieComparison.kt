@@ -1,5 +1,8 @@
 package com.chiron.feature.timer
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -22,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -94,6 +98,13 @@ internal fun CalorieComparison(
     weeks: Int,
     showCalorieGoal: Boolean = true
 ) {
+    var graphVisible by remember { mutableStateOf(false) }
+    val reveal by animateFloatAsState(
+        targetValue = if (graphVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+        label = "calorieGraphReveal"
+    )
+    LaunchedEffect(Unit) { graphVisible = true }
     var overlay by rememberSaveable { mutableStateOf(false) }
     var lag by rememberSaveable { mutableIntStateOf(0) }
     var explanation by remember { mutableStateOf(false) }
@@ -269,7 +280,7 @@ internal fun CalorieComparison(
                 }
             }
 
-            clipRect(left, top, left + plotWidth, top + plotHeight) {
+            clipRect(left, top, left + plotWidth * reveal, top + plotHeight) {
                 if (showWeightAxis) series(weights, weightMin, weightMax, WeightColor, true)
                 series(points.map { it.calories }, calorieMin, calorieMax, CalorieColor, false)
             }

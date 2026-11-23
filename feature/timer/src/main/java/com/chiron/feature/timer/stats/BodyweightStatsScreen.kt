@@ -68,10 +68,11 @@ fun BodyweightStatsScreen(
                     targetState = selectedTab,
                     transitionSpec = {
                         val direction = if (targetState > initialState) 1 else -1
-                        (fadeIn(tween(350, easing = FastOutSlowInEasing)) +
+                        ((fadeIn(tween(350, easing = FastOutSlowInEasing)) +
                             slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { direction * it / 5 })
                             .togetherWith(fadeOut(tween(350, easing = FastOutSlowInEasing)) +
-                                slideOutHorizontally(tween(350, easing = FastOutSlowInEasing)) { -direction * it / 5 })
+                                slideOutHorizontally(tween(350, easing = FastOutSlowInEasing)) { -direction * it / 5 }))
+                            .apply { targetContentZIndex = 1f }
                     },
                     modifier = Modifier.weight(1f).fillMaxSize(),
                     label = "statsSubtabs"

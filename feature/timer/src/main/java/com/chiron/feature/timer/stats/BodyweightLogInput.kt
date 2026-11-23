@@ -1,6 +1,7 @@
 package com.chiron.feature.timer
 
 import android.app.DatePickerDialog
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,15 +10,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -43,6 +49,20 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+internal fun showStatsDatePicker(context: Context, selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) {
+    val initial = selectedDate.coerceAtMost(LocalDate.now())
+    DatePickerDialog(
+        context,
+        android.R.style.Theme_DeviceDefault_Dialog_Alert,
+        { _, year, month, day ->
+            onDateSelected(LocalDate.of(year, month + 1, day).coerceAtMost(LocalDate.now()))
+        },
+        initial.year,
+        initial.monthValue - 1,
+        initial.dayOfMonth
+    ).apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+}
+
 @Composable
 fun BodyweightLogInput(
     localInKg: Boolean,
@@ -66,18 +86,9 @@ fun BodyweightLogInput(
         else selectedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
 
     fun showDatePicker() {
-        DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                val picked = LocalDate.of(year, month + 1, dayOfMonth).coerceAtMost(today)
-                customDateIso = if (picked == today) null else picked.toString()
-            },
-            selectedDate.year,
-            selectedDate.monthValue - 1,
-            selectedDate.dayOfMonth
-        ).apply {
-            datePicker.maxDate = System.currentTimeMillis()
-        }.show()
+        showStatsDatePicker(context, selectedDate) { picked ->
+            customDateIso = if (picked == LocalDate.now()) null else picked.toString()
+        }
     }
 
     fun submit() {
@@ -115,7 +126,7 @@ fun BodyweightLogInput(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -127,17 +138,19 @@ fun BodyweightLogInput(
                         val prev = selectedDate.minusDays(1)
                         customDateIso = prev.toString()
                     },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
-                    Text("<", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day", tint = Color.White)
                 }
 
                 Row(
                     modifier = Modifier
+                        .weight(1f)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { showDatePicker() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
                         text = dateLabel,
@@ -153,14 +166,10 @@ fun BodyweightLogInput(
                         customDateIso = if (next == today) null else next.toString()
                     },
                     enabled = selectedDate < today,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
-                    Text(
-                        ">",
-                        color = if (selectedDate < today) Color.White else CoolGray.copy(alpha = 0.3f),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next day",
+                        tint = if (selectedDate < today) Color.White else CoolGray.copy(alpha = 0.3f))
                 }
             }
 
@@ -182,7 +191,8 @@ fun BodyweightLogInput(
                 )
                 Button(
                     onClick = { submit() },
-                    enabled = text.trim().isNotEmpty()
+                    enabled = text.trim().isNotEmpty(),
+                    modifier = Modifier.heightIn(min = 56.dp)
                 ) {
                     Text("Log")
                 }

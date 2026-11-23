@@ -48,8 +48,8 @@ fun VolumeStatsSection(
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(8.dp))
-            StatRow("This week", "${stats.thisWeek.formatVolume(displayInKg)} $unit")
-            StatRow("Last week", "${stats.lastWeek.formatVolume(displayInKg)} $unit")
+            StatRow("Last 7 days", "${stats.thisWeek.formatVolume(displayInKg)} $unit")
+            StatRow("Previous 7 days", "${stats.lastWeek.formatVolume(displayInKg)} $unit")
             StatRow("Rolling weekly avg", "${stats.rollingWeeklyAvg.formatVolume(displayInKg)} $unit")
             
             val sign = if (stats.rollingVolChange > 0) "+" else ""

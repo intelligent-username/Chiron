@@ -3,6 +3,7 @@ package com.chiron.feature.exercises
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Unarchive
@@ -41,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -257,11 +261,29 @@ fun ExerciseDetailScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
             )
 
-            IconPickerDropdown(
-                selectedIcon = iconState,
-                onIconSelected = { iconState = it },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                IconPickerDropdown(
+                    selectedIcon = iconState,
+                    onIconSelected = { iconState = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                IconButton(
+                    onClick = { navigate(false) },
+                    enabled = onPreviousExercise != null && !isSaving,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous exercise",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (onPreviousExercise != null) 1f else 0.4f))
+                }
+                IconButton(
+                    onClick = { navigate(true) },
+                    enabled = onNextExercise != null && !isSaving,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next exercise",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (onNextExercise != null) 1f else 0.4f))
+                }
+            }
 
             OutlinedTextField(
                 value = descState,

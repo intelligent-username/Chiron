@@ -96,20 +96,24 @@ class VolumeViewModel(
                 }
                 val weeklyTotals = weeklyTotalsArray.toList()
 
-                val thisWeek = weeklyTotals.lastOrNull() ?: 0.0
-                val lastWeek = if (weeklyTotals.size >= 2) weeklyTotals[weeklyTotals.size - 2] else 0.0
+                val rollingWeekCount = ((ChronoUnit.DAYS.between(firstDate, today) / 7) + 1)
+                    .toInt().coerceIn(1, 4)
+                val recentWeeks = (0 until rollingWeekCount).map { index ->
+                    val end = today.minusDays(index * 7L)
+                    val start = end.minusDays(6)
+                    byDate.entries.sumOf { (date, volume) ->
+                        if (date >= start && date <= end) volume else 0.0
+                    }
+                }
+                val thisWeek = recentWeeks.firstOrNull() ?: 0.0
+                val lastWeek = recentWeeks.getOrNull(1) ?: 0.0
                 val allTimeTotal = weeklyTotals.sum()
                 val highestEver = weeklyTotals.maxOrNull() ?: 0.0
                 val lowestEver = weeklyTotals.filter { it > 0 }.minOrNull() ?: 0.0
-                val rollingWeeklyAvg = if (weeklyTotals.size >= 4) {
-                    weeklyTotals.takeLast(4).average()
-                } else if (weeklyTotals.isNotEmpty()) {
-                    weeklyTotals.average()
-                } else 0.0
+                val rollingWeeklyAvg = recentWeeks.average()
 
-                val rollingVolChange = if (weeklyTotals.size >= 2) {
-                    val last4 = weeklyTotals.takeLast(4)
-                    val diffs = last4.zipWithNext { a, b -> b - a }
+                val rollingVolChange = if (recentWeeks.size >= 2) {
+                    val diffs = recentWeeks.asReversed().zipWithNext { a, b -> b - a }
                     diffs.average()
                 } else 0.0
 

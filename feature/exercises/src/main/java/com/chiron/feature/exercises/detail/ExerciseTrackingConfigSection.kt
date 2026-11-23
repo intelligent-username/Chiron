@@ -3,8 +3,10 @@ package com.chiron.feature.exercises
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -16,6 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -72,7 +76,11 @@ fun ExerciseTrackingConfigSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Track Weight", style = MaterialTheme.typography.bodyMedium)
-            Switch(checked = weightEnabled, onCheckedChange = onWeightEnabledChange)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = weightEnabled, onCheckedChange = onWeightEnabledChange)
+                Spacer(Modifier.width(8.dp))
+                Text("Time", style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
+            }
         }
 
         Row(
@@ -81,7 +89,11 @@ fun ExerciseTrackingConfigSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Track Distance", style = MaterialTheme.typography.bodyMedium)
-            Switch(checked = distanceEnabled, onCheckedChange = onDistanceEnabledChange)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = distanceEnabled, onCheckedChange = onDistanceEnabledChange)
+                Spacer(Modifier.width(8.dp))
+                Text("Time", style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
+            }
         }
 
         Row(
@@ -117,7 +129,11 @@ fun ExerciseTrackingConfigSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Track Bodyweight", style = MaterialTheme.typography.bodyMedium)
-            Switch(checked = bodyweightEnabled, onCheckedChange = onBodyweightEnabledChange)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = bodyweightEnabled, onCheckedChange = onBodyweightEnabledChange)
+                Spacer(Modifier.width(8.dp))
+                Text("Time", style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
+            }
         }
 
         if (bodyweightEnabled) {

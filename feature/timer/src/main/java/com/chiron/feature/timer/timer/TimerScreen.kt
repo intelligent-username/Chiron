@@ -1,6 +1,14 @@
 package com.chiron.feature.timer
 
 import android.media.MediaPlayer
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,13 +76,26 @@ fun TimerScreen(
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
-            when (state.activeTab) {
+            AnimatedContent(
+                targetState = state.activeTab,
+                transitionSpec = {
+                    val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    (fadeIn(tween(280, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { direction * it / 8 })
+                        .togetherWith(fadeOut(tween(280, easing = FastOutSlowInEasing)) +
+                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -direction * it / 8 })
+                        .apply { targetContentZIndex = 1f }
+                },
+                label = "timerSubtabs"
+            ) { tab ->
+            when (tab) {
                 TimerTab.TIMER -> CountdownContent(viewModel = viewModel)
                 TimerTab.STOPWATCH -> StopwatchContent(viewModel = viewModel)
                 TimerTab.METRONOME -> MetronomeContent(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
             }
         }
 
