@@ -211,15 +211,9 @@ fun BodyweightGraphCard(
                         valueRange = -3f..3f,
                         steps = 5
                     )
-                    Text(when {
-                        draftLag < 0 -> "Compare each weight date with calories ${-draftLag} day(s) earlier."
-                        draftLag > 0 -> "Compare each weight date with calories $draftLag day(s) later."
-                        else -> "Compare weight and calories from the same day."
-                    }, style = MaterialTheme.typography.bodySmall)
                     Text(if (r == null) "Correlation: not enough variation/data (${pairs.size} pairs)"
                         else "Correlation: ${"%.2f".format(r)} (${pairs.size} pairs)",
                         style = MaterialTheme.typography.bodySmall)
-                    Text("Correlation does not imply causation.", style = MaterialTheme.typography.bodySmall, color = CoolGray)
                     TextButton(onClick = { caloriesEnabled = false; showLagSettings = false }) { Text("Disable calories") }
                 }
             },

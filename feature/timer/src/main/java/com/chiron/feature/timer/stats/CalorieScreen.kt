@@ -1,11 +1,8 @@
 package com.chiron.feature.timer
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +58,7 @@ import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import com.chiron.core.ui.theme.MonospaceFamily
+import com.chiron.core.ui.components.WeekNavigator
 
 private data class FoodDraft(
     val id: String = UUID.randomUUID().toString(),
@@ -81,13 +79,23 @@ fun CalorieScreen(
 ) {
     var date by remember { mutableStateOf(LocalDate.now()) }
     var weeks by remember { mutableStateOf(2) }
+    var graphEnd by remember { mutableStateOf(LocalDate.now()) }
+    var editingDate by remember { mutableStateOf(date) }
     var editing by remember { mutableStateOf<List<FoodDraft>?>(null) }
     var showTargets by remember { mutableStateOf(false) }
     var showTransfer by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-    var showRange by remember { mutableStateOf(false) }
     var deleteEntry by remember { mutableStateOf<CalorieEntry?>(null) }
-    val entries = remember(history.entries, date) { history.entries.filter { it.date == date } }
+    val entries = remember(history.entries) { CalorieGraphCalculator.history(history.entries) }
+    val today = LocalDate.now()
+    val firstDate = history.entries.minOfOrNull { it.date }
+    val maxWeeks = firstDate?.let {
+        ((ChronoUnit.DAYS.between(it, today).coerceAtLeast(0) + 7) / 7).toInt().coerceIn(2, 520)
+    } ?: 2
+    val displayedWeeks = weeks.coerceIn(1, maxWeeks)
+    val graphWindow = remember(graphEnd, displayedWeeks, history.entries, today) {
+        CalorieGraphCalculator.window(graphEnd, displayedWeeks, history.entries, today)
+    }
     val target = history.targetFor(date)
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -134,7 +142,7 @@ fun CalorieScreen(
             }
         }
         item {
-            Button(onClick = { editing = listOf(FoodDraft()) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            Button(onClick = { editingDate = date; editing = listOf(FoodDraft()) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("Log food", modifier = Modifier.padding(start = 8.dp))
@@ -145,43 +153,47 @@ fun CalorieScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Calorie trend", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { showRange = !showRange }) { Text(if (showRange) "Done" else "${weeks}w range") }
-                    }
-                    AnimatedVisibility(visible = showRange, enter = fadeIn(tween(180)), exit = fadeOut(tween(120))) {
-                        val firstDate = history.entries.minOfOrNull { it.date }
-                        val maxWeeks = firstDate?.let {
-                            ((ChronoUnit.DAYS.between(it, LocalDate.now()).coerceAtLeast(0) + 7) / 7).toInt().coerceIn(2, 520)
-                        } ?: 2
-                        Column {
-                            Text("Past $weeks weeks", style = MaterialTheme.typography.bodySmall)
-                            Slider(value = weeks.coerceIn(1, maxWeeks).toFloat(), onValueChange = { weeks = it.roundToInt() },
-                                valueRange = 1f..maxWeeks.toFloat(), steps = (maxWeeks - 2).coerceAtLeast(0))
-                        }
-                    }
-                    CalorieComparison(history, weightState, date, weeks, primaryCalories = true)
+                    CalorieComparison(history, weightState, graphWindow.end, displayedWeeks)
+                    Text("Range: $displayedWeeks week${if (displayedWeeks == 1) "" else "s"}",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Slider(value = displayedWeeks.toFloat(), onValueChange = {
+                        weeks = it.roundToInt()
+                        graphEnd = today
+                    }, valueRange = 1f..maxWeeks.toFloat(), steps = (maxWeeks - 2).coerceAtLeast(0))
                 }
             }
+        }
+        item {
+            val formatter = DateTimeFormatter.ofPattern("MMM d")
+            WeekNavigator(
+                weekLabel = "${graphWindow.start.format(formatter)} – ${graphWindow.end.format(formatter)}",
+                canGoPrev = graphWindow.canGoPrevious,
+                canGoNext = graphWindow.canGoNext,
+                onPrev = { graphEnd = graphWindow.previous().end },
+                onNext = { graphEnd = graphWindow.next().end }
+            )
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Food log", style = MaterialTheme.typography.titleMedium)
                 Text("${entries.size} entries", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (entries.isEmpty()) Text("No entries for this day. Log a food or import your history from the options menu.",
+            if (entries.isEmpty()) Text("No food history yet. Log a food or import your history from the options menu.",
                 modifier = Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium)
         }
         items(entries, key = { it.id }) { entry ->
+            Text(entry.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             CalorieEntryRow(entry, onEdit = {
+                        editingDate = entry.date
                         editing = listOf(FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
                             entry.proteinPerServing.toString(), entry.servings.toString()))
             }, onDelete = { deleteEntry = entry })
         }
     }
     editing?.let { drafts ->
-        FoodDialog(date, drafts, onDismiss = { editing = null }, onSave = {
+        FoodDialog(editingDate, drafts, onDismiss = { editing = null }, onSave = {
             onSaveEntries(it)
             editing = null
         })
@@ -193,11 +205,17 @@ fun CalorieScreen(
         })
     }
     if (showTransfer) {
-        CalorieTransferDialog(history, onDismiss = { showTransfer = false }, onImport = onSaveEntries)
+        CalorieTransferDialog(history, onDismiss = { showTransfer = false }, onImport = { imported ->
+            onSaveEntries(imported)
+            imported.maxOfOrNull { it.date }?.let { importedDate ->
+                date = importedDate
+                graphEnd = importedDate
+            }
+        })
     }
     deleteEntry?.let { entry ->
         AlertDialog(onDismissRequest = { deleteEntry = null }, title = { Text("Delete entry?") },
-            text = { Text("Delete ${entry.name.ifBlank { "this food" }} from $date?") },
+            text = { Text("Delete ${entry.name.ifBlank { "this food" }} from ${entry.date}?") },
             confirmButton = { TextButton(onClick = { onDelete(entry.id); deleteEntry = null }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleteEntry = null }) { Text("Cancel") } })
     }

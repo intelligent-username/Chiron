@@ -19,12 +19,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import com.chiron.core.ui.components.WeekNavigator
 import java.time.format.DateTimeFormatter
 
@@ -96,8 +95,8 @@ fun BodyweightContent(
     onImportClick: () -> Unit = {}
 ) {
     val localInKg = state.displayInKg
-    val clipboard = LocalClipboardManager.current
     val unit = if (localInKg) "kg" else "lbs"
+    var showTransfer by remember { mutableStateOf(false) }
 
     val weekLabel = remember(state.currentPeriodEnd, state.weekCount) {
         val daysSpan = (state.weekCount * 7 - 1).toLong()
@@ -113,20 +112,11 @@ fun BodyweightContent(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Header controls (Import & Persistent Unit toggle)
+        // Header controls (import/export hub & persistent unit toggle)
         BodyweightTopBar(
             localInKg = localInKg,
             onToggleUnit = onToggleUnit,
-            onImportClick = onImportClick,
-            onExportClick = {
-                val text = buildString {
-                    appendLine("timestamp_utc_ms,weight_lbs")
-                    state.entries.sortedBy { it.timestampUtc }.forEach {
-                        appendLine("${it.timestampUtc},${it.weightLbs}")
-                    }
-                }
-                clipboard.setText(AnnotatedString(text))
-            }
+            onTransferClick = { showTransfer = true }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -181,6 +171,15 @@ fun BodyweightContent(
         )
 
         Spacer(modifier = Modifier.height(120.dp))
+    }
+
+    if (showTransfer) {
+        BodyweightTransferDialog(
+            entries = state.entries,
+            localInKg = localInKg,
+            onDismiss = { showTransfer = false },
+            onOpenImport = { showTransfer = false; onImportClick() }
+        )
     }
 }
 

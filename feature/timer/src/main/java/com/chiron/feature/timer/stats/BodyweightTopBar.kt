@@ -14,19 +14,15 @@ import androidx.compose.ui.unit.dp
 fun BodyweightTopBar(
     localInKg: Boolean,
     onToggleUnit: () -> Unit,
-    onImportClick: () -> Unit,
-    onExportClick: () -> Unit,
+    onTransferClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        OutlinedButton(onClick = onImportClick) {
-            Text("Import")
-        }
-        OutlinedButton(onClick = onExportClick) {
-            Text("Copy export")
+        OutlinedButton(onClick = onTransferClick) {
+            Text("Import / export")
         }
         OutlinedButton(
             onClick = onToggleUnit,
