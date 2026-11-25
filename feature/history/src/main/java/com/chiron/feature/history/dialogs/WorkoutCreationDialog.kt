@@ -101,12 +101,14 @@ fun WorkoutCreationDialog(
                 // Date display
                 Text(
                     text = "Date: $dateIso ($dayOfWeek)",
+                    modifier = Modifier.workoutCreationAnchor("date"),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 // Workout Name (Day Tag) Selection
                 SelectionInput(
+                    modifier = Modifier.workoutCreationAnchor("title"),
                     label = "Workout Name",
                     options = allDayTags,
                     selectedOption = selectedDayTag,
@@ -120,6 +122,7 @@ fun WorkoutCreationDialog(
 
                 // Location Selection
                 SelectionInput(
+                    modifier = Modifier.workoutCreationAnchor("location"),
                     label = "Location",
                     options = allLocations,
                     selectedOption = selectedLocation,

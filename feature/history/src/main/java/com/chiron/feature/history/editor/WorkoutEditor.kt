@@ -240,6 +240,7 @@ fun WorkoutEditor(
         distanceUnit = distanceUnit,
         showDeleteConfirmation = showDeleteConfirmation,
         onConfirmDelete = {
+            showDeleteConfirmation = false
             scope.launch {
                 if (workout.archived != 0) {
                     viewModel.permanentlyDeleteWorkout(workout.id)

@@ -97,7 +97,7 @@ class PrRepository(
                 for (set in sortedSets) {
                     val reps = set.reps ?: continue
                     val weight = set.weightLbs ?: continue
-                    if (set.isFailed != 0 || reps <= 0) continue
+                    if (set.isFailed != 0) continue
                     val current = bestPerReps[reps]
                     if (current == null || weight > current.weightLbs!!) {
                         bestPerReps[reps] = set

@@ -1,6 +1,7 @@
 package com.chiron.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
@@ -275,8 +276,9 @@ fun ChironApp(
                             detailReturnToPr = false
                             activeExerciseId = null
                             exerciseDetailOpenedFromHistory = false
-                            // A tap selects a destination, not a tour through intermediate tabs.
-                            pagerState.requestScrollToPage(tab.ordinal)
+                            scope.launch {
+                                pagerState.animateScrollToPage(tab.ordinal, animationSpec = tween(180))
+                            }
                         }
                     }
                 )

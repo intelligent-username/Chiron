@@ -59,12 +59,9 @@ fun PrDetailPanel(
     onOpenWorkout: (Long, Long) -> Unit = { _, _ -> },
     onOpenExercise: (Long) -> Unit = {}
 ) {
-    val allPrs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
+    val prs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
     val estimate by viewModel.get1rmEstimateForExerciseFlow(exercise.id).collectAsState(initial = null)
     val category = exercise.prCategory()
-    val prs = remember(allPrs, category) {
-        if (category == PrCategory.WEIGHT_REPS) allPrs.filter { it.repsInt > 0 } else allPrs
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
