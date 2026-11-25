@@ -3,12 +3,9 @@ package com.chiron.feature.timer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -98,30 +95,37 @@ internal fun rememberFoodEditorState(): MutableState<FoodEditorSession?> =
     }
 
 @Composable
-internal fun PersistentFoodDialog(
+internal fun PersistentFoodEditor(
     session: FoodEditorSession,
     history: List<CalorieEntry>,
     onSessionChange: (FoodEditorSession) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (List<CalorieEntry>, Set<String>?) -> Unit
+    onSave: (List<CalorieEntry>, Set<String>?) -> Unit,
+    onImmediateMessage: () -> Unit = {}
 ) {
     val rows = session.rows
-    var message by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Log food · ${session.date}") },
-        text = {
+    var message by remember(session.date, session.originalIds) { mutableStateOf<String?>(null) }
+    // Keep removed slots only as empty, shrinking geometry: no outgoing input,
+    // focus owner, suggestion popup, or submit callback is retained.
+    val slots = remember { FoodRowSlots(rows.map { it.id }) }
+    rows.forEach { if (it.id !in slots.ids) slots.ids += it.id }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Log food · ${session.date}", style = MaterialTheme.typography.titleMedium)
             Column(
-                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rows.forEachIndexed { index, row ->
-                    key(row.id) {
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+             ) {
+                 slots.ids.forEach { id ->
+                     key(id) {
+                       val index = rows.indexOfFirst { it.id == id }
+                       val row = rows.getOrNull(index)
+                       var suggestionMessage by remember { mutableStateOf(false) }
+                       StatsFoodRowGeometry(row != null, id in slots.initialIds) {
+                        if (row != null) {
                         fun change(updated: FoodDraft) {
                             onSessionChange(session.copy(rows = rows.toMutableList().also { it[index] = updated }))
                         }
                         var menuOpen by remember { mutableStateOf(false) }
-                        var suggestionMessage by remember { mutableStateOf(false) }
                         val suggestions = remember(history, row.name) { foodSuggestions(history, row.name) }
                         Text("Food ${index + 1}", style = MaterialTheme.typography.titleSmall)
                         Box(Modifier.fillMaxWidth()) {
@@ -152,8 +156,9 @@ internal fun PersistentFoodDialog(
                                         },
                                         onClick = {
                                             menuOpen = false
-                                            if (row.calories.isNotEmpty() || row.protein.isNotEmpty()) {
-                                                suggestionMessage = true
+                                             if (row.calories.isNotEmpty() || row.protein.isNotEmpty()) {
+                                                 onImmediateMessage()
+                                                 suggestionMessage = true
                                             } else {
                                                 change(row.copy(
                                                     name = suggestion.name,
@@ -167,11 +172,6 @@ internal fun PersistentFoodDialog(
                                 }
                             }
                         }
-                        if (suggestionMessage) Text(
-                            "Clear calories and protein before choosing a food.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                         OutlinedTextField(
                             row.calories, { change(row.copy(calories = it)) },
                             label = { Text("Calories per serving") }, singleLine = true,
@@ -190,9 +190,16 @@ internal fun PersistentFoodDialog(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        if (rows.size > 1) TextButton(onClick = {
+                         if (rows.size > 1) TextButton(onClick = {
                             onSessionChange(session.copy(rows = rows.filterIndexed { i, _ -> i != index }))
-                        }) { Text("Remove row") }
+                         }) { Text("Remove row") }
+                        }
+                       }
+                       if (row != null && suggestionMessage) Text(
+                           "Clear calories and protein before choosing a food.",
+                           style = MaterialTheme.typography.bodySmall,
+                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                       )
                     }
                 }
                 TextButton(onClick = {
@@ -200,8 +207,8 @@ internal fun PersistentFoodDialog(
                 }) { Text("+ Add row") }
                 message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-        },
-        confirmButton = {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
             TextButton(onClick = {
                 val parsed = runCatching {
                     rows.map { row ->
@@ -211,11 +218,16 @@ internal fun PersistentFoodDialog(
                         )
                     }
                 }
-                parsed.onSuccess { onSave(it, session.originalIds) }.onFailure {
+                 parsed.onSuccess { onSave(it, session.originalIds) }.onFailure {
+                     onImmediateMessage()
                     message = "Enter non-negative calories and protein and a positive number of servings for every row."
                 }
             }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+        }
+    }
+}
+
+private class FoodRowSlots(initial: List<String>) {
+    val initialIds = initial.toSet()
+    val ids = initial.toMutableList()
 }

@@ -26,6 +26,36 @@ import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.TimerScreen
 import com.chiron.feature.timer.TimerViewModel
 
+@Composable
+internal fun ChironMainPager(
+    pagerState: PagerState,
+    tabs: Array<NavTab>,
+    userScrollEnabled: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable (NavTab) -> Unit
+) {
+    // HorizontalPager already saves each keyed page through its lazy-layout state holder.
+    HorizontalPager(
+        state = pagerState,
+        key = { page -> tabs[page].name },
+        userScrollEnabled = userScrollEnabled,
+        beyondViewportPageCount = 0,
+        modifier = modifier.fillMaxSize()
+    ) { page ->
+        content(tabs[page])
+    }
+}
+
+@Composable
+internal fun TabModeContent(modeKey: String, content: @Composable () -> Unit) {
+    val modeStates = rememberSaveableStateHolder()
+    // These destinations can contain validation messages. Keep them opaque:
+    // title/icon-only fades must not fade errors or retain another live editor.
+    key(modeKey) {
+        modeStates.SaveableStateProvider(modeKey, content)
+    }
+}
+
 /**
  * Manages the main horizontal tab pager and hosts the screens for History, Exercises, and Timer.
  */
@@ -65,26 +95,21 @@ fun ChironTabPager(
     timerViewModel: TimerViewModel,
     modifier: Modifier = Modifier
 ) {
-    val tabStates = rememberSaveableStateHolder()
-    HorizontalPager(
-        state = pagerState,
-        key = { page -> tabs[page].name },
+    ChironMainPager(
+        pagerState = pagerState,
+        tabs = tabs,
         userScrollEnabled = !isEditorOpen && !(
             isExerciseDetailOpen && !isGoalsMode &&
                 tabs.getOrNull(pagerState.currentPage) == NavTab.EXERCISES
             ),
-        beyondViewportPageCount = 0,
-        modifier = modifier.fillMaxSize()
-    ) { page ->
-        val tab = tabs[page]
-        tabStates.SaveableStateProvider(tab.name) {
-        val modeStates = rememberSaveableStateHolder()
+        modifier = modifier
+    ) { tab ->
         val modeKey = when (tab) {
             NavTab.HISTORY -> if (isVolumeMode) "volume" else "history"
             NavTab.EXERCISES -> if (isGoalsMode) "goals" else "exercises"
             NavTab.TIMER -> if (isBodyweightMode) "bodyweight" else "timer"
         }
-        modeStates.SaveableStateProvider(modeKey) {
+        TabModeContent(modeKey) {
         when (tab) {
             NavTab.HISTORY -> {
                 if (isVolumeMode) {
@@ -157,7 +182,6 @@ fun ChironTabPager(
                     TimerScreen(viewModel = timerViewModel)
                 }
             }
-        }
         }
         }
     }

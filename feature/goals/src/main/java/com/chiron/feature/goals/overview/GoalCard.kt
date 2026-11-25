@@ -17,8 +17,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,7 +37,9 @@ fun GoalCard(
     goal: GoalWithProgress,
     index: Int,
     onOpen: (GoalWithProgress) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    motion: GoalMotionState? = null,
+    progressKey: Any? = null
 ) {
     val completed = goal.daysDone >= goal.weeklyTarget
 
@@ -44,15 +49,23 @@ fun GoalCard(
         MaterialTheme.colorScheme.tertiary
     )
     val accent = accents[index % accents.size]
+    val density = LocalDensity.current
+    val radius = with(density) { 16.dp.toPx() }
+    val stroke = with(density) { 6.dp.toPx() }
+    val progress = if (goal.weeklyTarget > 0) {
+        (goal.daysDone.toFloat() / goal.weeklyTarget).coerceIn(0f, 1f)
+    } else 0f
+    val hidden = motion?.hides(goal.id, false) == true
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 184.dp)
-            .aspectRatio(1f),
-        colors = CardDefaults.cardColors(containerColor = SolidSlate),
+            .aspectRatio(1f)
+            .goalAnchor(motion, goal.id, false, false, radius, stroke, progress, accent),
+        colors = CardDefaults.cardColors(containerColor = if (hidden) Color.Transparent else SolidSlate),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, ThinOutline)
+        border = if (hidden) null else BorderStroke(1.dp, ThinOutline)
     ) {
         Box(
             modifier = Modifier
@@ -66,12 +79,17 @@ fun GoalCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                GoalDonut(
-                    progress = goal.daysDone.toFloat() / goal.weeklyTarget,
-                    modifier = Modifier.size(68.dp),
-                    strokeWidth = 6.dp,
-                    accentColor = accent
-                )
+                // Week pagination replaces the ring at its actual value immediately.
+                key(progressKey) {
+                    GoalDonut(
+                        progress = progress,
+                        modifier = Modifier.size(68.dp)
+                            .goalAnchor(motion, goal.id, false, true, radius, stroke, progress, accent),
+                        strokeWidth = 6.dp,
+                        accentColor = accent,
+                        drawRing = !hidden
+                    )
+                }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)

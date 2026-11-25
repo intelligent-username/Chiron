@@ -1,13 +1,5 @@
 package com.chiron.feature.timer
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,10 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.chiron.core.ui.components.WeekNavigator
 import com.chiron.feature.timer.BodyweightViewModel
@@ -55,7 +50,9 @@ fun BodyweightStatsScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val displayedTab = selectedTab.coerceIn(0, 1)
     val subtabStates = rememberSaveableStateHolder()
-    Box(modifier = modifier.fillMaxSize()) {
+    val graphMotion = rememberStatsGraphMotionState(displayedTab)
+    val focus = LocalFocusManager.current
+    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { graphMotion.host = it }) {
         if (state.isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
@@ -65,22 +62,18 @@ fun BodyweightStatsScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 TabRow(selectedTabIndex = displayedTab) {
                     listOf("Weight", "Calories").forEachIndexed { index, title ->
-                        Tab(selected = displayedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
+                        Tab(selected = displayedTab == index, onClick = {
+                            if (displayedTab != index) {
+                                graphMotion.switchTo(index)
+                                focus.clearFocus(force = true)
+                                selectedTab = index
+                            }
+                        }, text = { Text(title) })
                     }
                 }
-                AnimatedContent(
-                    targetState = displayedTab,
-                    transitionSpec = {
-                        val direction = if (targetState > initialState) 1 else -1
-                        ((fadeIn(tween(350, easing = FastOutSlowInEasing)) +
-                            slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { direction * it / 5 })
-                            .togetherWith(fadeOut(tween(350, easing = FastOutSlowInEasing)) +
-                                slideOutHorizontally(tween(350, easing = FastOutSlowInEasing)) { -direction * it / 5 }))
-                            .apply { targetContentZIndex = 1f }
-                    },
-                    modifier = Modifier.weight(1f).fillMaxSize(),
-                    label = "statsSubtabs"
-                ) { tab ->
+                Box(Modifier.weight(1f).fillMaxSize()) {
+                  key(displayedTab) {
+                    val tab = displayedTab
                     subtabStates.SaveableStateProvider(if (tab == 1) "calories" else "weight") {
                     if (tab == 1) {
                         CalorieScreen(
@@ -90,7 +83,8 @@ fun BodyweightStatsScreen(
                             onSaveEntries = viewModel::saveCalorieEntries,
                             onSaveDay = viewModel::saveCalorieDay,
                             onDelete = viewModel::deleteCalorieEntry,
-                            onSaveTarget = viewModel::saveCalorieTarget
+                            onSaveTarget = viewModel::saveCalorieTarget,
+                            graphModifier = Modifier.statsGraphAnchor(graphMotion, 1)
                         )
                     } else BodyweightContent(
                         state = state,
@@ -103,12 +97,15 @@ fun BodyweightStatsScreen(
                         onEdit = { id, weight, timestamp -> viewModel.updateEntry(id, weight, timestamp) },
                         onDelete = viewModel::deleteEntry,
                         onDeleteRange = viewModel::deleteEntriesInRange,
-                        onImportClick = onImportClick
+                        onImportClick = onImportClick,
+                        graphModifier = Modifier.statsGraphAnchor(graphMotion, 0)
                     )
                     }
+                  }
                 }
             }
         }
+        StatsGraphOverlay(graphMotion, Modifier.fillMaxSize())
     }
 }
 
@@ -124,7 +121,8 @@ fun BodyweightContent(
     onEdit: (Long, Double, Long) -> Unit,
     onDelete: (Long) -> Unit,
     onDeleteRange: (Long, Long) -> Unit,
-    onImportClick: () -> Unit = {}
+    onImportClick: () -> Unit = {},
+    graphModifier: Modifier = Modifier
 ) {
     val localInKg = state.displayInKg
     val unit = if (localInKg) "kg" else "lbs"
@@ -168,6 +166,7 @@ fun BodyweightContent(
             localInKg = localInKg,
             unit = unit,
             onWeekCountChange = onWeekCountChange,
+            modifier = graphModifier,
             calorieHistory = calorieHistory
         )
 

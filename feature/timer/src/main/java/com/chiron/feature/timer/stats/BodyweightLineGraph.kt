@@ -1,6 +1,6 @@
 package com.chiron.feature.timer
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -38,10 +39,8 @@ import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -55,377 +54,308 @@ fun BodyweightLineGraph(
     onPointTap: (BodyweightPoint) -> Unit = {},
     calorieOverlay: WeightCalorieOverlay? = null
 ) {
-    var triggered by remember { mutableStateOf(false) }
-    val animProgress by animateFloatAsState(
-        targetValue = if (triggered) 1f else 0f,
-        animationSpec = tween(durationMillis = 600),
-        label = "bwGraphAnim"
-    )
-    LaunchedEffect(points) { triggered = true }
-
-    // Calculate nice ticks placed at nearest 0.25, 0.5, or full kg/lb based on display units
-    val displayWeights = remember(points, localInKg) {
-        points.filter { it.weightLbs > 0.0 }.map {
-            if (localInKg) UnitConversion.lbsToKg(it.weightLbs) else it.weightLbs
+    val measurer = rememberTextMeasurer()
+    val style = TextStyle(color = CoolGray, fontSize = 10.sp, fontFamily = MonospaceFamily)
+    val target = remember(points, localInKg, calorieOverlay, measurer, style) {
+        val weights = points.map { p ->
+            p.weightLbs.takeIf { it > 0.0 }?.let { if (localInKg) UnitConversion.lbsToKg(it) else it }
         }
+        val low = weights.filterNotNull().minOrNull() ?: if (localInKg) 70.0 else 150.0
+        val high = weights.filterNotNull().maxOrNull() ?: low
+        val span = (high - low).coerceAtLeast(if (localInKg) 0.5 else 1.0)
+        val steps = doubleArrayOf(.25, .5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0)
+        val step = steps.firstOrNull { it >= span / 4 } ?: ceil(span / 200) * 50
+        val min = floor(low / step) * step
+        val max = (ceil(high / step) * step).coerceAtLeast(min + step * 2)
+        val ids = points.map { it.date.toString() }
+        val overlayMax = calorieOverlay?.axisMaximum ?: 1.0
+        val left = (0..4).maxOf {
+            measurer.measure(UnitConversion.formatNumber(min + (max - min) * it / 4), style).size.width
+        }.toFloat()
+        val right = calorieOverlay?.let {
+            (0..4).maxOf { i ->
+                measurer.measure("%.0f".format(overlayMax * i / 4) + if (i == 4) " kcal" else "", style).size.width
+            }.toFloat()
+        } ?: 0f
+        ChartFrame(
+            min, max, 0.0, overlayMax, left, right,
+            if (calorieOverlay != null) 1f else 0f,
+            chartSeries(weights, ids, points.filter { it.isActualInput }.map { it.date.toString() }.toSet()),
+            chartSeries(calorieOverlay?.points?.map { it.calories }.orEmpty(), ids)
+        )
     }
-    val rawMin = displayWeights.minOfOrNull { it } ?: (if (localInKg) 70.0 else 150.0)
-    val rawMax = displayWeights.maxOfOrNull { it } ?: rawMin
-    val rawSpan = (rawMax - rawMin).coerceAtLeast(if (localInKg) 0.5 else 1.0)
-
-    val stepCandidates = doubleArrayOf(0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0)
-    val targetStep = rawSpan / 4.0
-    val niceStep = stepCandidates.firstOrNull { it >= targetStep } ?: ceil(targetStep / 50.0) * 50.0
-
-    val niceMin = floor(rawMin / niceStep) * niceStep
-    var niceMax = ceil(rawMax / niceStep) * niceStep
-    if (niceMax <= niceMin) {
-        niceMax = niceMin + niceStep * 2
+    val motion = rememberChartMotion(target, localInKg)
+    var selectedDate by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(points) {
+        if (points.none { it.date.toString() == selectedDate }) selectedDate = null
     }
-
-    val tickCount = ((niceMax - niceMin) / niceStep).roundToInt().coerceAtLeast(1)
-    val ticks = remember(niceMin, niceMax, niceStep, tickCount) {
-        (0..tickCount).map { niceMin + it * niceStep }
-    }
-
-    val minW = if (localInKg) UnitConversion.kgToLbs(niceMin) else niceMin
-    val maxW = if (localInKg) UnitConversion.kgToLbs(niceMax) else niceMax
-
-    val unit = if (localInKg) "kg" else "lbs"
-    val textMeasurer = rememberTextMeasurer()
-    var hoveredX by remember { mutableStateOf<Float?>(null) }
-
-    val lineColor = ElectricBlue
-    val calorieColor = Color(0xFFFFA726)
-    val labelColor = CoolGray
-    val tipBg = SolidSlate
-    val tipBorder = ThinOutline
-    val onSurface = MaterialTheme.colorScheme.onSurface
-
-    val measuredTicks = remember(ticks, textMeasurer, labelColor) {
-        ticks.map { tickValue ->
-            tickValue to textMeasurer.measure(
-                UnitConversion.formatNumber(tickValue),
-                TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-            )
-        }
-    }
-
-    val measuredPointLabels = remember(points, textMeasurer, labelColor) {
-        points.map { p ->
-            if (p.label.isNotEmpty()) {
-                textMeasurer.measure(
-                    p.label,
-                    TextStyle(color = labelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-                )
-            } else null
-        }
-    }
-    val measuredCalorieTicks = remember(calorieOverlay?.axisMaximum, tickCount, textMeasurer, calorieColor) {
-        calorieOverlay?.let { overlay ->
-            (0..tickCount).map { index ->
-                val value = overlay.axisMaximum * index / tickCount
-                textMeasurer.measure(
-                    "%.0f".format(value) + if (index == tickCount) " kcal" else "",
-                    TextStyle(color = calorieColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-                )
-            }
-        }.orEmpty()
-    }
-    val rightAxisWidth = (measuredCalorieTicks.maxOfOrNull { it.size.width } ?: 0).toFloat()
-    val calorieLinePoints = remember(points, calorieOverlay) {
-        calorieOverlay?.let { overlay ->
-            points.zip(overlay.points).map { (weight, calories) -> weight.copy(weightLbs = calories.calories) }
-        }.orEmpty()
-    }
-    val axisWidth = (measuredTicks.maxOfOrNull { it.second.size.width } ?: 0).toFloat()
-
-    val linePath = remember { Path() }
-    val calorieLinePath = remember { Path() }
-
-    Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(points, axisWidth, rightAxisWidth) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = true)
-                        down.consume()
-                        hoveredX = down.position.x
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (!change.pressed) {
-                                hoveredX = null
-                                val dist = (change.position - down.position).getDistance()
-                                if (dist < 20f && points.isNotEmpty()) {
-                                    val padLeft = axisWidth + 12.dp.toPx()
-                                    val padRight = rightAxisWidth + if (calorieOverlay == null) 8.dp.toPx() else 12.dp.toPx()
-                                    val plotInsetX = 8.dp.toPx()
-                                    val plotLeft = padLeft + plotInsetX
-                                    val plotW = (size.width - padLeft - padRight - plotInsetX * 2f).coerceAtLeast(1f)
-                                    onPointTap(nearestPoint(points, down.position.x, plotLeft, plotW))
-                                }
-                                break
+    val colors = MaterialTheme.colorScheme
+    val solidSlate = SolidSlate
+    val thinOutline = ThinOutline
+    val electricBlue = ElectricBlue
+    val coolGray = CoolGray
+    Box(modifier) {
+        Canvas(Modifier.fillMaxSize().pointerInput(points, motion) {
+            awaitEachGesture {
+                fun select(x: Float) {
+                    val frame = motion.frame
+                    val left = frame.left + 20.dp.toPx()
+                    val right = frame.right + (8 + 4 * frame.overlayAlpha).dp.toPx() + 8.dp.toPx()
+                    val width = (size.width - left - right).coerceAtLeast(1f)
+                    selectedDate = points.filter { it.weightLbs > 0 }.minByOrNull { p ->
+                        abs(left + (frame.primary.markers[p.date.toString()]?.x ?: 0f) * width - x)
+                    }?.date?.toString()
+                }
+                val down = awaitFirstDown(requireUnconsumed = true)
+                down.consume()
+                select(down.position.x)
+                try {
+                    while (true) {
+                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if ((change.position - down.position).getDistance() < 20f) {
+                                points.firstOrNull { it.date.toString() == selectedDate }?.let(onPointTap)
                             }
-                            change.consume()
-                            hoveredX = change.position.x
+                            break
                         }
+                        change.consume()
+                        select(change.position.x)
                     }
-                }
-        ) {
-            val padLeft = axisWidth + 12.dp.toPx()
-            val padRight = rightAxisWidth + if (calorieOverlay == null) 8.dp.toPx() else 12.dp.toPx()
-            val padTop = 12.dp.toPx()
-            val padBottom = 24.dp.toPx()
-            val graphW = size.width - padLeft - padRight
-            val graphH = size.height - padTop - padBottom
-
-            // Insets inside the grid area so points don't overflow the axes
-            val plotInsetX = 8.dp.toPx()
-            val plotInsetY = 0f
-            val plotLeft = padLeft + plotInsetX
-            val plotW = (graphW - plotInsetX * 2f).coerceAtLeast(1f)
-            val plotTop = padTop + plotInsetY
-            val plotH = (graphH - plotInsetY * 2f).coerceAtLeast(1f)
-
-            drawGrid(measuredTicks, niceMin, niceMax, padLeft, padRight, padTop, graphH, tipBorder)
-            measuredCalorieTicks.forEachIndexed { index, layout ->
-                val fraction = index.toFloat() / tickCount
-                val y = padTop + graphH * (1f - fraction)
-                drawText(
-                    textLayoutResult = layout,
-                    topLeft = Offset(size.width - padRight + 6.dp.toPx(), y - layout.size.height / 2f)
-                )
+                } finally { selectedDate = null }
             }
-            if (points.isEmpty()) return@Canvas
-
-            calorieOverlay?.let { overlay ->
-                if (calorieLinePoints.isNotEmpty()) {
-                    // Both series use the exact same plot rectangle; only their y scales differ.
-                    drawLine(calorieLinePath, calorieLinePoints, overlay.axisMaximum, 0.0, animProgress,
-                        plotLeft, plotW, plotTop, plotH, calorieColor)
-                    val radius = (plotW / points.size.coerceAtLeast(1) / 5f).coerceIn(0.6.dp.toPx(), 1.25.dp.toPx())
-                    calorieLinePoints.forEachIndexed { index, point ->
-                        val x = plotLeft + index.toFloat() / (points.size - 1).coerceAtLeast(1) * plotW
-                        val y = plotTop + plotH * (1f - yRatio(point.weightLbs, overlay.axisMaximum, 0.0) * animProgress)
-                        drawCircle(calorieColor, radius, Offset(x, y))
-                    }
+        }) {
+            val frame = motion.frame
+            val left = frame.left + 20.dp.toPx()
+            val right = frame.right + (8 + 4 * frame.overlayAlpha).dp.toPx() + 8.dp.toPx()
+            val width = (size.width - left - right).coerceAtLeast(1f)
+            val top = 12.dp.toPx()
+            val height = (size.height - top - 24.dp.toPx()).coerceAtLeast(1f)
+            fun position(marker: ChartMarker) = Offset(left + marker.x * width,
+                top + height * (1f - ((marker.value - frame.min) / (frame.max - frame.min)).toFloat()))
+            for (i in 0..4) {
+                val y = top + height * (1f - i / 4f)
+                drawLine(thinOutline.copy(alpha = .5f), Offset(left - 8.dp.toPx(), y),
+                    Offset(left + width + 8.dp.toPx(), y), 1.dp.toPx())
+                val label = measurer.measure(UnitConversion.formatNumber(frame.min + (frame.max - frame.min) * i / 4), style)
+                drawText(label, topLeft = Offset(left - label.size.width - 12.dp.toPx(), y - label.size.height / 2))
+                if (frame.overlayAlpha > 0f) {
+                    val secondary = measurer.measure("%.0f".format(frame.secondaryMax * i / 4) + if (i == 4) " kcal" else "",
+                        style.copy(color = Color(0xFFFFA726)))
+                    drawText(secondary, topLeft = Offset(left + width + 14.dp.toPx(), y - secondary.size.height / 2),
+                        alpha = frame.overlayAlpha)
                 }
             }
-            drawLine(linePath, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, lineColor)
-            drawDots(measuredPointLabels, points, maxW, minW, animProgress, plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, lineColor, tipBg)
-            hoveredX?.let { hx ->
-                drawTooltip(
-                    textMeasurer, hx, points, localInKg, unit, maxW, minW, animProgress,
-                    plotLeft, plotW, plotTop, plotH, padLeft, padRight, padTop, graphH, labelColor, lineColor, tipBg, tipBorder, onSurface,
-                    caloriePoint = calorieOverlay?.points?.getOrNull(
-                        (((hx - plotLeft) / plotW) * (points.size - 1)).roundToInt().coerceIn(0, points.lastIndex)
-                    )
-                )
+            clipRect(left - 4.dp.toPx(), top - 4.dp.toPx(), left + width + 4.dp.toPx(), top + height + 4.dp.toPx()) {
+                drawChartSeries(frame.primary, frame.min, frame.max, left, top, width, height,
+                    electricBlue, solidSlate)
+                // Secondary dashes sit above the solid line; coincident runs retain both identities.
+                drawChartSeries(frame.secondary, frame.secondaryMin, frame.secondaryMax, left, top, width, height,
+                    Color(0xFFFFA726), solidSlate, frame.overlayAlpha, dashed = true)
+                val secondaryStride = ceil(frame.secondary.markers.size * 16.dp.toPx() / width).toInt().coerceAtLeast(1)
+                frame.secondary.markers.entries.forEachIndexed { index, (id, marker) ->
+                    if (frame.overlayAlpha > 0f &&
+                        (index % secondaryStride == 0 || id == selectedDate || index == frame.secondary.markers.size - 1)) {
+                        val p = Offset(left + marker.x * width, top + height *
+                            (1f - ((marker.value - frame.secondaryMin) / (frame.secondaryMax - frame.secondaryMin)).toFloat()))
+                        drawCircle(Color(0xFFFFA726).copy(alpha = marker.alpha * frame.overlayAlpha),
+                            1.25.dp.toPx(), p)
+                    }
+                }
+                val actualMarkers = frame.primary.markers.entries.filter { it.value.actualAlpha > 0f }
+                val stride = ceil(actualMarkers.size * 12.dp.toPx() / width).toInt().coerceAtLeast(1)
+                actualMarkers.forEachIndexed { index, (id, marker) ->
+                    if (index % stride == 0 || id == selectedDate || index == actualMarkers.lastIndex) {
+                        val p = position(marker)
+                        drawCircle(solidSlate.copy(alpha = marker.alpha * marker.actualAlpha), 4.dp.toPx(), p)
+                        drawCircle(electricBlue.copy(alpha = marker.alpha * marker.actualAlpha), 2.5.dp.toPx(), p)
+                    }
+                }
+            }
+            var lastLabelEnd = Float.NEGATIVE_INFINITY
+            points.forEachIndexed { index, point ->
+                if (point.label.isNotEmpty()) {
+                    val marker = frame.primary.markers[point.date.toString()]
+                    val x = left + (marker?.x ?: index.toFloat() / (points.size - 1).coerceAtLeast(1)) * width
+                    val label = measurer.measure(point.label, style)
+                    val lx = (x - label.size.width / 2).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
+                    if (lx >= lastLabelEnd + 12.dp.toPx()) {
+                        drawText(label, topLeft = Offset(lx, top + height + 6.dp.toPx()))
+                        lastLabelEnd = lx + label.size.width
+                    }
+                }
+            }
+            val index = points.indexOfFirst { it.date.toString() == selectedDate }
+            points.getOrNull(index)?.let { point ->
+                val marker = frame.primary.markers[point.date.toString()] ?: return@let
+                val p = position(marker)
+                drawLine(coolGray.copy(alpha = .5f), Offset(p.x, top), Offset(p.x, top + height),
+                    1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
+                drawCircle(electricBlue, 4.dp.toPx(), p)
+                val weight = if (localInKg) UnitConversion.lbsToKg(point.weightLbs) else point.weightLbs
+                val text = buildString {
+                    append("${point.date.format(DateTimeFormatter.ofPattern("EEEE MMM d"))}\n")
+                    append("${UnitConversion.formatNumber(weight)} ${if (localInKg) "kg" else "lbs"} · ${if (point.isActualInput) "Logged" else "Estimated"}")
+                    calorieOverlay?.points?.getOrNull(index)?.let {
+                        append("\n${UnitConversion.formatNumber(it.calories)} kcal · ${it.calorieDate}")
+                    }
+                }
+                drawChartTooltip(measurer, text, p, colors.onSurface, solidSlate, thinOutline)
             }
         }
     }
 }
 
-private fun nearestPoint(
-    points: List<BodyweightPoint>,
-    x: Float,
-    plotLeft: Float,
-    plotW: Float
-): BodyweightPoint {
-    if (points.isEmpty()) return BodyweightPoint("", 0.0, 0L, LocalDate.now(), false)
-    val n = points.size
-    val raw = ((x - plotLeft) / plotW * (n - 1).coerceAtLeast(1)).roundToInt()
-    return points[raw.coerceIn(0, n - 1)]
+// Chart-only presentation helpers. All values originate in the existing calculators.
+// A fixed sampling lattice permits shape changes without replaying a draw/reveal.
+internal data class ChartSample(val value: Double, val alpha: Float, val edgeAlpha: Float)
+internal data class ChartMarker(
+    val x: Float, val value: Double, val alpha: Float = 1f, val actualAlpha: Float = 1f
+)
+internal data class ChartSeries(val samples: List<ChartSample>, val markers: Map<String, ChartMarker>)
+internal data class ChartFrame(
+    val min: Double, val max: Double, val secondaryMin: Double, val secondaryMax: Double,
+    val left: Float, val right: Float, val overlayAlpha: Float,
+    val primary: ChartSeries, val secondary: ChartSeries
+)
+internal class ChartMotion(initial: ChartFrame) {
+    var frame by mutableStateOf(initial)
 }
 
-private fun DrawScope.drawGrid(
-    measuredTicks: List<Pair<Double, androidx.compose.ui.text.TextLayoutResult>>,
-    displayMin: Double,
-    displayMax: Double,
-    padLeft: Float,
-    padRight: Float,
-    padTop: Float,
-    graphH: Float,
-    gridColor: Color
-) {
-    val span = (displayMax - displayMin).takeIf { it > 0.0 } ?: 1.0
-    measuredTicks.forEach { (tickValue, layout) ->
-        val ratio = ((tickValue - displayMin) / span).toFloat().coerceIn(0f, 1f)
-        val y = padTop + graphH * (1f - ratio)
-        drawLine(
-            color = gridColor.copy(alpha = 0.5f),
-            start = Offset(padLeft, y),
-            end = Offset(size.width - padRight, y),
-            strokeWidth = 1.dp.toPx()
-        )
-        drawText(
-            textLayoutResult = layout,
-            topLeft = Offset(padLeft - layout.size.width - 10f, y - layout.size.height / 2f)
-        )
-    }
-
-}
-
-private fun DrawScope.drawLine(
-    path: Path,
-    points: List<BodyweightPoint>,
-    maxW: Double,
-    minW: Double,
-    progress: Float,
-    plotLeft: Float,
-    plotW: Float,
-    plotTop: Float,
-    plotH: Float,
-    color: Color
-) {
-    val n = points.size
-    fun xOf(i: Int) = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
-    fun yOf(w: Double) = plotTop + plotH * (1f - yRatio(w, maxW, minW) * progress)
-
-    path.rewind()
-    path.moveTo(xOf(0), yOf(points[0].weightLbs))
-    // Monotone tangents keep the line smooth without inventing peaks between measurements.
-    fun tangent(i: Int): Float {
-        if (i == 0 || i == n - 1) return 0f
-        val before = yOf(points[i].weightLbs) - yOf(points[i - 1].weightLbs)
-        val after = yOf(points[i + 1].weightLbs) - yOf(points[i].weightLbs)
-        return if (before * after <= 0f) 0f else 2f * before * after / (before + after)
-    }
-    for (i in 1 until n) {
-        val startX = xOf(i - 1)
-        val endX = xOf(i)
-        val third = (endX - startX) / 3f
-        val startY = yOf(points[i - 1].weightLbs)
-        val endY = yOf(points[i].weightLbs)
-        path.cubicTo(startX + third, startY + tangent(i - 1) / 3f, endX - third, endY - tangent(i) / 3f, endX, endY)
-    }
-    drawPath(path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-}
-
-private fun yRatio(w: Double, maxW: Double, minW: Double): Float {
-    val span = (maxW - minW).takeIf { it > 0.0 } ?: 1.0
-    return ((w - minW) / span).toFloat().coerceIn(0f, 1f)
-}
-
-private fun DrawScope.drawDots(
-    measuredLabels: List<androidx.compose.ui.text.TextLayoutResult?>,
-    points: List<BodyweightPoint>,
-    maxW: Double,
-    minW: Double,
-    progress: Float,
-    plotLeft: Float,
-    plotW: Float,
-    plotTop: Float,
-    plotH: Float,
-    padLeft: Float,
-    padRight: Float,
-    padTop: Float,
-    graphH: Float,
-    dotColor: Color,
-    dotBackground: Color
-) {
-    val n = points.size
-    // Shrink crowded daily markers, but keep a visible minimum at wide time scales.
-    val pointSpacing = plotW / (n - 1).coerceAtLeast(1)
-    val dotScale = (pointSpacing / 16.dp.toPx()).coerceIn(0.6f, 1f)
-    val backgroundRadius = 4.dp.toPx() * dotScale
-    val dotRadius = 2.5.dp.toPx() * dotScale
-    var lastLabelEnd = Float.NEGATIVE_INFINITY
-    points.forEachIndexed { i, p ->
-        val x = plotLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
-        val y = plotTop + plotH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
-
-        if (p.weightLbs > 0.0 && p.isActualInput) {
-            drawCircle(color = dotBackground, radius = backgroundRadius, center = Offset(x, y))
-            drawCircle(color = dotColor, radius = dotRadius, center = Offset(x, y))
+@Composable
+internal fun rememberChartMotion(target: ChartFrame, unitKey: Any): ChartMotion {
+    // Replacing the complete frame on a unit change avoids blending kg with pounds.
+    val motion = remember(unitKey) { ChartMotion(target) }
+    val progress = remember(unitKey) { Animatable(1f) }
+    LaunchedEffect(target, motion) {
+        if (motion.frame == target) return@LaunchedEffect
+        val from = motion.frame
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(180)) {
+            motion.frame = blendChartFrame(from, target, value)
         }
+        motion.frame = target
+    }
+    return motion
+}
 
-        val measured = measuredLabels.getOrNull(i)
-        if (measured != null) {
-            // Clamp X-axis label so it stays nicely bounded
-            val maxLabelX = (size.width - padRight - measured.size.width).coerceAtLeast(padLeft)
-            val labelX = (x - measured.size.width / 2f).coerceIn(padLeft, maxLabelX)
-            if (labelX >= lastLabelEnd + 12.dp.toPx()) {
-                drawText(measured, topLeft = Offset(labelX, padTop + graphH + 6.dp.toPx()))
-                lastLabelEnd = labelX + measured.size.width
-            }
+internal fun chartSeries(values: List<Double?>, ids: List<String>, actualIds: Set<String>? = null): ChartSeries {
+    fun tangent(i: Int): Double {
+        val value = values[i] ?: return 0.0
+        val before = values.getOrNull(i - 1) ?: return 0.0
+        val after = values.getOrNull(i + 1) ?: return 0.0
+        val a = value - before
+        val b = after - value
+        return if (a * b <= 0.0) 0.0 else 2 * a * b / (a + b)
+    }
+    fun sample(x: Double): Double? {
+        if (values.isEmpty()) return null
+        if (values.size == 1) return values[0]
+        val p = x * values.lastIndex
+        val i = floor(p).toInt().coerceIn(0, values.lastIndex)
+        if (abs(p - i) < .000001) return values[i]
+        val a = values[i] ?: return null
+        val b = values.getOrNull(i + 1) ?: return null
+        val t = p - i
+        val t2 = t * t
+        val t3 = t2 * t
+        return (2 * t3 - 3 * t2 + 1) * a + (t3 - 2 * t2 + t) * tangent(i) +
+            (-2 * t3 + 3 * t2) * b + (t3 - t2) * tangent(i + 1)
+    }
+    val samples = (0..256).map { i ->
+        val x = i / 256.0
+        val value = sample(x)
+        // Never connect across a null observation, including gaps narrower than a sample.
+        val previousX = (i - 1).coerceAtLeast(0) / 256.0
+        val lo = floor(previousX * values.lastIndex.coerceAtLeast(0)).toInt()
+        val hi = ceil(x * values.lastIndex.coerceAtLeast(0)).toInt()
+        val connected = i > 0 && values.size > 1 && (lo..hi).all { values.getOrNull(it) != null }
+        ChartSample(value ?: 0.0, if (value != null) 1f else 0f, if (connected && value != null) 1f else 0f)
+    }
+    val markers = values.mapIndexedNotNull { i, value ->
+        value?.let { weight -> ids.getOrNull(i)?.let { id ->
+            id to ChartMarker(i.toFloat() / values.lastIndex.coerceAtLeast(1), weight,
+                actualAlpha = if (actualIds == null || id in actualIds) 1f else 0f)
+        } }
+    }.toMap()
+    return ChartSeries(samples, markers)
+}
+
+private fun blendChartFrame(a: ChartFrame, b: ChartFrame, t: Float): ChartFrame {
+    fun d(x: Double, y: Double) = x + (y - x) * t
+    fun f(x: Float, y: Float) = x + (y - x) * t
+    fun series(x: ChartSeries, y: ChartSeries): ChartSeries {
+        val samples = x.samples.zip(y.samples).map { (old, next) ->
+            val start = if (old.alpha == 0f) next.value else old.value
+            val end = if (next.alpha == 0f) old.value else next.value
+            ChartSample(d(start, end), f(old.alpha, next.alpha), f(old.edgeAlpha, next.edgeAlpha))
         }
+        val markers = (x.markers.keys + y.markers.keys).associateWith { id ->
+            val old = x.markers[id] ?: y.markers.getValue(id).copy(alpha = 0f)
+            val next = y.markers[id] ?: old.copy(alpha = 0f)
+            ChartMarker(f(old.x, next.x), d(old.value, next.value), f(old.alpha, next.alpha),
+                f(old.actualAlpha, next.actualAlpha))
+        }
+        return ChartSeries(samples, markers)
+    }
+    // When hiding an overlay, retain its geometry/scale until alpha reaches zero.
+    val secondary = if (b.overlayAlpha == 0f) a.secondary else b.secondary
+    val secondaryMin = if (b.overlayAlpha == 0f) a.secondaryMin else b.secondaryMin
+    val secondaryMax = if (b.overlayAlpha == 0f) a.secondaryMax else b.secondaryMax
+    // A previously absent scale has no visible origin: initialize it at the real overlay scale.
+    val fromSecondaryMin = if (a.overlayAlpha == 0f) secondaryMin else a.secondaryMin
+    val fromSecondaryMax = if (a.overlayAlpha == 0f) secondaryMax else a.secondaryMax
+    val fromMin = if (a.primary.markers.isEmpty()) b.min else a.min
+    val fromMax = if (a.primary.markers.isEmpty()) b.max else a.max
+    return ChartFrame(d(fromMin, b.min), d(fromMax, b.max), d(fromSecondaryMin, secondaryMin),
+        d(fromSecondaryMax, secondaryMax), f(a.left, b.left), f(a.right, b.right),
+        f(a.overlayAlpha, b.overlayAlpha), series(a.primary, b.primary), series(a.secondary, secondary))
+}
+
+internal fun DrawScope.drawChartSeries(
+    series: ChartSeries, min: Double, max: Double, left: Float, top: Float, width: Float, height: Float,
+    color: Color, background: Color, alpha: Float = 1f, dashed: Boolean = false
+) {
+    if (alpha <= 0f) return
+    val span = (max - min).coerceAtLeast(.000001)
+    fun p(i: Int) = Offset(left + width * i / 256f,
+        top + height * (1f - ((series.samples[i].value - min) / span).toFloat()))
+    // Group contiguous equal-opacity segments so dashes do not restart at every sample.
+    var index = 1
+    while (index < series.samples.size) {
+        val opacity = (alpha * series.samples[index].edgeAlpha *
+            minOf(series.samples[index - 1].alpha, series.samples[index].alpha)).coerceIn(0f, 1f)
+        if (opacity <= 0f) { index++; continue }
+        val path = Path().apply {
+            val start = p(index - 1)
+            moveTo(start.x, start.y)
+        }
+        do {
+            val end = p(index)
+            path.lineTo(end.x, end.y)
+            index++
+        } while (index < series.samples.size &&
+            abs(alpha * series.samples[index].edgeAlpha *
+                minOf(series.samples[index - 1].alpha, series.samples[index].alpha) - opacity) < .001f)
+        val effect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())) else null
+        drawPath(path, background.copy(alpha = opacity * .8f),
+            style = Stroke(4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = effect))
+        drawPath(path, color.copy(alpha = opacity),
+            style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = effect))
     }
 }
 
-private val BodyweightTooltipDateFormatter = DateTimeFormatter.ofPattern("EEEE MMM d")
-private val BodyweightTooltipDashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-private val BodyweightTooltipCornerRadius = CornerRadius(8f, 8f)
-
-private fun DrawScope.drawTooltip(
-    measurer: androidx.compose.ui.text.TextMeasurer,
-    hx: Float,
-    points: List<BodyweightPoint>,
-    localInKg: Boolean,
-    unit: String,
-    maxW: Double,
-    minW: Double,
-    progress: Float,
-    plotLeft: Float,
-    plotW: Float,
-    plotTop: Float,
-    plotH: Float,
-    padLeft: Float,
-    padRight: Float,
-    padTop: Float,
-    graphH: Float,
-    labelColor: Color,
-    lineColor: Color,
-    tipBg: Color,
-    tipBorder: Color,
-    onSurface: Color,
-    caloriePoint: WeightCaloriePoint? = null
+internal fun DrawScope.drawChartTooltip(
+    measurer: androidx.compose.ui.text.TextMeasurer, text: String, point: Offset,
+    foreground: Color, background: Color, border: Color
 ) {
-    val n = points.size
-    val idx = (((hx - plotLeft) / plotW) * (n - 1)).roundToInt().coerceIn(0, n - 1)
-    val p = points[idx]
-    val px = plotLeft + (idx.toFloat() / (n - 1).coerceAtLeast(1)) * plotW
-    val py = plotTop + plotH * (1f - yRatio(p.weightLbs, maxW, minW) * progress)
-
-    // Dashed guide line clamped strictly within the grid vertical boundary
-    drawLine(
-        color = labelColor.copy(alpha = 0.5f),
-        start = Offset(px, padTop),
-        end = Offset(px, padTop + graphH),
-        strokeWidth = 1f,
-        pathEffect = BodyweightTooltipDashEffect
-    )
-    drawCircle(color = lineColor, radius = 6.5f, center = Offset(px, py))
-    drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
-
-    val dateStr = Instant.ofEpochMilli(p.timestampUtc).atZone(ZoneId.systemDefault())
-        .format(BodyweightTooltipDateFormatter)
-    val displayWeight = if (localInKg) UnitConversion.lbsToKg(p.weightLbs) else p.weightLbs
-    val statusTag = if (p.isActualInput) "Logged" else "Estimated"
-    val text = buildString {
-        append("$dateStr\n${UnitConversion.formatNumber(displayWeight)} $unit · $statusTag")
-        caloriePoint?.let {
-            append("\n${UnitConversion.formatNumber(it.calories)} kcal · ${it.calorieDate}")
-        }
-    }
-    val layout = measurer.measure(
-        text,
-        TextStyle(color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = MonospaceFamily)
-    )
-    val tw = layout.size.width.toFloat()
-    val th = layout.size.height.toFloat()
-    val pad = 10f
-
-    val tx = (px - tw / 2f).coerceIn(pad, (size.width - pad - tw).coerceAtLeast(pad))
-    val ty = (if (py - th - pad * 2 - 12f >= 0f) {
-        py - th - pad - 12f
-    } else {
-        py + pad + 12f
-    }).coerceIn(pad, (size.height - th - pad).coerceAtLeast(pad))
-
-    drawRoundRect(tipBg, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius)
-    drawRoundRect(tipBorder, Offset(tx - pad, ty - pad), Size(tw + pad * 2, th + pad * 2), BodyweightTooltipCornerRadius, style = Stroke(1f))
-    drawText(layout, topLeft = Offset(tx, ty))
+    val layout = measurer.measure(text, TextStyle(color = foreground, fontSize = 12.sp,
+        fontWeight = FontWeight.Bold, fontFamily = MonospaceFamily))
+    val pad = 8.dp.toPx()
+    val x = (point.x - layout.size.width / 2).coerceIn(pad, (size.width - layout.size.width - pad).coerceAtLeast(pad))
+    val y = (point.y - layout.size.height - pad * 2).coerceIn(pad, (size.height - layout.size.height - pad).coerceAtLeast(pad))
+    val origin = Offset(x - pad, y - pad)
+    val extent = Size(layout.size.width + pad * 2, layout.size.height + pad * 2)
+    drawRoundRect(background, origin, extent, CornerRadius(pad, pad))
+    drawRoundRect(border, origin, extent, CornerRadius(pad, pad), style = Stroke(1f))
+    drawText(layout, topLeft = Offset(x, y))
 }

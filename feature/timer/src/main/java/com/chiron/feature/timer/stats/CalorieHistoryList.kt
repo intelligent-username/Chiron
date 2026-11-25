@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -40,15 +41,22 @@ fun CalorieHistoryList(
     entries: List<CalorieEntry>,
     onEdit: (LocalDate) -> Unit,
     onDelete: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    editingDate: LocalDate? = null,
+    editor: @Composable () -> Unit = {},
+    editorMotionEnabled: Boolean = true,
+    controlledPage: Int? = null,
+    controlledPageSize: Int? = null,
+    onControlledPageChange: (Int) -> Unit = {},
+    onControlledPageSizeChange: (Int) -> Unit = {}
 ) {
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
     val days = remember(entries) { entries.groupBy { it.date }.toSortedMap(compareByDescending { it }).entries.toList() }
-    val safePageSize = pageSize.coerceIn(5, 50)
+    val safePageSize = (controlledPageSize ?: pageSize).coerceIn(5, 50)
     val totalPages = max(1, (days.size + safePageSize - 1) / safePageSize)
-    val safePage = currentPage.coerceIn(0, totalPages - 1)
+    val safePage = (controlledPage ?: currentPage).coerceIn(0, totalPages - 1)
     LaunchedEffect(safePage, safePageSize) {
         currentPage = safePage
         pageSize = safePageSize
@@ -73,7 +81,13 @@ fun CalorieHistoryList(
         } else {
             Column(Modifier.fillMaxWidth()) {
                 displayedDays.forEachIndexed { dayIndex, day ->
+                  // Page identity disposes any in-flight row geometry; pagination is instant.
+                  key(safePage, safePageSize, day.key) {
                     if (dayIndex > 0) HorizontalDivider(color = ThinOutline, thickness = 1.5.dp)
+                    StatsEditorGeometry(day.key == editingDate, enabled = editorMotionEnabled) {
+                    if (day.key == editingDate) {
+                        editor()
+                    } else {
                     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
                         val dateLabel: @Composable () -> Unit = {
                             Text(day.key.format(FoodLogDateFormatter),
@@ -101,6 +115,9 @@ fun CalorieHistoryList(
                                 color = CoolGray, fontFamily = MonospaceFamily, fontSize = 12.sp)
                         }
                     }
+                    }
+                    }
+                  }
                 }
             }
 
@@ -108,8 +125,14 @@ fun CalorieHistoryList(
                 pageSize = safePageSize,
                 safePage = safePage,
                 totalPages = totalPages,
-                onPageSizeChange = { pageSize = it.coerceIn(5, 50); currentPage = 0 },
-                onPageChange = { currentPage = it.coerceIn(0, totalPages - 1) }
+                onPageSizeChange = {
+                    pageSize = it.coerceIn(5, 50); currentPage = 0
+                    onControlledPageSizeChange(pageSize)
+                },
+                onPageChange = {
+                    currentPage = it.coerceIn(0, totalPages - 1)
+                    onControlledPageChange(currentPage)
+                }
             )
         }
     }

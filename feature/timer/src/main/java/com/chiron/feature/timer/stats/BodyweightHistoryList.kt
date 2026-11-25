@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -128,11 +129,13 @@ fun BodyweightHistoryList(
             }
 
             // Paginated log rows
-            displayedEntries.forEachIndexed { index, entry ->
+             displayedEntries.forEachIndexed { index, entry ->
+               key(safePage, safePageSize, entry.id) {
                 if (index > 0) HorizontalDivider(color = ThinOutline.copy(alpha = 0.7f), thickness = 1.dp)
                 val isEditing = editingId == entry.id
                 val display = if (localInKg) UnitConversion.lbsToKg(entry.weightLbs) else entry.weightLbs
 
+                StatsEditorGeometry(isEditing, enabled = editError == null) {
                 if (isEditing) {
                     val parsedDate = runCatching { LocalDate.parse(editDateIso) }.getOrDefault(LocalDate.now())
                     val currentTime = LocalTime.of(editHour, editMinute)
@@ -270,10 +273,6 @@ fun BodyweightHistoryList(
                                 }
                             }
 
-                            if (editError != null) {
-                                Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                            }
-
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End,
@@ -364,6 +363,12 @@ fun BodyweightHistoryList(
                         }
                     }
                 }
+                }
+                // Validation is not part of the resizing editor body.
+                if (isEditing && editError != null) {
+                    Text(editError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+               }
             }
 
         if (entries.isNotEmpty()) {

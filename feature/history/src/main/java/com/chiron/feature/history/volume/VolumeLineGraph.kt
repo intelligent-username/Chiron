@@ -1,6 +1,6 @@
 package com.chiron.feature.history
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -38,7 +39,6 @@ import com.chiron.core.ui.theme.ThinOutline
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -50,15 +50,7 @@ fun VolumeLineGraph(
     modifier: Modifier = Modifier,
     animateEntry: Boolean = true
 ) {
-    // Animate in on first composition
-    var triggered by remember { mutableStateOf(!animateEntry) }
-    val animProgress by animateFloatAsState(
-        targetValue = if (triggered) 1f else 0f,
-        animationSpec = tween(durationMillis = 700),
-        label = "graphAnim"
-    )
-    LaunchedEffect(points) { triggered = true }
-
+    // animateEntry remains source-compatible; first composition always shows real geometry.
     val rawMaxLbs = points.maxOfOrNull { it.volumeLbs }?.takeIf { it > 0.0 } ?: 1.0
     val rawMaxDisplay = if (displayInKg) UnitConversion.lbsToKg(rawMaxLbs) else rawMaxLbs
 
@@ -69,31 +61,30 @@ fun VolumeLineGraph(
     val targetStep = rawMaxDisplay / 4.0
     val niceStep = stepCandidates.firstOrNull { it >= targetStep } ?: (ceil(targetStep / 1000.0) * 1000.0)
     val niceMax = (ceil(rawMaxDisplay / niceStep).coerceAtLeast(1.0) * niceStep)
-    val tickCount = (niceMax / niceStep).roundToInt().coerceIn(1, 8)
-    val ticks = remember(niceMax, niceStep, tickCount) {
-        (0..tickCount).map { it * niceStep }
+    val target = remember(points, displayInKg, niceMax) {
+        volumeFrame(points, displayInKg, niceMax)
     }
-    val maxVolLbs = if (displayInKg) UnitConversion.kgToLbs(niceMax) else niceMax
+    val motion = remember(displayInKg) { VolumeMotion(target) }
+    val progress = remember(displayInKg) { Animatable(1f) }
+    LaunchedEffect(target, motion) {
+        if (motion.frame == target) return@LaunchedEffect
+        val from = motion.frame
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(180)) { motion.frame = blendVolumeFrame(from, target, value) }
+        motion.frame = target
+    }
     val unit = if (displayInKg) "kg" else "lbs"
 
     val textMeasurer = rememberTextMeasurer()
 
     var hoveredX by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(points, displayInKg) { hoveredX = null }
 
     val lineAccentColor = ElectricBlue
     val textLabelColor = CoolGray
     val tooltipBgColor = SolidSlate
     val tooltipBorderColor = ThinOutline
 
-    val measuredTicks = remember(ticks, textMeasurer, textLabelColor) {
-        ticks.map { tickVal ->
-            val labelStr = formatVolumeTick(tickVal)
-            tickVal to textMeasurer.measure(
-                labelStr,
-                TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily)
-            )
-        }
-    }
 
     val measuredPointLabels = remember(points, textMeasurer, textLabelColor) {
         points.map { point ->
@@ -113,7 +104,7 @@ fun VolumeLineGraph(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(points) {
+                .pointerInput(points, motion) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = true)
                         down.consume()
@@ -121,28 +112,30 @@ fun VolumeLineGraph(
                         val startPos = down.position
                         hoveredX = startPos.x
                         var isDrag = false
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (!change.pressed) {
-                                hoveredX = null
-                                val elapsed = change.uptimeMillis - startTime
-                                val dist = (change.position - startPos).getDistance()
-                                if (!isDrag && elapsed < 300 && dist < 20f && points.isNotEmpty()) {
-                                    val w = size.width
-                                    val padLeft = 100f
-                                    val padRight = 10f
-                                    val graphW = w - padLeft - padRight
-                                    val n = points.size
-                                    val closest = (((startPos.x - padLeft) / graphW) * (n - 1).coerceAtLeast(1)).roundToInt().coerceIn(0, n - 1)
-                                    onPointTap(points[closest])
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) {
+                                    hoveredX = null
+                                    val elapsed = change.uptimeMillis - startTime
+                                    val dist = (change.position - startPos).getDistance()
+                                    if (!isDrag && elapsed < 300 && dist < 20f && points.isNotEmpty()) {
+                                        val padLeft = 100f
+                                        val graphW = (size.width - padLeft - 10f).coerceAtLeast(1f)
+                                        points.minByOrNull {
+                                            abs(padLeft + (motion.frame.markers[it.date.toString()]?.x ?: 0f) * graphW - startPos.x)
+                                        }?.let(onPointTap)
+                                    }
+                                    break
                                 }
-                                break
+                                val dist = (change.position - startPos).getDistance()
+                                if (dist > 10f) isDrag = true
+                                change.consume()
+                                hoveredX = change.position.x
                             }
-                            val dist = (change.position - startPos).getDistance()
-                            if (dist > 10f) isDrag = true
-                            change.consume()
-                            hoveredX = change.position.x
+                        } finally {
+                            hoveredX = null
                         }
                     }
                 }
@@ -153,12 +146,16 @@ fun VolumeLineGraph(
             val padRight = 10f
             val padTop = 20f
             val padBottom = 40f
-            val graphW = w - padLeft - padRight
-            val graphH = h - padTop - padBottom
+            val graphW = (w - padLeft - padRight).coerceAtLeast(1f)
+            val graphH = (h - padTop - padBottom).coerceAtLeast(1f)
+            val frame = motion.frame
 
             // Y-axis grid lines — rounded evenly to nearest thousands/half a thousand
-            measuredTicks.forEach { (tickVal, measuredText) ->
-                val ratio = (tickVal / niceMax).toFloat()
+            (0..4).forEach { tick ->
+                val tickVal = frame.max * tick / 4
+                val measuredText = textMeasurer.measure(formatVolumeTick(tickVal),
+                    TextStyle(color = textLabelColor, fontSize = 10.sp, fontFamily = MonospaceFamily))
+                val ratio = tick / 4f
                 val y = padTop + graphH * (1f - ratio)
                 drawLine(
                     color = tooltipBorderColor,
@@ -172,42 +169,38 @@ fun VolumeLineGraph(
                 )
             }
 
-            if (points.isEmpty()) return@Canvas
-
             val n = points.size
-            fun xOf(i: Int) = padLeft + (i.toFloat() / (n - 1).coerceAtLeast(1)) * graphW
-            fun yOf(vol: Double) = padTop + graphH * (1.0 - (vol / maxVolLbs).coerceIn(0.0, 1.0)).toFloat()
+            fun marker(i: Int) = frame.markers[points[i].date.toString()]
+            fun xOf(i: Int) = padLeft + (marker(i)?.x ?: (i.toFloat() / (n - 1).coerceAtLeast(1))) * graphW
+            fun yOf(vol: Double) = padTop + graphH * (1.0 - vol / frame.max).toFloat()
 
             // Solid Electric Blue line — no gradient fill area
             linePath.rewind()
-            val firstX = xOf(0)
-            val firstY = yOf(points[0].volumeLbs * animProgress)
-            linePath.moveTo(firstX, firstY)
-            for (i in 1 until n) {
-                val cx1 = xOf(i - 1) + (xOf(i) - xOf(i - 1)) / 2f
-                val cy1 = yOf(points[i - 1].volumeLbs * animProgress)
-                val cx2 = cx1
-                val cy2 = yOf(points[i].volumeLbs * animProgress)
-                linePath.cubicTo(cx1, cy1, cx2, cy2, xOf(i), yOf(points[i].volumeLbs * animProgress))
+            frame.samples.forEachIndexed { i, value ->
+                val x = padLeft + i / 256f * graphW
+                val y = yOf(value)
+                if (i == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
             }
-            drawPath(
-                linePath,
-                color = lineAccentColor,
-                style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            )
-
-            // Dots + labels
-            points.forEachIndexed { i, point ->
-                val x = xOf(i)
-                val y = yOf(point.volumeLbs * animProgress)
-                if (point.volumeLbs > 0.0) {
-                    if (mode == VolumeMode.BY_DAY) {
-                        drawCircle(color = lineAccentColor, radius = 3f, center = Offset(x, y))
-                    } else if (i % 7 == 0 || i == n - 1) {
-                        drawCircle(color = lineAccentColor, radius = 3f, center = Offset(x, y))
+            clipRect(padLeft - 3f, padTop - 3f, padLeft + graphW + 3f, padTop + graphH + 3f) {
+                drawPath(
+                    linePath,
+                    color = lineAccentColor.copy(alpha = frame.alpha),
+                    style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+                val stride = ceil(frame.markers.size * 10f / graphW).toInt().coerceAtLeast(1)
+                frame.markers.values.forEachIndexed { i, marker ->
+                    if (marker.value > 0.0 &&
+                        ((mode == VolumeMode.BY_DAY && i % stride == 0) ||
+                            i % maxOf(7, stride) == 0 || i == frame.markers.size - 1)) {
+                        drawCircle(lineAccentColor.copy(alpha = marker.alpha), 3f,
+                            Offset(padLeft + marker.x * graphW, yOf(marker.value)))
                     }
                 }
+            }
 
+            // Dots + labels
+            points.forEachIndexed { i, _ ->
+                val x = xOf(i)
                 // X-axis label — Monospace
                 val measuredText = measuredPointLabels.getOrNull(i)
                 if (measuredText != null) {
@@ -221,10 +214,10 @@ fun VolumeLineGraph(
             // Tooltip
             if (hoveredX != null && points.isNotEmpty()) {
                 val hx = hoveredX!!
-                val closestIndex = (((hx - padLeft) / graphW) * (n - 1)).roundToInt().coerceIn(0, n - 1)
+                val closestIndex = points.indices.minByOrNull { abs(xOf(it) - hx) } ?: return@Canvas
                 val p = points[closestIndex]
                 val px = xOf(closestIndex)
-                val py = yOf(p.volumeLbs * animProgress)
+                val py = yOf(marker(closestIndex)?.value ?: (if (displayInKg) UnitConversion.lbsToKg(p.volumeLbs) else p.volumeLbs))
 
                 drawLine(
                     color = textLabelColor.copy(alpha = 0.5f),
@@ -234,7 +227,9 @@ fun VolumeLineGraph(
                     pathEffect = VolumeTooltipDashEffect
                 )
 
-                drawCircle(color = lineAccentColor, radius = 5f, center = Offset(px, py))
+                if (py in padTop..(padTop + graphH)) {
+                    drawCircle(color = lineAccentColor, radius = 5f, center = Offset(px, py))
+                }
 
                 val dateStr = p.date.format(VolumeTooltipDateFormatter)
                 val tooltipText = "$dateStr, ${p.volumeLbs.formatVolume(displayInKg)} $unit"
@@ -286,6 +281,57 @@ fun VolumeLineGraph(
 private val VolumeTooltipDateFormatter = DateTimeFormatter.ofPattern("EEEE MMM d")
 private val VolumeTooltipDashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
 private val VolumeTooltipCornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+
+private data class VolumeMarker(val x: Float, val value: Double, val alpha: Float = 1f)
+private data class VolumeFrame(
+    val max: Double, val samples: List<Double>, val markers: Map<String, VolumeMarker>, val alpha: Float
+)
+private class VolumeMotion(initial: VolumeFrame) {
+    var frame by mutableStateOf(initial)
+}
+
+private fun volumeFrame(points: List<VolumePoint>, inKg: Boolean, max: Double): VolumeFrame {
+    val values = points.map { if (inKg) UnitConversion.lbsToKg(it.volumeLbs) else it.volumeLbs }
+    val samples = (0..256).map { index ->
+        if (values.isEmpty()) 0.0 else if (values.size == 1) values[0] else {
+            val position = index / 256.0 * values.lastIndex
+            val i = kotlin.math.floor(position).toInt().coerceAtMost(values.lastIndex - 1)
+            val fraction = position - i
+            // Sample the original midpoint-control cubic, including its non-linear x(t).
+            var low = 0.0
+            var high = 1.0
+            repeat(18) {
+                val t = (low + high) / 2
+                val x = 1.5 * t - 1.5 * t * t + t * t * t
+                if (x < fraction) low = t else high = t
+            }
+            val t = when (fraction) {
+                0.0 -> 0.0
+                1.0 -> 1.0
+                else -> (low + high) / 2
+            }
+            val eased = t * t * (3 - 2 * t)
+            values[i] + (values[i + 1] - values[i]) * eased
+        }
+    }
+    return VolumeFrame(max, samples, points.mapIndexed { i, point ->
+        point.date.toString() to VolumeMarker(i.toFloat() / points.lastIndex.coerceAtLeast(1), values[i])
+    }.toMap(), if (points.size > 1) 1f else 0f)
+}
+
+private fun blendVolumeFrame(a: VolumeFrame, b: VolumeFrame, t: Float): VolumeFrame {
+    fun d(x: Double, y: Double) = x + (y - x) * t
+    fun f(x: Float, y: Float) = x + (y - x) * t
+    val samples = if (a.markers.isEmpty()) b.samples else if (b.markers.isEmpty()) a.samples
+        else a.samples.zip(b.samples).map { (x, y) -> d(x, y) }
+    val markers = (a.markers.keys + b.markers.keys).associateWith { id ->
+        val from = a.markers[id] ?: b.markers.getValue(id).copy(alpha = 0f)
+        val to = b.markers[id] ?: from.copy(alpha = 0f)
+        VolumeMarker(f(from.x, to.x), d(from.value, to.value), f(from.alpha, to.alpha))
+    }
+    return VolumeFrame(if (a.markers.isEmpty()) b.max else d(a.max, b.max),
+        samples, markers, f(a.alpha, b.alpha))
+}
 
 private fun formatVolumeTick(v: Double): String {
     return when {

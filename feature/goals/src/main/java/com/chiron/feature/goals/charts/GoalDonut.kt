@@ -28,16 +28,23 @@ fun GoalDonut(
     modifier: Modifier = Modifier,
     strokeWidth: Dp = 8.dp,
     accentColor: Color = ElectricBlue,
+    drawRing: Boolean = true,
+    animateProgress: Boolean = true,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
-    val animated by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 600),
-        label = "goalDonut"
-    )
+    val target = progress.coerceIn(0f, 1f)
+    val displayed = if (animateProgress && drawRing) {
+        val animated by animateFloatAsState(
+            targetValue = target,
+            animationSpec = tween(durationMillis = 180, delayMillis = 0),
+            label = "goalDonut"
+        )
+        animated
+    } else target
     val outlineColor = ThinOutline
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
+            if (!drawRing) return@Canvas
             val stroke = strokeWidth.toPx()
             drawArc(
                 color = outlineColor,
@@ -49,7 +56,7 @@ fun GoalDonut(
             drawArc(
                 color = accentColor,
                 startAngle = -90f,
-                sweepAngle = 360f * animated,
+                sweepAngle = 360f * displayed,
                 useCenter = false,
                 style = Stroke(width = stroke, cap = StrokeCap.Round)
             )

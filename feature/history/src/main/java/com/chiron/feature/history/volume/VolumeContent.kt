@@ -1,8 +1,5 @@
 package com.chiron.feature.history
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -132,11 +129,15 @@ fun VolumeContent(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Crossfade(
-                    targetState = state.mode,
-                    animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-                    label = "volumeMode"
-                ) { mode ->
+                Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+                    VolumeLineGraph(
+                        points = state.points,
+                        displayInKg = displayInKg,
+                        mode = state.mode,
+                        animateEntry = false,
+                        onPointTap = onPointTap,
+                        modifier = Modifier.fillMaxSize()
+                    )
                     if (state.points.isEmpty() || state.points.all { it.volumeLbs == 0.0 }) {
                         Box(
                             modifier = Modifier
@@ -151,17 +152,6 @@ fun VolumeContent(
                                 textAlign = TextAlign.Center
                             )
                         }
-                    } else {
-                        VolumeLineGraph(
-                            points = state.points,
-                            displayInKg = displayInKg,
-                            mode = mode,
-                            animateEntry = false,
-                            onPointTap = onPointTap,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                        )
                     }
 
                 }

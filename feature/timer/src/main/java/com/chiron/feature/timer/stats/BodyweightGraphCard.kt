@@ -1,5 +1,8 @@
 package com.chiron.feature.timer
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,23 +78,25 @@ fun BodyweightGraphCard(
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 val current = state.stats.current
-                val currentDisplay = if (current != null) {
-                    val v = if (localInKg) UnitConversion.lbsToKg(current) else current
-                    "${UnitConversion.formatNumber(v)} $unit"
-                } else "-- $unit"
 
                 Column {
                     Text(text = "Weight trend", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(text = "Touch chart to inspect", color = CoolGray, fontSize = 12.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = currentDisplay,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = MonospaceFamily,
-                        fontSize = 16.sp
-                    )
+                    key(localInKg, current != null) {
+                        val target = current?.let { if (localInKg) UnitConversion.lbsToKg(it) else it }
+                        val displayed by animateFloatAsState(targetValue = target?.toFloat() ?: 0f,
+                            animationSpec = tween(180), label = "currentWeight")
+                        Text(
+                            text = if (target == null) "-- $unit"
+                                else "${UnitConversion.formatNumber(if (displayed == target.toFloat()) target else displayed.toDouble())} $unit",
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = MonospaceFamily,
+                            fontSize = 16.sp
+                        )
+                    }
                     Row(
                         modifier = Modifier.heightIn(min = 48.dp).toggleable(
                             value = caloriesEnabled,
@@ -118,13 +124,16 @@ fun BodyweightGraphCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (state.points.isEmpty() || state.points.all { it.weightLbs == 0.0 }) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            // Keep one chart owner even when data becomes empty, so outgoing runs can settle.
+            Box(Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
+                BodyweightLineGraph(
+                    points = state.points,
+                    localInKg = localInKg,
+                    mode = state.mode,
+                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    calorieOverlay = calorieOverlay
+                )
+                if (state.points.isEmpty() || state.points.all { it.weightLbs == 0.0 }) {
                     Text(
                         text = "No bodyweight data for this period",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -132,16 +141,6 @@ fun BodyweightGraphCard(
                         textAlign = TextAlign.Center
                     )
                 }
-            } else {
-                BodyweightLineGraph(
-                    points = state.points,
-                    localInKg = localInKg,
-                    mode = state.mode,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp),
-                    calorieOverlay = calorieOverlay
-                )
             }
 
             // Week-range slider: from 1 week up to total weeks spanning earliest entry to today

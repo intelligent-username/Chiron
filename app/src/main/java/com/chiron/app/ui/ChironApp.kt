@@ -1,15 +1,14 @@
 package com.chiron.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,12 +38,36 @@ import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.TimerTab
 import com.chiron.feature.timer.TimerViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.Locale
+
+internal fun restoreStartupTab(pagerState: PagerState, requestedName: String): String {
+    val target = NavTab.entries.firstOrNull {
+        it.name.lowercase(Locale.ROOT) == requestedName.lowercase(Locale.ROOT)
+    } ?: NavTab.HISTORY
+    // scrollToPage suspends until layout, but startup has not composed the pager yet.
+    pagerState.requestScrollToPage(target.ordinal)
+    return target.name.lowercase(Locale.ROOT)
+}
+
+@Composable
+internal fun StartupLoadingFallback() {
+    var showBrand by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(500)
+        showBrand = true
+    }
+    if (showBrand) {
+        ChironSplashScreen()
+    } else {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+    }
+}
 
 @Composable
 fun ChironApp(
@@ -78,23 +101,24 @@ fun ChironApp(
     val bodyweightState by bodyweightViewModel.uiState.collectAsState()
 
     val tabs = NavTab.entries.toTypedArray()
-    val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
+    var selectedTabName by rememberSaveable { mutableStateOf<String?>(null) }
+    val initialPage = tabs.firstOrNull {
+        it.name.equals(selectedTabName, ignoreCase = true)
+    }?.ordinal ?: 0
+    val pagerState = rememberPagerState(initialPage = initialPage) { tabs.size }
     val scope = rememberCoroutineScope()
     val selectedTab = tabs[pagerState.currentPage]
 
     val userSettingsRepository = remember { ServiceLocator.userSettingsRepository }
-    var selectedTabName by rememberSaveable { mutableStateOf<String?>(null) }
-    var tabInitializationReady by remember { mutableStateOf(false) }
+    var tabInitializationReady by remember { mutableStateOf(selectedTabName != null) }
     val mainContentState = rememberSaveableStateHolder()
 
     LaunchedEffect(Unit) {
         var lastPersistedName = userSettingsRepository.currentTabFlow.first()
-        val requestedName = (selectedTabName ?: lastPersistedName).lowercase(Locale.ROOT)
-        val target = tabs.firstOrNull { it.name.lowercase(Locale.ROOT) == requestedName }
-            ?: NavTab.HISTORY
-        pagerState.scrollToPage(target.ordinal)
-        selectedTabName = target.name.lowercase(Locale.ROOT)
-        tabInitializationReady = true
+        if (!tabInitializationReady) {
+            selectedTabName = restoreStartupTab(pagerState, lastPersistedName)
+            tabInitializationReady = true
+        }
         snapshotFlow { pagerState.settledPage to pagerState.isScrollInProgress }
             .filter { (_, scrolling) -> !scrolling }
             .map { (page, _) -> page }
@@ -160,9 +184,9 @@ fun ChironApp(
         }
     }
 
-    val isAppLoading = exercisesState.isLoading || !tabInitializationReady
-    AnimatedVisibility(visible = isAppLoading, enter = fadeIn(tween(300)), exit = fadeOut(tween(600))) {
-        ChironSplashScreen(isLoading = isAppLoading, modifier = Modifier.fillMaxSize())
+    val isAppLoading = !tabInitializationReady
+    if (isAppLoading) {
+        StartupLoadingFallback()
     }
 
     if (!isAppLoading && isSettingsOpen) {
@@ -212,7 +236,7 @@ fun ChironApp(
                     isBodyweightMode = isBodyweightMode,
                     spotifyEnabled = spotifyEnabled,
                     onTabSelected = { tab ->
-                        if (tab == selectedTab) {
+                        if (tab == selectedTab && !pagerState.isScrollInProgress) {
                             when (tab) {
                                 NavTab.HISTORY -> historyViewModel.closeEditor()
                                 NavTab.EXERCISES -> {
@@ -233,7 +257,8 @@ fun ChironApp(
                             isExerciseDetailOpen = false
                             activeExerciseId = null
                             exerciseDetailOpenedFromHistory = false
-                            scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
+                            // A tap selects a destination, not a tour through intermediate tabs.
+                            pagerState.requestScrollToPage(tab.ordinal)
                         }
                     }
                 )

@@ -43,11 +43,6 @@ fun BodyweightStatsSection(
     unit: String,
     modifier: Modifier = Modifier
 ) {
-    fun fmt(weightLbs: Double?): String {
-        if (weightLbs == null) return "--"
-        val v = if (localInKg) UnitConversion.lbsToKg(weightLbs) else weightLbs
-        return UnitConversion.formatNumber(v)
-    }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val selection = BodyweightPointCalculator.selectLatestWeights(entries, today, zone)
@@ -91,7 +86,7 @@ fun BodyweightStatsSection(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${fmt(previous.entry.weightLbs)} $unit",
+                                    text = "${presentedWeight(previous.entry.weightLbs, localInKg)} $unit",
                                     color = CoolGray,
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -100,7 +95,7 @@ fun BodyweightStatsSection(
                             }
                         }
                         Text(
-                            text = fmt(latest?.entry?.weightLbs),
+                            text = presentedWeight(latest?.entry?.weightLbs, localInKg),
                             color = Color.White,
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
@@ -125,7 +120,9 @@ fun BodyweightStatsSection(
 
                 // Period Change Badge
                 if (stats.change != null) {
-                    val changeVal = if (localInKg) UnitConversion.lbsToKg(stats.change) else stats.change
+                    val changeVal = statsPresentedNumber(
+                        if (localInKg) UnitConversion.lbsToKg(stats.change) else stats.change,
+                        localInKg)
                     val sign = if (changeVal > 0.0) "+" else ""
                     val badgeColor = CoolGray
 
@@ -157,17 +154,17 @@ fun BodyweightStatsSection(
             ) {
                 StatTile(
                     label = "Average",
-                    value = "${fmt(stats.average)} $unit",
+                    value = "${presentedWeight(stats.average, localInKg)} $unit",
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
                     label = "Lowest",
-                    value = "${fmt(stats.min)} $unit",
+                    value = "${presentedWeight(stats.min, localInKg)} $unit",
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
                     label = "Highest",
-                    value = "${fmt(stats.max)} $unit",
+                    value = "${presentedWeight(stats.max, localInKg)} $unit",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -187,6 +184,13 @@ fun BodyweightStatsSection(
             }
         }
     }
+}
+
+@Composable
+private fun presentedWeight(value: Double?, inKg: Boolean): String {
+    if (value == null) return "--"
+    val target = if (inKg) UnitConversion.lbsToKg(value) else value
+    return UnitConversion.formatNumber(statsPresentedNumber(target, inKg))
 }
 
 @Composable

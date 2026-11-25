@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -27,7 +29,9 @@ fun GoalsContent(
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onOpenGoal: (GoalWithProgress) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    gridState: LazyGridState = rememberLazyGridState(),
+    motion: GoalMotionState? = null
 ) {
     val weekLabel = if (state.isAtCurrentWeek) {
         "This Week"
@@ -63,6 +67,7 @@ fun GoalsContent(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
+                state = gridState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 112.dp),
@@ -76,7 +81,9 @@ fun GoalsContent(
                     GoalCard(
                         goal = goal,
                         index = index,
-                        onOpen = onOpenGoal
+                        onOpen = onOpenGoal,
+                        motion = motion,
+                        progressKey = state.currentWeekStart
                     )
                 }
             }
