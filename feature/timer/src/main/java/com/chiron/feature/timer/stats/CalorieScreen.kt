@@ -41,22 +41,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.PopupProperties
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.CalorieTarget
-import com.chiron.core.common.foodSuggestions
 import java.time.LocalDate
-import java.util.UUID
 import kotlin.math.roundToInt
 import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
@@ -64,13 +62,12 @@ import java.time.format.FormatStyle
 import com.chiron.core.ui.theme.MonospaceFamily
 import com.chiron.core.ui.components.WeekNavigator
 
-private data class FoodDraft(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String = "",
-    val calories: String = "",
-    val protein: String = "",
-    val servings: String = "1"
+private val CalorieDateSaver = Saver<LocalDate, Long>(
+    save = { it.toEpochDay() },
+    restore = { LocalDate.ofEpochDay(it) }
 )
+
+private data class PendingCalorieDayDeletion(val date: LocalDate, val entries: List<CalorieEntry>)
 
 @Composable
 fun CalorieScreen(
@@ -85,16 +82,18 @@ fun CalorieScreen(
     val context = LocalContext.current
     val graphPreferences = remember(context) { context.getSharedPreferences("calorie_graph", android.content.Context.MODE_PRIVATE) }
     var showCalorieGoal by remember { mutableStateOf(graphPreferences.getBoolean("show_goal", true)) }
-    var date by remember { mutableStateOf(LocalDate.now()) }
-    var weeks by remember { mutableStateOf(2) }
-    var graphEnd by remember { mutableStateOf(LocalDate.now()) }
-    var editingDate by remember { mutableStateOf(date) }
-    var editing by remember { mutableStateOf<List<FoodDraft>?>(null) }
-    var editingOriginalIds by remember { mutableStateOf<Set<String>?>(null) }
-    var showTargets by remember { mutableStateOf(false) }
+    var date by rememberSaveable(stateSaver = CalorieDateSaver) { mutableStateOf(LocalDate.now()) }
+    var weeks by rememberSaveable { mutableStateOf(2) }
+    var graphEnd by rememberSaveable(stateSaver = CalorieDateSaver) { mutableStateOf(LocalDate.now()) }
+    var editorSession by rememberFoodEditorState()
+    var showTargets by rememberSaveable { mutableStateOf(false) }
+    var targetCalories by rememberSaveable { mutableStateOf("") }
+    var targetProtein by rememberSaveable { mutableStateOf("") }
+    var targetEpochDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     var showTransfer by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-    var deleteEntry by remember { mutableStateOf<CalorieEntry?>(null) }
+    var pendingDayDeletion by remember { mutableStateOf<PendingCalorieDayDeletion?>(null) }
+    var deletionMessage by remember { mutableStateOf<String?>(null) }
     val entries = remember(history.entries) { CalorieGraphCalculator.history(history.entries) }
     val today = LocalDate.now()
     val firstDate = history.entries.minOfOrNull { it.date }
@@ -144,7 +143,13 @@ fun CalorieScreen(
                             Box(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
                                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.Settings, "Calorie settings") }
                                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                                    DropdownMenuItem(text = { Text("Daily targets") }, onClick = { showMenu = false; showTargets = true })
+                                    DropdownMenuItem(text = { Text("Daily targets") }, onClick = {
+                                        showMenu = false
+                                        targetCalories = target?.calories?.toString() ?: ""
+                                        targetProtein = target?.protein?.toString() ?: ""
+                                        targetEpochDay = (target?.date ?: LocalDate.now()).toEpochDay()
+                                        showTargets = true
+                                    })
                                     DropdownMenuItem(
                                         text = { Text("Graph Calorie Goal") },
                                         leadingIcon = { Checkbox(checked = showCalorieGoal, onCheckedChange = null) },
@@ -163,7 +168,7 @@ fun CalorieScreen(
             }
         }
         item {
-            Button(onClick = { editingDate = date; editingOriginalIds = null; editing = listOf(FoodDraft()) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            Button(onClick = { editorSession = FoodEditorSession(date, listOf(FoodDraft())) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("Log food", modifier = Modifier.padding(start = 8.dp))
@@ -199,27 +204,39 @@ fun CalorieScreen(
                 entries = entries,
                 onEdit = { selectedDate ->
                     val dayEntries = history.entries.filter { it.date == selectedDate }
-                    editingDate = selectedDate
-                    editingOriginalIds = dayEntries.map { it.id }.toSet()
-                    editing = dayEntries.map { entry ->
-                        FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
-                            entry.proteinPerServing.toString(), entry.servings.toString())
-                    }
+                    if (dayEntries.isNotEmpty()) editorSession = FoodEditorSession(
+                        selectedDate,
+                        dayEntries.map { entry ->
+                            FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
+                                entry.proteinPerServing.toString(), entry.servings.toString())
+                        },
+                        dayEntries.map { it.id }.toSet()
+                    )
                 },
-                onDelete = { deleteEntry = it }
+                onDelete = { selectedDate ->
+                    val snapshot = history.entries.filter { it.date == selectedDate }
+                        .sortedBy { it.id }.map { it.copy() }
+                    deletionMessage = null
+                    pendingDayDeletion = snapshot.takeIf { it.isNotEmpty() }?.let {
+                        PendingCalorieDayDeletion(selectedDate, it)
+                    }
+                }
             )
         }
     }
-    editing?.let { drafts ->
-        FoodDialog(editingDate, drafts, history.entries, onDismiss = { editing = null }, onSave = {
-            val originalIds = editingOriginalIds
-            if (originalIds != null) onSaveDay(it, originalIds) else onSaveEntries(it)
-            editingOriginalIds = null
-            editing = null
-        })
+    editorSession?.let { session ->
+        PersistentFoodDialog(session, history.entries,
+            onSessionChange = { editorSession = it },
+            onDismiss = { editorSession = null },
+            onSave = { savedEntries, originalIds ->
+                if (originalIds != null) onSaveDay(savedEntries, originalIds) else onSaveEntries(savedEntries)
+                editorSession = null
+            })
     }
     if (showTargets) {
-        TargetDialog(target, onDismiss = { showTargets = false }, onSave = {
+        TargetDialog(targetCalories, targetProtein, LocalDate.ofEpochDay(targetEpochDay),
+            onCaloriesChange = { targetCalories = it }, onProteinChange = { targetProtein = it },
+            onDismiss = { showTargets = false }, onSave = {
             onSaveTarget(it)
             showTargets = false
         })
@@ -238,11 +255,40 @@ fun CalorieScreen(
             }
         })
     }
-    deleteEntry?.let { entry ->
-        AlertDialog(onDismissRequest = { deleteEntry = null }, title = { Text("Delete entry?") },
-            text = { Text("Delete ${entry.name.ifBlank { "this food" }} from ${entry.date}?") },
-            confirmButton = { TextButton(onClick = { onDelete(entry.id); deleteEntry = null }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { deleteEntry = null }) { Text("Cancel") } })
+    pendingDayDeletion?.let { snapshot ->
+        fun closeDeletion() {
+            pendingDayDeletion = null
+            deletionMessage = null
+        }
+        AlertDialog(
+            onDismissRequest = { closeDeletion() },
+            title = { Text("Delete all foods for this day?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Delete all ${snapshot.entries.size} food entries for " +
+                        "${snapshot.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))}? " +
+                        "This cannot be undone.")
+                    deletionMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (pendingDayDeletion !== snapshot) return@TextButton
+                    val current = history.entries.filter { it.date == snapshot.date }
+                        .sortedBy { it.id }.map { it.copy() }
+                    if (current.isEmpty()) {
+                        closeDeletion()
+                    } else if (!calorieDayUnchanged(snapshot.date, snapshot.entries, history.entries)) {
+                        pendingDayDeletion = PendingCalorieDayDeletion(snapshot.date, current)
+                        deletionMessage = "Foods for this date changed. Review the updated count and confirm again."
+                    } else {
+                        closeDeletion()
+                        onSaveDay(emptyList(), snapshot.entries.map { it.id }.toSet())
+                    }
+                }) { Text("Delete day", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { closeDeletion() }) { Text("Cancel") } }
+        )
     }
 }
 
@@ -279,110 +325,26 @@ private fun NutritionTotal(
 }
 
 @Composable
-private fun FoodDialog(
-    date: LocalDate,
-    initial: List<FoodDraft>,
-    history: List<CalorieEntry>,
-    onDismiss: () -> Unit,
-    onSave: (List<CalorieEntry>) -> Unit
+private fun TargetDialog(
+    calories: String, protein: String, targetDate: LocalDate,
+    onCaloriesChange: (String) -> Unit, onProteinChange: (String) -> Unit,
+    onDismiss: () -> Unit, onSave: (CalorieTarget) -> Unit
 ) {
-    var rows by remember(initial) { mutableStateOf(initial) }
-    var message by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Log food · $date") },
-        text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                rows.forEachIndexed { index, row ->
-                    key(row.id) {
-                    fun change(updated: FoodDraft) { rows = rows.toMutableList().also { it[index] = updated } }
-                    var menuOpen by remember { mutableStateOf(false) }
-                    var suggestionMessage by remember { mutableStateOf(false) }
-                    val suggestions = remember(history, row.name) { foodSuggestions(history, row.name) }
-                    Text("Food ${index + 1}", style = MaterialTheme.typography.titleSmall)
-                    Box(Modifier.fillMaxWidth()) {
-                        OutlinedTextField(row.name, {
-                            change(row.copy(name = it))
-                            menuOpen = true
-                            suggestionMessage = false
-                        }, label = { Text("Name (optional)") },
-                            singleLine = true, modifier = Modifier.fillMaxWidth())
-                        DropdownMenu(
-                            expanded = menuOpen && suggestions.isNotEmpty(),
-                            onDismissRequest = { menuOpen = false },
-                            properties = PopupProperties(focusable = false)
-                        ) {
-                            suggestions.forEach { suggestion ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(suggestion.name)
-                                            Text("${suggestion.caloriesPerServing} kcal · ${suggestion.proteinPerServing} g protein per serving",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    },
-                                    onClick = {
-                                        menuOpen = false
-                                        if (row.calories.isNotEmpty() || row.protein.isNotEmpty()) {
-                                            suggestionMessage = true
-                                        } else {
-                                            change(row.copy(name = suggestion.name,
-                                                calories = suggestion.caloriesPerServing.toString(),
-                                                protein = suggestion.proteinPerServing.toString()))
-                                            suggestionMessage = false
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    if (suggestionMessage) Text("Clear calories and protein before choosing a food.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(row.calories, { change(row.copy(calories = it)) }, label = { Text("Calories per serving") },
-                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(row.protein, { change(row.copy(protein = it)) }, label = { Text("Protein per serving (g)") },
-                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(row.servings, { change(row.copy(servings = it)) }, label = { Text("Servings") },
-                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-                    if (rows.size > 1) TextButton(onClick = { rows = rows.filterIndexed { i, _ -> i != index } }) { Text("Remove row") }
-                    }
-                }
-                TextButton(onClick = { rows = rows + FoodDraft() }) { Text("+ Add row") }
-                message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val parsed = runCatching {
-                    rows.map { row ->
-                        CalorieEntry(row.id, date, row.name.trim(), row.calories.toDouble(),
-                            row.protein.toDouble(), row.servings.toDouble())
-                    }
-                }
-                parsed.onSuccess(onSave).onFailure { message = "Enter non-negative calories and protein and a positive number of servings for every row." }
-            }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
-}
-
-@Composable
-private fun TargetDialog(target: CalorieTarget?, onDismiss: () -> Unit, onSave: (CalorieTarget) -> Unit) {
-    var calories by remember { mutableStateOf(target?.calories?.toString() ?: "") }
-    var protein by remember { mutableStateOf(target?.protein?.toString() ?: "") }
     var message by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Daily targets") },
         text = {
             Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Leave a target blank to turn it off.")
-                OutlinedTextField(calories, { calories = it }, label = { Text("Calories") }, singleLine = true,
+                OutlinedTextField(calories, onCaloriesChange, label = { Text("Calories") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(protein, { protein = it }, label = { Text("Protein (g)") }, singleLine = true,
+                OutlinedTextField(protein, onProteinChange, label = { Text("Protein (g)") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = { TextButton(onClick = {
             runCatching {
-                CalorieTarget(maxOf(LocalDate.now(), target?.date ?: LocalDate.now()), calories.takeIf { it.isNotBlank() }?.toDouble(),
+                CalorieTarget(maxOf(LocalDate.now(), targetDate), calories.takeIf { it.isNotBlank() }?.toDouble(),
                     protein.takeIf { it.isNotBlank() }?.toDouble())
             }.onSuccess(onSave).onFailure { message = "Targets must be positive numbers or blank." }
         }) { Text("Save") } },

@@ -35,23 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.font.FontWeight
 import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import com.chiron.core.ui.theme.CoolGray
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
 
 /** Format milliseconds using polymorphic PlaybackTimeFormatter */
 private fun formatMs(ms: Float, totalDurationMs: Float = ms): String {
@@ -67,6 +56,7 @@ fun MiniPlayerBar(
     val playerState by SpotifyManager.playerState.collectAsState()
     val isConnected by SpotifyManager.isConnected.collectAsState()
     val isConnecting by SpotifyManager.isConnecting.collectAsState()
+    val isSlowConnection by SpotifyManager.isSlowConnection.collectAsState()
     val needsAuthFlow by SpotifyManager.needsAuthFlow.collectAsState()
     val connectionError by SpotifyManager.connectionError.collectAsState()
     val albumArt by SpotifyManager.albumArt.collectAsState()
@@ -74,12 +64,6 @@ fun MiniPlayerBar(
     val resolvedInactiveColor = ThinOutline
 
     val context = LocalContext.current
-
-    val authLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        SpotifyManager.handleAuthResponse(result.resultCode, result.data, context)
-    }
 
     // Attempt a silent connect on mount, but never while auth is pending.
     LaunchedEffect(Unit) {
@@ -90,12 +74,13 @@ fun MiniPlayerBar(
 
     val track = if (isConnected) playerState?.track else null
 
-    val idleText = remember(needsAuthFlow, connectionError, isConnecting, isConnected, track) {
+    val idleText = remember(needsAuthFlow, connectionError, isConnecting, isSlowConnection, isConnected, track) {
         buildAnnotatedString {
             when {
-                needsAuthFlow -> append("Spotify: Needs Authorization (Tap to login)")
-                connectionError != null -> { append(connectionError); append(" (Tap to retry)") }
+                isConnecting && isSlowConnection -> append("Still connecting to Spotify…")
                 isConnecting -> append("Connecting to Spotify…")
+                connectionError != null -> { append(connectionError); append(" (Tap to retry)") }
+                needsAuthFlow -> append("Spotify: Authorization required (Tap to retry)")
                 isConnected && track == null -> append("Nothing playing in Spotify")
                 else -> append("Spotify: Disconnected (Tap to connect)")
             }
@@ -106,16 +91,7 @@ fun MiniPlayerBar(
     val openSpotify: () -> Unit = {
         if (!isConnected) {
             if (needsAuthFlow) {
-                val activity = context.findActivity()
-                if (activity != null) {
-                    runCatching {
-                        authLauncher.launch(SpotifyManager.getAuthIntent(activity))
-                    }.getOrElse {
-                        SpotifyManager.connect(context, interactive = true)
-                    }
-                } else {
-                    SpotifyManager.connect(context, interactive = true)
-                }
+                SpotifyManager.connect(context, interactive = true)
             } else {
                 try {
                     val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")

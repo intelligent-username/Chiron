@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import com.chiron.core.model.Exercise
 import com.chiron.core.ui.components.NavTab
@@ -64,8 +65,10 @@ fun ChironTabPager(
     timerViewModel: TimerViewModel,
     modifier: Modifier = Modifier
 ) {
+    val tabStates = rememberSaveableStateHolder()
     HorizontalPager(
         state = pagerState,
+        key = { page -> tabs[page].name },
         userScrollEnabled = !isEditorOpen && !(
             isExerciseDetailOpen && !isGoalsMode &&
                 tabs.getOrNull(pagerState.currentPage) == NavTab.EXERCISES
@@ -73,7 +76,16 @@ fun ChironTabPager(
         beyondViewportPageCount = 0,
         modifier = modifier.fillMaxSize()
     ) { page ->
-        when (tabs[page]) {
+        val tab = tabs[page]
+        tabStates.SaveableStateProvider(tab.name) {
+        val modeStates = rememberSaveableStateHolder()
+        val modeKey = when (tab) {
+            NavTab.HISTORY -> if (isVolumeMode) "volume" else "history"
+            NavTab.EXERCISES -> if (isGoalsMode) "goals" else "exercises"
+            NavTab.TIMER -> if (isBodyweightMode) "bodyweight" else "timer"
+        }
+        modeStates.SaveableStateProvider(modeKey) {
+        when (tab) {
             NavTab.HISTORY -> {
                 if (isVolumeMode) {
                     VolumeScreen(
@@ -145,6 +157,8 @@ fun ChironTabPager(
                     TimerScreen(viewModel = timerViewModel)
                 }
             }
+        }
+        }
         }
     }
 }

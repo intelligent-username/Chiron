@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -50,7 +52,9 @@ fun BodyweightStatsScreen(
     val state by viewModel.uiState.collectAsState()
     val calories by viewModel.calorieHistory.collectAsState()
     val calorieError by viewModel.calorieError.collectAsState()
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val displayedTab = selectedTab.coerceIn(0, 1)
+    val subtabStates = rememberSaveableStateHolder()
     Box(modifier = modifier.fillMaxSize()) {
         if (state.isLoading) {
             CircularProgressIndicator(
@@ -59,13 +63,13 @@ fun BodyweightStatsScreen(
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
-                TabRow(selectedTabIndex = selectedTab) {
+                TabRow(selectedTabIndex = displayedTab) {
                     listOf("Weight", "Calories").forEachIndexed { index, title ->
-                        Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
+                        Tab(selected = displayedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
                     }
                 }
                 AnimatedContent(
-                    targetState = selectedTab,
+                    targetState = displayedTab,
                     transitionSpec = {
                         val direction = if (targetState > initialState) 1 else -1
                         ((fadeIn(tween(350, easing = FastOutSlowInEasing)) +
@@ -77,6 +81,7 @@ fun BodyweightStatsScreen(
                     modifier = Modifier.weight(1f).fillMaxSize(),
                     label = "statsSubtabs"
                 ) { tab ->
+                    subtabStates.SaveableStateProvider(if (tab == 1) "calories" else "weight") {
                     if (tab == 1) {
                         CalorieScreen(
                             history = calories,
@@ -100,6 +105,7 @@ fun BodyweightStatsScreen(
                         onDeleteRange = viewModel::deleteEntriesInRange,
                         onImportClick = onImportClick
                     )
+                    }
                 }
             }
         }

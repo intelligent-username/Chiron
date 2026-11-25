@@ -18,7 +18,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiron.app.di.ServiceLocator
@@ -37,6 +39,12 @@ import com.chiron.feature.timer.BodyweightViewModel
 import com.chiron.feature.timer.TimerTab
 import com.chiron.feature.timer.TimerViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import java.util.Locale
 
 @Composable
 fun ChironApp(
@@ -75,18 +83,30 @@ fun ChironApp(
     val selectedTab = tabs[pagerState.currentPage]
 
     val userSettingsRepository = remember { ServiceLocator.userSettingsRepository }
-    val savedTab by userSettingsRepository.currentTabFlow.collectAsState(initial = "history")
+    var selectedTabName by rememberSaveable { mutableStateOf<String?>(null) }
+    var tabInitializationReady by remember { mutableStateOf(false) }
+    val mainContentState = rememberSaveableStateHolder()
 
-    LaunchedEffect(savedTab) {
-        val targetPage = tabs.indexOfFirst { it.name.lowercase() == savedTab }.coerceAtLeast(0)
-        if (pagerState.currentPage != targetPage) {
-            pagerState.scrollToPage(targetPage)
-        }
-    }
-
-    LaunchedEffect(pagerState.currentPage) {
-        val tabName = tabs[pagerState.currentPage].name.lowercase()
-        userSettingsRepository.setCurrentTab(tabName)
+    LaunchedEffect(Unit) {
+        var lastPersistedName = userSettingsRepository.currentTabFlow.first()
+        val requestedName = (selectedTabName ?: lastPersistedName).lowercase(Locale.ROOT)
+        val target = tabs.firstOrNull { it.name.lowercase(Locale.ROOT) == requestedName }
+            ?: NavTab.HISTORY
+        pagerState.scrollToPage(target.ordinal)
+        selectedTabName = target.name.lowercase(Locale.ROOT)
+        tabInitializationReady = true
+        snapshotFlow { pagerState.settledPage to pagerState.isScrollInProgress }
+            .filter { (_, scrolling) -> !scrolling }
+            .map { (page, _) -> page }
+            .distinctUntilChanged()
+            .collect { page ->
+                val tabName = tabs[page].name.lowercase(Locale.ROOT)
+                selectedTabName = tabName
+                if (tabName != lastPersistedName) {
+                    userSettingsRepository.setCurrentTab(tabName)
+                    lastPersistedName = tabName
+                }
+            }
     }
 
     val spotifyEnabled by ServiceLocator.userSettingsRepository.spotifyEnabledFlow
@@ -96,7 +116,7 @@ fun ChironApp(
         if (!spotifyEnabled) SpotifyManager.disconnect()
     }
 
-    BackHandler(enabled = true) {
+    BackHandler(enabled = tabInitializationReady) {
         when {
             isBodyweightMode -> isBodyweightMode = false
             isGoalsMode -> {
@@ -140,7 +160,7 @@ fun ChironApp(
         }
     }
 
-    val isAppLoading = exercisesState.isLoading
+    val isAppLoading = exercisesState.isLoading || !tabInitializationReady
     AnimatedVisibility(visible = isAppLoading, enter = fadeIn(tween(300)), exit = fadeOut(tween(600))) {
         ChironSplashScreen(isLoading = isAppLoading, modifier = Modifier.fillMaxSize())
     }
@@ -153,6 +173,7 @@ fun ChironApp(
             onBack = { isSettingsOpen = false }
         )
     } else if (!isAppLoading) {
+        mainContentState.SaveableStateProvider("main") {
         Scaffold(
             topBar = {
                 ChironTopBar(
@@ -347,6 +368,7 @@ fun ChironApp(
                     }
                 )
             }
+        }
         }
     }
 }

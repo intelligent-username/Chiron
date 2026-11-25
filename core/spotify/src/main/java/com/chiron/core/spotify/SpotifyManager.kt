@@ -3,6 +3,7 @@ package com.chiron.core.spotify
 import android.content.Context
 import android.util.Log
 import android.app.Activity
+import android.os.SystemClock
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
@@ -38,6 +39,9 @@ object SpotifyManager {
     private val _isConnecting = MutableStateFlow(false)
     val isConnecting: StateFlow<Boolean> = _isConnecting
 
+    private val _isSlowConnection = MutableStateFlow(false)
+    val isSlowConnection: StateFlow<Boolean> = _isSlowConnection
+
     private val _needsAuthFlow = MutableStateFlow(false)
     val needsAuthFlow: StateFlow<Boolean> = _needsAuthFlow
 
@@ -47,6 +51,7 @@ object SpotifyManager {
     private var accessToken: String? = null
     private var timeoutJob: kotlinx.coroutines.Job? = null
     private var sleepJob: kotlinx.coroutines.Job? = null
+    private var connectionAttempt = 0L
     private var lastLoadedImageUri: com.spotify.protocol.types.ImageUri? = null
     private var lastLoadedTrackUri: String? = null
     private val managerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
@@ -88,9 +93,6 @@ object SpotifyManager {
     }
 
     fun connect(context: Context, interactive: Boolean = false) {
-        // Stop any previous hang
-        timeoutJob?.cancel()
-
         if (_isConnected.value || _isConnecting.value) return
 
         // A pending auth request means the user must go through the Spotify login flow.
@@ -105,9 +107,11 @@ object SpotifyManager {
         }
 
         _isConnecting.value = true
+        _isSlowConnection.value = false
         _connectionError.value = null
-        // _needsAuthFlow is intentionally NOT reset here.
-        // Only a successful handleAuthResponse() should clear it.
+        val attempt = ++connectionAttempt
+        val startedAt = SystemClock.elapsedRealtime()
+        Log.d("SpotifyManager", "Connection attempt $attempt started (interactive=$interactive)")
 
         // Use a silent connect by default. Only show Spotify's auth UI when the user explicitly
         // taps to connect/login; this avoids forcing an auth webview during background reconnects.
@@ -116,49 +120,75 @@ object SpotifyManager {
             .showAuthView(interactive)
             .build()
 
-        // Start 10s timeout
+        timeoutJob?.cancel()
         timeoutJob = managerScope.launch {
-            kotlinx.coroutines.delay(10000)
-            if (_isConnecting.value && !_isConnected.value) {
-                Log.e("SpotifyManager", "Connection timed out")
+            delay(10_000)
+            if (attempt == connectionAttempt && _isConnecting.value) {
+                _isSlowConnection.value = true
+                Log.d("SpotifyManager", "Connection attempt $attempt still pending after 10s")
+            }
+            delay(50_000)
+            if (attempt == connectionAttempt && _isConnecting.value) {
+                Log.e("SpotifyManager", "Connection attempt $attempt timed out after 60s")
+                connectionAttempt++
                 _isConnecting.value = false
-                _connectionError.value = "Timeout: Make sure Spotify is open and logged in."
+                _isSlowConnection.value = false
+                _connectionError.value = "Spotify connection timed out. Check Spotify is open and logged in."
             }
         }
 
         SpotifyAppRemote.connect(context, params, object : Connector.ConnectionListener {
             override fun onConnected(remote: SpotifyAppRemote) {
+                managerScope.launch {
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                if (attempt != connectionAttempt || !_isConnecting.value) {
+                    Log.d("SpotifyManager", "Ignoring stale connection attempt $attempt after ${elapsed}ms")
+                    if (remote !== appRemote) SpotifyAppRemote.disconnect(remote)
+                    return@launch
+                }
                 timeoutJob?.cancel()
                 appRemote = remote
                 _isConnected.value = true
                 _isConnecting.value = false
+                _isSlowConnection.value = false
+                _needsAuthFlow.value = false
                 _connectionError.value = null
-                Log.d("SpotifyManager", "Connected successfully")
+                Log.d("SpotifyManager", "Connection attempt $attempt succeeded after ${elapsed}ms")
                 subscribeToPlayerState()
+                }
             }
 
             override fun onFailure(error: Throwable) {
+                managerScope.launch {
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                if (attempt != connectionAttempt || !_isConnecting.value) {
+                    Log.d("SpotifyManager", "Ignoring stale failure for attempt $attempt after ${elapsed}ms", error)
+                    return@launch
+                }
                 timeoutJob?.cancel()
-                Log.e("SpotifyManager", "Connection failed: ${error.message}", error)
+                Log.e("SpotifyManager", "Connection attempt $attempt failed after ${elapsed}ms: ${error.message}", error)
                 _isConnected.value = false
                 _isConnecting.value = false
+                _isSlowConnection.value = false
                 
-                // Spotify throws this exact exception when the Dashboard config (SHA-1, Client ID, Redirect URI)
-                // does not PERFECTLY match the calling app, OR if the Spotify app cached a previous rejection.
                 if (error is com.spotify.android.appremote.api.error.UserNotAuthorizedException || 
                     error.message?.contains("Explicit user authorization is required") == true) {
-                    _connectionError.value = "Needs Authorization"
+                    _connectionError.value = "Spotify authorization required. Connect online if offline authorization is unavailable."
                     _needsAuthFlow.value = true
+                } else if (error is com.spotify.android.appremote.api.error.OfflineModeException) {
+                    _connectionError.value = "Spotify needs an online connection for authorization."
                 } else {
                     _connectionError.value = "Failed to connect to Spotify"
                 }
 
                 appRemote = null
+                }
             }
         })
     }
 
     fun disconnect() {
+        connectionAttempt++
         timeoutJob?.cancel()
         sleepJob?.cancel()
         appRemote?.let {
@@ -166,6 +196,7 @@ object SpotifyManager {
         }
         _isConnected.value = false
         _isConnecting.value = false
+        _isSlowConnection.value = false
         _connectionError.value = null
         _playerState.value = null
         _albumArt.value = null

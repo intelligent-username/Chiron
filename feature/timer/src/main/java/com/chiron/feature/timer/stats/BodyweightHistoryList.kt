@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -29,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +61,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
+import kotlinx.coroutines.delay
 
 @Composable
 fun BodyweightHistoryList(
@@ -83,14 +88,19 @@ fun BodyweightHistoryList(
     var editError by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Mass-delete dialog state
-    var showDeleteRangeDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteRangeDialog by remember { mutableStateOf(false) }
 
     val unit = if (localInKg) "kg" else "lbs"
 
-    val totalPages = max(1, (entries.size + pageSize - 1) / pageSize)
+    val safePageSize = pageSize.coerceIn(5, 50)
+    val totalPages = max(1, (entries.size + safePageSize - 1) / safePageSize)
     val safePage = currentPage.coerceIn(0, totalPages - 1)
-    val displayedEntries = remember(entries, safePage, pageSize) {
-        entries.drop(safePage * pageSize).take(pageSize)
+    LaunchedEffect(safePage, safePageSize) {
+        currentPage = safePage
+        pageSize = safePageSize
+    }
+    val displayedEntries = remember(entries, safePage, safePageSize) {
+        entries.drop(safePage * safePageSize).take(safePageSize)
     }
 
     val deleteRangeAction: (@Composable () -> Unit)? = if (entries.isNotEmpty()) {
@@ -358,118 +368,164 @@ fun BodyweightHistoryList(
 
         if (entries.isNotEmpty()) {
             HistoryPaginationFooter(
-                pageSize = pageSize,
+                pageSize = safePageSize,
                 safePage = safePage,
                 totalPages = totalPages,
-                onPageSizeChange = { pageSize = it; currentPage = 0 },
-                onPageChange = { currentPage = it }
+                onPageSizeChange = { pageSize = it.coerceIn(5, 50); currentPage = 0 },
+                onPageChange = { currentPage = it.coerceIn(0, totalPages - 1) }
             )
         }
     }
 
-    // Mass-Delete Date Range Dialog
     if (showDeleteRangeDialog) {
-        val zone = ZoneId.systemDefault()
-        val defaultStart = remember(entries) {
-            val minUtc = entries.minOfOrNull { it.timestampUtc }
-            if (minUtc != null) {
-                Instant.ofEpochMilli(minUtc).atZone(zone).toLocalDate().toString()
-            } else {
-                LocalDate.now().minusMonths(1).toString()
-            }
-        }
-        val defaultEnd = remember { LocalDate.now().toString() }
-
-        var startInput by rememberSaveable { mutableStateOf(defaultStart) }
-        var endInput by rememberSaveable { mutableStateOf(defaultEnd) }
-        var rangeError by rememberSaveable { mutableStateOf<String?>(null) }
-
-        val parsedStart = runCatching { LocalDate.parse(startInput.trim()) }.getOrNull()
-        val parsedEnd = runCatching { LocalDate.parse(endInput.trim()) }.getOrNull()
-
-        val matchingCount = remember(parsedStart, parsedEnd, entries) {
-            if (parsedStart != null && parsedEnd != null && !parsedStart.isAfter(parsedEnd)) {
-                val sUtc = parsedStart.atStartOfDay(zone).toInstant().toEpochMilli()
-                val eUtc = parsedEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
-                entries.count { it.timestampUtc in sUtc..eUtc }
-            } else 0
-        }
-
-        AlertDialog(
-            onDismissRequest = { showDeleteRangeDialog = false },
-            containerColor = SolidSlate,
-            title = {
-                Text("Delete Logs by Date Range", color = Color.White, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Delete all weigh-in entries between the start and end dates (inclusive).",
-                        color = CoolGray,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = startInput,
-                        onValueChange = { startInput = it },
-                        label = { Text("Start Date (YYYY-MM-DD)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = endInput,
-                        onValueChange = { endInput = it },
-                        label = { Text("End Date (YYYY-MM-DD)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    if (parsedStart == null || parsedEnd == null) {
-                        Text("Please use YYYY-MM-DD format", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                    } else if (parsedStart.isAfter(parsedEnd)) {
-                        Text("Start date must be on or before end date", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                    } else {
-                        Text(
-                            "$matchingCount log${if (matchingCount == 1) "" else "s"} will be deleted",
-                            color = if (matchingCount > 0) Color(0xFFFF7B72) else CoolGray,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    if (rangeError != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(rangeError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (parsedStart == null || parsedEnd == null || parsedStart.isAfter(parsedEnd)) {
-                            rangeError = "Invalid date range"
-                            return@TextButton
-                        }
-                        val sUtc = parsedStart.atStartOfDay(zone).toInstant().toEpochMilli()
-                        val eUtc = parsedEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
-                        onDeleteRange(sUtc, eUtc)
-                        showDeleteRangeDialog = false
-                    },
-                    enabled = parsedStart != null && parsedEnd != null && !parsedStart.isAfter(parsedEnd) && matchingCount > 0,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF7B72))
-                ) {
-                    Text("Delete $matchingCount Logs")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteRangeDialog = false }) {
-                    Text("Cancel", color = CoolGray)
-                }
-            }
+        WeightRangeDeletionDialog(
+            entries = entries,
+            onDismiss = { showDeleteRangeDialog = false },
+            onDeleteRange = onDeleteRange
         )
     }
+}
+
+private enum class RangeDeletionStage { Choose, Confirm, Final }
+
+@Composable
+private fun WeightRangeDeletionDialog(
+    entries: List<BodyWeightEntry>,
+    onDismiss: () -> Unit,
+    onDeleteRange: (Long, Long) -> Unit
+) {
+    val zone = ZoneId.systemDefault()
+    var startInput by remember {
+        mutableStateOf(entries.minOfOrNull { it.timestampUtc }?.let {
+            Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString()
+        } ?: LocalDate.now(zone).minusMonths(1).toString())
+    }
+    var endInput by remember { mutableStateOf(LocalDate.now(zone).toString()) }
+    var stage by remember { mutableStateOf(RangeDeletionStage.Choose) }
+    var review by remember { mutableStateOf<WeightRangeReview?>(null) }
+    var rangeError by remember { mutableStateOf<String?>(null) }
+    var finalReady by remember { mutableStateOf(false) }
+    var closed by remember { mutableStateOf(false) }
+    val preview = remember(startInput, endInput, entries, zone) {
+        reviewWeightRange(startInput, endInput, entries, zone)
+    }
+    val frozen = review
+
+    fun close() {
+        closed = true
+        review = null
+        finalReady = false
+        stage = RangeDeletionStage.Choose
+        onDismiss()
+    }
+    fun requireFreshReview() {
+        review = null
+        finalReady = false
+        stage = RangeDeletionStage.Choose
+        rangeError = "Logs or time zone changed. Review the range and count again."
+    }
+
+    // This pause only unlocks the final button. It never authorizes or submits deletion.
+    LaunchedEffect(stage, frozen) {
+        finalReady = false
+        if (stage == RangeDeletionStage.Final && frozen != null && !closed) {
+            delay(2_000)
+            finalReady = true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { close() },
+        containerColor = SolidSlate,
+        title = {
+            Text(when (stage) {
+                RangeDeletionStage.Choose -> "Review range deletion"
+                RangeDeletionStage.Confirm -> "Confirm range deletion"
+                RangeDeletionStage.Final -> "Final deletion confirmation"
+            })
+        },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (stage == RangeDeletionStage.Choose) {
+                    Text("Choose inclusive local dates. Review the affected logs before confirming.")
+                    OutlinedTextField(
+                        startInput, { startInput = it; rangeError = null },
+                        label = { Text("Start date (YYYY-MM-DD)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        endInput, { endInput = it; rangeError = null },
+                        label = { Text("End date (YYYY-MM-DD)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Time zone: ${zone.id}")
+                    if (preview == null) {
+                        Text("Enter a valid ordered date range containing at least one log.",
+                            color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("${preview.startDate} through ${preview.endDate} (inclusive)")
+                        Text("${preview.entries.size} weigh-in logs selected")
+                    }
+                } else if (frozen != null) {
+                    Text("${frozen.startDate} through ${frozen.endDate} (inclusive)")
+                    Text("Time zone: ${frozen.zoneId}")
+                    Text("Delete all ${frozen.entries.size} weigh-in logs in this range? This cannot be undone.")
+                    if (stage == RangeDeletionStage.Final && !finalReady) {
+                        Text("Wait 2 seconds, then confirm deletion.")
+                    }
+                }
+                rangeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            when (stage) {
+                RangeDeletionStage.Choose -> TextButton(
+                    enabled = preview != null && !closed,
+                    onClick = {
+                        if (closed || stage != RangeDeletionStage.Choose) return@TextButton
+                        val current = reviewWeightRange(startInput, endInput, entries, ZoneId.systemDefault())
+                        if (current == null) {
+                            rangeError = "Enter a valid ordered date range containing at least one log."
+                        } else {
+                            review = current
+                            rangeError = null
+                            stage = RangeDeletionStage.Confirm
+                        }
+                    }
+                ) { Text("Review deletion") }
+                RangeDeletionStage.Confirm -> TextButton(
+                    enabled = frozen != null && !closed,
+                    onClick = {
+                        if (closed || stage != RangeDeletionStage.Confirm || frozen == null ||
+                            review !== frozen) return@TextButton
+                        if (!weightRangeUnchanged(frozen, entries, ZoneId.systemDefault())) {
+                            requireFreshReview()
+                        } else {
+                            finalReady = false
+                            stage = RangeDeletionStage.Final
+                        }
+                    }
+                ) { Text("Confirm") }
+                RangeDeletionStage.Final -> TextButton(
+                    enabled = finalReady && frozen != null && !closed,
+                    onClick = {
+                        if (closed || stage != RangeDeletionStage.Final || !finalReady ||
+                            frozen == null || review !== frozen) return@TextButton
+                        if (!weightRangeUnchanged(frozen, entries, ZoneId.systemDefault())) {
+                            requireFreshReview()
+                        } else {
+                            close()
+                            onDeleteRange(frozen.startUtc, frozen.endUtc)
+                        }
+                    }
+                ) { Text("Confirm deletion", color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        dismissButton = { TextButton(onClick = { close() }) { Text("Cancel") } }
+    )
 }
 
 private val EditCardShape = RoundedCornerShape(14.dp)
