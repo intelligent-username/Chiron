@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -53,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
@@ -151,14 +155,15 @@ fun CalorieScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item(key = "day") {
+        item(key = "header") {
+            Column(Modifier.heightIn(min = StatsChartGeometry.InputAreaHeight - 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { date = date.minusDays(1) }) {
                     Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
                 }
                 Column(Modifier.weight(1f).clickable {
                     showStatsDatePicker(context, date) { date = it }
-                }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(if (date == LocalDate.now()) "Today" else date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
                         style = MaterialTheme.typography.titleMedium)
                     Text(date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
@@ -168,20 +173,19 @@ fun CalorieScreen(
                     Icon(Icons.Default.ChevronRight, contentDescription = "Next day")
                 }
             }
-        }
-        item(key = "totals") {
+
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 key(date) {
                     val dailyEntries = history.entries.filter { it.date == date }
                     val dailyTarget = target
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Top) {
+                    Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.Top) {
                         BoxWithConstraints(Modifier.weight(1f)) {
                             val calorieTotal: @Composable () -> Unit = {
-                                NutritionTotal("Calories", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
+                                NutritionTotal("Calories (kcal)", dailyEntries.sumOf { it.calories }, dailyTarget?.calories, "kcal", true)
                             }
                             val proteinTotal: @Composable () -> Unit = {
-                                NutritionTotal("Protein", dailyEntries.sumOf { it.protein }, dailyTarget?.protein, "g", false)
+                                NutritionTotal("Protein (g)", dailyEntries.sumOf { it.protein }, dailyTarget?.protein, "g", true)
                             }
                             if (maxWidth >= 260.dp && LocalDensity.current.fontScale <= 1.2f) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -196,7 +200,9 @@ fun CalorieScreen(
                             }
                         }
                              Box {
-                                 IconButton(onClick = { showMenu = true }, modifier = Modifier.heightIn(min = 48.dp)) { Icon(Icons.Default.Settings, "Calorie settings") }
+                                 IconButton(onClick = { showMenu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                                     Icon(Icons.Default.Settings, "Calorie settings", modifier = Modifier.offset(y = (-8).dp))
+                                 }
                                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                     DropdownMenuItem(text = { Text("Daily targets") }, onClick = {
                                         showMenu = false
@@ -221,8 +227,7 @@ fun CalorieScreen(
                     }
                 }
             }
-        }
-        item(key = "log") {
+
           StatsEditorGeometry(
               editorSession != null && !editInHistory,
               enabled = !editorHasImmediateMessage,
@@ -239,16 +244,18 @@ fun CalorieScreen(
                     editorGeneration++
                     editorSession = FoodEditorSession(date, listOf(FoodDraft()))
                 }
-            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
                 enabled = editorSession == null,
                 shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("Log food", modifier = Modifier.padding(start = 8.dp))
             }
           }
+            }
         }
         error?.let { message -> item(key = "error") { Text(message, color = MaterialTheme.colorScheme.error) } }
         item(key = "graph") {
+          Column {
             CalorieComparison(
                 history = history,
                 state = weightState,
@@ -262,8 +269,7 @@ fun CalorieScreen(
                 showCalorieGoal = showCalorieGoal,
                 modifier = graphModifier
             )
-        }
-        item(key = "range") {
+            Spacer(Modifier.height(4.dp))
             val formatter = DateTimeFormatter.ofPattern("MMM d")
             WeekNavigator(
                 weekLabel = "${graphWindow.start.format(formatter)} – ${graphWindow.end.format(formatter)}",
@@ -272,6 +278,7 @@ fun CalorieScreen(
                 onPrev = { graphEnd = graphWindow.previous().end },
                 onNext = { graphEnd = graphWindow.next().end }
             )
+          }
         }
         item(key = "history") {
             CalorieHistoryList(
@@ -379,24 +386,15 @@ private fun NutritionTotal(
     )
     val shownValue = statsPresentedNumber(value, unit)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            Column {
-                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(formatCalorieNumber(shownValue), fontFamily = MonospaceFamily,
-                         style = if (prominent) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge)
-                    Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp))
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                target?.let {
-                    Text("/ ${formatCalorieNumber(it)} $unit",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                }
-                trailing()
-            }
-        }
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = formatCalorieNumber(shownValue) + (target?.let { " / ${formatCalorieNumber(it)}" } ?: ""),
+            fontFamily = MonospaceFamily,
+            style = if (prominent) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        trailing()
         if (target != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
     }
 }

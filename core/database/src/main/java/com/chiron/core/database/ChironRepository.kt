@@ -36,6 +36,7 @@ import com.chiron.core.database.workout.SessionPreviewRepository
 import com.chiron.core.database.workout.SetEntryRepository
 import com.chiron.core.database.workout.WorkoutSessionRepository
 import kotlinx.coroutines.flow.Flow
+import androidx.room.withTransaction
 
 /**
  * Facade repository that composes all domain-specific sub-repositories.
@@ -248,6 +249,28 @@ class ChironRepository(
 
     suspend fun updateExerciseEntry(entry: ExerciseEntry) =
         exerciseEntryRepository.updateExerciseEntry(entry)
+
+    suspend fun replaceWorkoutExercise(entryId: Long, expectedExerciseId: Long, replacementId: Long) {
+        val db = requireNotNull(database) { "Database is required to replace a workout exercise" }
+        db.withTransaction {
+            val entry = requireNotNull(exerciseEntryDao.getById(entryId)) { "Workout exercise no longer exists" }
+            require(entry.exerciseId == expectedExerciseId) { "Workout exercise changed; reopen the picker" }
+            val replacement = requireNotNull(exerciseDao.getById(replacementId)) { "Exercise no longer exists" }
+            require(replacement.archived == 0) { "Choose an active exercise" }
+            if (entry.exerciseId != replacementId) {
+                val groupId = entry.groupId
+                if (groupId != null) {
+                    val group = exerciseEntryDao.getEntriesByGroupInWorkout(entry.workoutId, groupId)
+                    require(group.none { it.id != entry.id && it.exerciseId == replacementId }) {
+                        "That exercise is already in this superset"
+                    }
+                }
+                exerciseEntryDao.updateEntry(entry.copy(exerciseId = replacementId))
+                prRepository.rebuildPrsForExercise(entry.exerciseId, recomputeHistoricalFlags = true)
+                prRepository.rebuildPrsForExercise(replacementId, recomputeHistoricalFlags = true)
+            }
+        }
+    }
 
     suspend fun getNextSlotIndex(workoutId: Long): Int =
         exerciseEntryRepository.getNextSlotIndex(workoutId)

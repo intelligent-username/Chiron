@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,7 +62,8 @@ fun GoalDetailScreen(
     onDelete: () -> Unit,
     onBack: () -> Unit,
     onNavigate: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    motion: GoalMotionState? = null
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val progress = if (goal.weeklyTarget > 0) (goal.daysDone.toFloat() / goal.weeklyTarget).coerceIn(0f, 1f) else 0f
@@ -70,6 +73,9 @@ fun GoalDetailScreen(
         MaterialTheme.colorScheme.tertiary
     )
     val accent = accents[currentIndex.coerceAtLeast(0) % accents.size]
+    val density = LocalDensity.current
+    val radius = with(density) { 20.dp.toPx() }
+    val stroke = with(density) { 10.dp.toPx() }
 
     Column(
         modifier = modifier
@@ -102,7 +108,9 @@ fun GoalDetailScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
+                .goalAnchor(motion, goal.id, true, false, radius, stroke, progress, accent)
+                .graphicsLayer { alpha = motion?.destinationAlpha(goal.id, true) ?: 1f },
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = SolidSlate),
             border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f)),
@@ -122,10 +130,11 @@ fun GoalDetailScreen(
                     }
                     GoalDonut(
                         progress = progress,
-                        modifier = Modifier.size(160.dp),
+                        modifier = Modifier.size(160.dp)
+                            .goalAnchor(motion, goal.id, true, true, radius, stroke, progress, accent),
                         strokeWidth = 10.dp,
                         accentColor = accent,
-                        animateProgress = false
+                        drawRing = motion?.hides(goal.id) != true
                     ) {
                 Text(
                     text = "${goal.daysDone}/${goal.weeklyTarget}",
@@ -186,39 +195,59 @@ fun GoalDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "Exercises",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
-        )
         Spacer(modifier = Modifier.height(8.dp))
-        if (exercises.isEmpty()) {
-            Text(
-                text = "No exercises",
-                color = CoolGray,
-                fontSize = 14.sp
-            )
-        } else {
-            exercises.forEach { exercise ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ExerciseAsyncIcon(
-                        iconName = exercise.iconName,
-                        contentDescription = exercise.name,
-                        modifier = Modifier.size(51.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SolidSlate),
+            border = BorderStroke(1.dp, ThinOutline)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text(
+                    text = "Exercises",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "A day counts when you log a set of any exercise below.",
+                    color = CoolGray,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "Changes to this goal also affect past weeks.",
+                    color = CoolGray,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (exercises.isEmpty()) {
                     Text(
-                        text = exercise.name,
+                        text = "No exercises",
                         color = CoolGray,
-                        fontSize = 22.sp
+                        fontSize = 14.sp
                     )
+                } else {
+                    exercises.forEach { exercise ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ExerciseAsyncIcon(
+                                iconName = exercise.iconName,
+                                contentDescription = exercise.name,
+                                modifier = Modifier.size(51.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = exercise.name,
+                                color = CoolGray,
+                                fontSize = 22.sp
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -93,15 +93,13 @@ fun ChironTabPager(
     bodyweightViewModel: BodyweightViewModel,
     onOpenBodyweightImport: () -> Unit,
     timerViewModel: TimerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    prContent: @Composable () -> Unit = {}
 ) {
     ChironMainPager(
         pagerState = pagerState,
         tabs = tabs,
-        userScrollEnabled = !isEditorOpen && !(
-            isExerciseDetailOpen && !isGoalsMode &&
-                tabs.getOrNull(pagerState.currentPage) == NavTab.EXERCISES
-            ),
+        userScrollEnabled = true,
         modifier = modifier
     ) { tab ->
         val modeKey = when (tab) {
@@ -170,6 +168,7 @@ fun ChironTabPager(
                         }
                     }
                 }
+                prContent()
             }
             NavTab.TIMER -> {
                 if (isBodyweightMode) {

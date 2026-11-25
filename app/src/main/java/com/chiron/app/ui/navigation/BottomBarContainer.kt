@@ -30,7 +30,8 @@ fun BottomBarContainer(
     isBodyweightMode: Boolean,
     spotifyEnabled: Boolean,
     onTabSelected: (NavTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    exercisesEnabled: Boolean = true
 ) {
     if (spotifyEnabled) {
         Column(
@@ -55,6 +56,7 @@ fun BottomBarContainer(
                 isVolumeMode = isVolumeMode,
                 isGoalsMode = isGoalsMode,
                 isBodyweightMode = isBodyweightMode,
+                exercisesEnabled = exercisesEnabled,
                 drawBackgroundAndBorder = false,
                 onTabSelected = onTabSelected
             )
@@ -67,6 +69,7 @@ fun BottomBarContainer(
             isVolumeMode = isVolumeMode,
             isGoalsMode = isGoalsMode,
             isBodyweightMode = isBodyweightMode,
+            exercisesEnabled = exercisesEnabled,
             drawBackgroundAndBorder = true,
             onTabSelected = onTabSelected
         )

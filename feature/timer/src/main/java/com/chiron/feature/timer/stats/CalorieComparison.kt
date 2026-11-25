@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -158,18 +159,25 @@ internal fun CalorieComparison(
     val latestCalories by animateFloatAsState(
         targetValue = latestTarget.toFloat(),
         animationSpec = tween(180), label = "currentCalories")
+    val primaryColor = LocalStatsChartColor.current ?: CalorieColor
 
     StatsChartCard(
         modifier = modifier,
         header = {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text("Calorie trend", style = MaterialTheme.typography.titleMedium)
-                Text("Touch chart to inspect", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                Box(Modifier.height(24.dp), contentAlignment = Alignment.CenterStart) {
+                    Text("Calorie trend", style = MaterialTheme.typography.titleMedium)
+                }
+                Box(Modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
+                    Text("Touch chart to inspect", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
+                Box(Modifier.height(24.dp), contentAlignment = Alignment.CenterEnd) {
                 Text("${formatCalorieNumber(if (latestCalories == latestTarget.toFloat()) latestTarget else latestCalories.toDouble())} kcal", fontFamily = MonospaceFamily,
                     style = MaterialTheme.typography.titleSmall)
+                }
                 Row(
                     Modifier.heightIn(min = 48.dp).toggleable(overlay, role = Role.Checkbox, onValueChange = {
                         if (overlay) { draftLag = lag; settings = true } else explanation = true
@@ -182,14 +190,6 @@ internal fun CalorieComparison(
                     Text("Weight", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                 }
             }
-        }
-        },
-        units = {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("kcal", color = CalorieColor, style = MaterialTheme.typography.labelSmall)
-            if (motion.frame.overlayAlpha > 0f) Text(if (state.displayInKg) "kg" else "lbs", color = WeightColor,
-                modifier = Modifier.graphicsLayer { alpha = motion.frame.overlayAlpha },
-                style = MaterialTheme.typography.labelSmall)
         }
         },
         chart = {
@@ -206,8 +206,8 @@ internal fun CalorieComparison(
                     awaitEachGesture {
                         fun select(x: Float) {
                             val frame = motion.frame
-                            val left = frame.left + 12.dp.toPx()
-                            val right = frame.right + 12.dp.toPx()
+                             val left = 64.dp.toPx()
+                             val right = (16 + 48 * frame.overlayAlpha).dp.toPx()
                             val width = (size.width - left - right).coerceAtLeast(1f)
                             selectedDate = points.minByOrNull {
                                 abs(left + (frame.primary.markers[it.date.toString()]?.x ?: 0f) * width - x)
@@ -230,8 +230,8 @@ internal fun CalorieComparison(
                 }
         ) {
             val frame = motion.frame
-            val left = frame.left + 12.dp.toPx()
-            val right = frame.right + 12.dp.toPx()
+            val left = 64.dp.toPx()
+            val right = (16 + 48 * frame.overlayAlpha).dp.toPx()
             val plotWidth = (size.width - left - right).coerceAtLeast(1f)
             val top = 12.dp.toPx()
             val plotHeight = (size.height - top - 24.dp.toPx()).coerceAtLeast(1f)
@@ -248,7 +248,9 @@ internal fun CalorieComparison(
                 drawText(label, topLeft = Offset(left - label.size.width - 6.dp.toPx(), py - label.size.height / 2f))
                 if (frame.overlayAlpha > 0f) {
                     val weightLabel = measurer.measure("%.1f".format(frame.secondaryMin +
-                        (frame.secondaryMax - frame.secondaryMin) * tick / 4), axisStyle.copy(color = WeightColor))
+                        (frame.secondaryMax - frame.secondaryMin) * tick / 4) +
+                        if (tick == 4) (if (state.displayInKg) " kg" else " lbs") else "",
+                        axisStyle.copy(color = WeightColor))
                     drawText(weightLabel, topLeft = Offset(left + plotWidth + 14.dp.toPx(), py - weightLabel.size.height / 2f),
                         alpha = frame.overlayAlpha)
                 }
@@ -272,13 +274,14 @@ internal fun CalorieComparison(
 
             clipRect(left - 3.dp.toPx(), top - 3.dp.toPx(), left + plotWidth + 3.dp.toPx(), top + plotHeight + 3.dp.toPx()) {
                 drawChartSeries(frame.primary, frame.min, frame.max, left, top, plotWidth, plotHeight,
-                    CalorieColor, tooltipBackground)
+                    primaryColor, tooltipBackground)
                 drawChartSeries(frame.secondary, frame.secondaryMin, frame.secondaryMax, left, top, plotWidth, plotHeight,
                     WeightColor, tooltipBackground, frame.overlayAlpha, dashed = true)
+                if (!motion.animating) {
                 val stride = ceil(points.size * 12.dp.toPx() / plotWidth).toInt().coerceAtLeast(1)
                 frame.primary.markers.entries.forEachIndexed { index, (id, marker) ->
                     if (index % stride == 0 || id == selectedDate?.toString() || frame.primary.markers.size == 1) {
-                        drawCircle(CalorieColor.copy(alpha = marker.alpha), 1.5.dp.toPx(),
+                        drawCircle(primaryColor.copy(alpha = marker.alpha), 1.5.dp.toPx(),
                             Offset(left + marker.x * plotWidth, y(marker.value, frame.min, frame.max)))
                     }
                 }
@@ -291,6 +294,7 @@ internal fun CalorieComparison(
                         drawCircle(tooltipBackground.copy(alpha = alpha), 3.dp.toPx(), p)
                         drawCircle(WeightColor.copy(alpha = alpha), 2.dp.toPx(), p)
                     }
+                }
                 }
             }
 
@@ -316,12 +320,12 @@ internal fun CalorieComparison(
                     pathEffect = TooltipDashEffect
                 )
                 // Highlight circles
-                if (py in top..(top + plotHeight)) {
+                if (!motion.animating && py in top..(top + plotHeight)) {
                     drawCircle(color = CalorieColor, radius = 6.5f, center = Offset(px, py))
                     drawCircle(color = Color.White, radius = 3f, center = Offset(px, py))
                 }
                 // Weight overlay point if applicable
-                if (showWeightAxis && weights[selected] != null) {
+                if (!motion.animating && showWeightAxis && weights[selected] != null) {
                     val marker = frame.secondary.markers[point.date.toString()]
                     val weightPy = y(marker?.value ?: weights[selected]!!, frame.secondaryMin, frame.secondaryMax)
                     if (weightPy in top..(top + plotHeight)) {

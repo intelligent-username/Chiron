@@ -15,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -25,8 +26,10 @@ fun GoalsScreen(
     val state by viewModel.uiState.collectAsState()
     val form by viewModel.goalForm.collectAsState()
     val gridState = rememberLazyGridState()
+    val motion = rememberGoalMotionState()
 
     val closeDetail: () -> Unit = {
+        state.selectedGoal?.let { motion.begin(it.id, fromDetail = true) }
         viewModel.closeDetail()
     }
 
@@ -38,7 +41,7 @@ fun GoalsScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { motion.host = it }) {
         when {
             state.isLoading -> {
                 CircularProgressIndicator(
@@ -59,8 +62,9 @@ fun GoalsScreen(
                         onArchive = { viewModel.archiveSelected() },
                         onDelete = { viewModel.deleteSelected() },
                         onBack = closeDetail,
-                        onNavigate = { viewModel.openDetailAtIndex(it) },
-                        modifier = Modifier.fillMaxSize()
+                        onNavigate = { motion.cancel(); viewModel.openDetailAtIndex(it) },
+                        modifier = Modifier.fillMaxSize(),
+                        motion = motion
                     )
                 }
             }
@@ -69,11 +73,14 @@ fun GoalsScreen(
                     state = state,
                     onPrevWeek = { viewModel.goToPreviousWeek() },
                     onNextWeek = { viewModel.goToNextWeek() },
-                    onOpenGoal = { viewModel.openDetail(it) },
-                    gridState = gridState
+                    onOpenGoal = { motion.begin(it.id, fromDetail = false); viewModel.openDetail(it) },
+                    gridState = gridState,
+                    motion = motion
                 )
             }
         }
+
+        GoalMotionOverlay(motion)
 
         if (!state.isDetailOpen && !state.isLoading) {
             FloatingActionButton(

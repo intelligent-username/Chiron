@@ -114,7 +114,6 @@ fun VolumeLineGraph(
                 .pointerInput(points, motion) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = true)
-                        down.consume()
                         val startTime = down.uptimeMillis
                         val startPos = down.position
                         hoveredX = startPos.x
@@ -123,6 +122,7 @@ fun VolumeLineGraph(
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: break
+                                if (change.isConsumed) break
                                 if (!change.pressed) {
                                     hoveredX = null
                                     val elapsed = change.uptimeMillis - startTime
@@ -137,8 +137,11 @@ fun VolumeLineGraph(
                                     break
                                 }
                                 val dist = (change.position - startPos).getDistance()
-                                if (dist > 10f) isDrag = true
-                                change.consume()
+                                if (dist > viewConfiguration.touchSlop) {
+                                    if (!isDrag && change.uptimeMillis - startTime < 300L) break
+                                    isDrag = true
+                                }
+                                if (isDrag) change.consume()
                                 hoveredX = change.position.x
                             }
                         } finally {

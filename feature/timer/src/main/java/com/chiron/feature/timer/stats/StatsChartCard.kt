@@ -23,10 +23,10 @@ import com.chiron.core.ui.theme.ThinOutline
  * same element with different data, so a tab switch only crossfades series and labels.
  */
 internal object StatsChartGeometry {
+    val InputAreaHeight = 224.dp
     val HeaderHeight = 72.dp
-    val UnitsHeight = 16.dp
     val RowHeight = 16.dp
-    val ChartHeight = 260.dp
+    val ChartHeight = 284.dp
     val PlotLeftInset = 56.dp
     val PlotRightInset = 16.dp
     val PlotTopInset = 12.dp
@@ -42,7 +42,6 @@ internal object StatsChartGeometry {
 internal fun StatsChartCard(
     modifier: Modifier = Modifier,
     header: @Composable () -> Unit,
-    units: @Composable () -> Unit,
     chart: @Composable () -> Unit,
     footer: @Composable () -> Unit
 ) {
@@ -57,11 +56,6 @@ internal fun StatsChartCard(
                 Modifier.fillMaxWidth().heightIn(min = StatsChartGeometry.HeaderHeight),
                 contentAlignment = Alignment.CenterStart
             ) { header() }
-            Spacer(Modifier.height(8.dp))
-            Box(
-                Modifier.fillMaxWidth().heightIn(min = StatsChartGeometry.UnitsHeight),
-                contentAlignment = Alignment.CenterStart
-            ) { units() }
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(StatsChartGeometry.ChartHeight)) { chart() }
             Spacer(Modifier.height(8.dp))

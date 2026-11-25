@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -117,19 +118,19 @@ fun VolumeContent(
                         text = "Volume trend",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp
+                        fontSize = 18.sp
                     )
                     Text(
                         text = "${totalVolume.formatVolume(displayInKg)} $unit",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         fontFamily = MonospaceFamily,
-                        fontSize = 14.sp
+                        fontSize = 12.sp
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(264.dp), contentAlignment = Alignment.Center) {
                     VolumeLineGraph(
                         points = state.points,
                         displayInKg = displayInKg,
@@ -142,7 +143,7 @@ fun VolumeContent(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp),
+                                .height(264.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -176,8 +177,10 @@ fun VolumeContent(
                                     onValueChange = { onWeekCountChange(it.roundToInt()) },
                                     valueRange = 2f..maxWeeks.toFloat(),
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
+                                        .fillMaxWidth(0.92f)
+                                        .height(40.dp)
+                                        .align(Alignment.CenterHorizontally)
+                                        .graphicsLayer { scaleY = 0.8f }
                                 )
                             }
                         }
@@ -185,7 +188,7 @@ fun VolumeContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         WeekNavigator(
             weekLabel = weekLabel,
             canGoPrev = !state.isAtFirstWeek,

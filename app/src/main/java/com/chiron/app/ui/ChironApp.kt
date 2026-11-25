@@ -31,6 +31,7 @@ import com.chiron.app.ui.topbar.ChironTopBar
 import com.chiron.core.spotify.SpotifyManager
 import com.chiron.core.ui.components.NavTab
 import com.chiron.feature.exercises.ExercisesViewModel
+import com.chiron.feature.exercises.PrScreen
 import com.chiron.feature.goals.GoalsViewModel
 import com.chiron.feature.history.HistoryViewModel
 import com.chiron.feature.history.VolumeViewModel
@@ -85,6 +86,7 @@ fun ChironApp(
     var prTargetExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
     var prOpenedFromHistory by rememberSaveable { mutableStateOf(false) }
     var prReturnExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var detailReturnToPr by rememberSaveable { mutableStateOf(false) }
     var exerciseDetailOpenedFromHistory by rememberSaveable { mutableStateOf(false) }
     var exercisesSearchHasText by remember { mutableStateOf(false) }
     var isVolumeMode by rememberSaveable { mutableStateOf(false) }
@@ -151,7 +153,7 @@ fun ChironApp(
                 isVolumeMode = false
                 volumeViewModel.setExerciseFilter(null)
             }
-            isPrScreenOpen -> {
+            isPrScreenOpen && selectedTab == NavTab.EXERCISES -> {
                 isPrScreenOpen = false
                 prTargetExerciseId = null
                 if (prOpenedFromHistory) {
@@ -159,10 +161,13 @@ fun ChironApp(
                     prOpenedFromHistory = false
                 }
             }
-            isExerciseDetailOpen -> {
+            isExerciseDetailOpen && selectedTab == NavTab.EXERCISES -> {
                 isExerciseDetailOpen = false
                 activeExerciseId = null
-                if (exerciseDetailOpenedFromHistory) {
+                if (detailReturnToPr) {
+                    detailReturnToPr = false
+                    isPrScreenOpen = true
+                } else if (exerciseDetailOpenedFromHistory) {
                     scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                     exerciseDetailOpenedFromHistory = false
                 }
@@ -176,6 +181,7 @@ fun ChironApp(
                     prTargetExerciseId = returnExerciseId
                     prOpenedFromHistory = false
                     isPrScreenOpen = true
+                    scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
                 }
             }
             selectedTab == NavTab.EXERCISES && exercisesSearchHasText -> { /* handled by child */ }
@@ -202,6 +208,7 @@ fun ChironApp(
             topBar = {
                 ChironTopBar(
                     selectedTab = selectedTab,
+                    isPrScreenOpen = isPrScreenOpen && selectedTab == NavTab.EXERCISES,
                     isVolumeMode = isVolumeMode,
                     onToggleVolumeMode = {
                         isVolumeMode = !isVolumeMode
@@ -216,10 +223,19 @@ fun ChironApp(
                     showArchivedExercises = exercisesState.showArchived,
                     onToggleShowArchived = { exercisesViewModel.toggleShowArchived() },
                     onOpenPrScreen = {
-                        prTargetExerciseId = null
-                        prOpenedFromHistory = false
-                        prReturnExerciseId = null
-                        isPrScreenOpen = true
+                        if (isPrScreenOpen) {
+                            isPrScreenOpen = false
+                            prTargetExerciseId = null
+                            if (prOpenedFromHistory) {
+                                scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                                prOpenedFromHistory = false
+                            }
+                        } else {
+                            prTargetExerciseId = null
+                            prOpenedFromHistory = false
+                            prReturnExerciseId = null
+                            isPrScreenOpen = true
+                        }
                     },
                     onRefreshBodyweight = { bodyweightViewModel.refresh() },
                     onOpenPresets = { isPresetsOpen = true },
@@ -235,6 +251,7 @@ fun ChironApp(
                     isGoalsMode = isGoalsMode,
                     isBodyweightMode = isBodyweightMode,
                     spotifyEnabled = spotifyEnabled,
+                    exercisesEnabled = !(isPrScreenOpen && selectedTab == NavTab.EXERCISES),
                     onTabSelected = { tab ->
                         if (tab == selectedTab && !pagerState.isScrollInProgress) {
                             when (tab) {
@@ -255,6 +272,7 @@ fun ChironApp(
                             prTargetExerciseId = null
                             prOpenedFromHistory = false
                             isExerciseDetailOpen = false
+                            detailReturnToPr = false
                             activeExerciseId = null
                             exerciseDetailOpenedFromHistory = false
                             // A tap selects a destination, not a tour through intermediate tabs.
@@ -300,6 +318,7 @@ fun ChironApp(
                     onOpenExerciseDetail = { exId ->
                         activeExerciseId = exId
                         isExerciseDetailOpen = true
+                        detailReturnToPr = false
                         exerciseDetailOpenedFromHistory = false
                     },
                     onNavigateExercise = { exId ->
@@ -332,7 +351,10 @@ fun ChironApp(
                         isExerciseDetailOpen = false
                         activeExerciseId = null
                         volumeViewModel.setExerciseFilter(null)
-                        if (exerciseDetailOpenedFromHistory) {
+                        if (detailReturnToPr) {
+                            detailReturnToPr = false
+                            isPrScreenOpen = true
+                        } else if (exerciseDetailOpenedFromHistory) {
                             scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                             exerciseDetailOpenedFromHistory = false
                         }
@@ -340,11 +362,46 @@ fun ChironApp(
                     isBodyweightMode = isBodyweightMode,
                     bodyweightViewModel = bodyweightViewModel,
                     onOpenBodyweightImport = { showBodyweightImportDialog = true },
-                    timerViewModel = timerViewModel
+                    timerViewModel = timerViewModel,
+                    prContent = {
+                        if (isPrScreenOpen) {
+                            PrScreen(
+                                viewModel = exercisesViewModel,
+                                displayInKg = historyState.displayInKg,
+                                distanceUnit = historyState.distanceUnit,
+                                initialExerciseId = prTargetExerciseId,
+                                onClose = {
+                                    isPrScreenOpen = false
+                                    prTargetExerciseId = null
+                                    if (prOpenedFromHistory) {
+                                        scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                                        prOpenedFromHistory = false
+                                    }
+                                },
+                                onOpenWorkout = { exerciseId, setId ->
+                                    prReturnExerciseId = exerciseId
+                                    isPrScreenOpen = false
+                                    prTargetExerciseId = null
+                                    prOpenedFromHistory = false
+                                    scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
+                                    historyViewModel.openWorkoutFromPr(setId)
+                                },
+                                onOpenExercise = { exerciseId ->
+                                    prTargetExerciseId = exerciseId
+                                    isPrScreenOpen = false
+                                    activeExerciseId = exerciseId
+                                    isExerciseDetailOpen = true
+                                    exerciseDetailOpenedFromHistory = false
+                                    detailReturnToPr = true
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 )
 
                 ChironDialogHost(
-                    isPrScreenOpen = isPrScreenOpen,
+                    isPrScreenOpen = false,
                     prTargetExerciseId = prTargetExerciseId,
                     exercisesViewModel = exercisesViewModel,
                     displayInKg = historyState.displayInKg,
@@ -365,6 +422,15 @@ fun ChironApp(
                         prOpenedFromHistory = false
                         scope.launch { pagerState.scrollToPage(NavTab.HISTORY.ordinal) }
                         historyViewModel.openWorkoutFromPr(setId)
+                    },
+                    onOpenExerciseFromPr = { exerciseId ->
+                        prTargetExerciseId = exerciseId
+                        isPrScreenOpen = false
+                        activeExerciseId = exerciseId
+                        isExerciseDetailOpen = true
+                        exerciseDetailOpenedFromHistory = false
+                        detailReturnToPr = true
+                        scope.launch { pagerState.scrollToPage(NavTab.EXERCISES.ordinal) }
                     },
                     isPresetsOpen = isPresetsOpen,
                     presets = timerState.presets,

@@ -122,6 +122,7 @@ fun WorkoutEditorHeader(
                 modifier = Modifier
                     .weight(1f)
                     .padding(end = 8.dp)
+                    .workoutDetailAnchor(workout.id, "title")
                     .clickable(enabled = isEditable) { showNameDialog = true }
             )
 
@@ -174,53 +175,52 @@ fun WorkoutEditorHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left side: date/time
-                if (!editing) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = DateUtils.formatWorkoutCardDate(workout),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Start
-                            )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = editing) { isTimeDialogOpen = true }
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = DateUtils.formatWorkoutCardDate(workout),
+                        modifier = Modifier.workoutDetailAnchor(workout.id, "date"),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Start
                         )
-                        Text(
-                            text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Start
-                            )
-                        )
-                    }
-                } else {
+                    )
                     Text(
                         text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             textAlign = TextAlign.Start
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { isTimeDialogOpen = true }
-                            .padding(vertical = 8.dp)
+                        )
                     )
                 }
 
                 // Right side: location (view) or location editor (edit)
                 if (!editing) {
                     // View mode: show location as text
-                    Text(
-                        text = editableLocation,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            textAlign = TextAlign.End,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.width(160.dp).align(Alignment.CenterVertically).padding(top = 8.dp)
-                    )
+                    Column(
+                        modifier = Modifier.width(160.dp).align(Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (volumeLbs != null) {
+                            WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg,
+                                modifier = Modifier.workoutDetailAnchor(workout.id, "volume"))
+                        }
+                        Text(
+                            text = editableLocation,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                textAlign = TextAlign.End,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            ),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                .workoutDetailAnchor(workout.id, "location")
+                        )
+                    }
                 } else {
                     // Edit mode: location editor (animated)
                     AnimatedVisibility(
@@ -238,9 +238,10 @@ fun WorkoutEditorHeader(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 if (volumeLbs != null) {
-                                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
+                                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg,
+                                        modifier = Modifier.workoutDetailAnchor(workout.id, "volume"))
                                 }
-                                Box(modifier = Modifier.fillMaxWidth()) {
+                                Box(modifier = Modifier.fillMaxWidth().workoutDetailAnchor(workout.id, "location")) {
                                     if (volumeLbs != null) {
                                         BasicTextField(
                                             value = editableLocation,
@@ -342,24 +343,6 @@ fun WorkoutEditorHeader(
                     tryUpdateTimes(startDate, startTime, endDate, endTime)
                     isTimeDialogOpen = false
                 }
-            )
-        }
-
-        AnimatedVisibility(
-            visible = !isEditable && editableLocation.isNotBlank(),
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
-            modifier = Modifier
-                .width(160.dp)
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 8.dp)
-        ) {
-            Text(
-                text = editableLocation,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    textAlign = TextAlign.End,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
             )
         }
 

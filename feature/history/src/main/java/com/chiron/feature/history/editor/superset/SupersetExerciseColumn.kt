@@ -1,6 +1,8 @@
 package com.chiron.feature.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +47,7 @@ import com.chiron.core.ui.components.SetPill
  * Shows the exercise icon, name, and its set pills in a compact vertical layout.
  * Supports the press-and-hold last-session preview via [LastSessionPreviewButton].
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SupersetExerciseColumn(
     entry: ExerciseEntry,
@@ -65,6 +68,7 @@ fun SupersetExerciseColumn(
     val sets by viewModel.getSetsForEntry(entry.id)
         .collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<Exercise?>(null) }
+    var showReplaceExercise by remember(entry.id) { mutableStateOf(false) }
     var isPreviewingLastSession by remember { mutableStateOf(false) }
     var lastSessionPreview by remember { mutableStateOf<ChironRepository.LastSessionPreview?>(null) }
     val hasHistory = lastSessionPreview != null
@@ -74,6 +78,10 @@ fun SupersetExerciseColumn(
     }
     LaunchedEffect(entry.exerciseId, workoutId) {
         lastSessionPreview = viewModel.getLastSessionPreview(entry.exerciseId, workoutId)
+    }
+
+    if (showReplaceExercise && isEditable) {
+        ReplaceWorkoutExerciseDialog(entry, exercise, viewModel, onDismiss = { showReplaceExercise = false })
     }
 
     Column(
@@ -101,7 +109,11 @@ fun SupersetExerciseColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(42.dp)
-                .clickable { onOpenExerciseDetail(entry.exerciseId) }
+                .combinedClickable(
+                    onClick = { onOpenPrForExercise(entry.exerciseId) },
+                    onLongClickLabel = "Replace exercise",
+                    onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
+                )
         )
 
         ExerciseAsyncIcon(
@@ -109,7 +121,11 @@ fun SupersetExerciseColumn(
             contentDescription = exercise?.name,
             modifier = Modifier
                 .size(40.dp)
-                .clickable { onOpenPrForExercise(entry.exerciseId) },
+                .combinedClickable(
+                    onClick = { onOpenPrForExercise(entry.exerciseId) },
+                    onLongClickLabel = "Replace exercise",
+                    onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
+                ),
             tint = Color.Unspecified
         )
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,7 @@ import com.chiron.core.ui.theme.PrGoldDark
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @Composable
 fun PrDetailPanel(
@@ -54,11 +56,15 @@ fun PrDetailPanel(
     viewModel: ExercisesViewModel,
     displayInKg: Boolean,
     distanceUnit: DistanceUnit,
-    onOpenWorkout: (Long, Long) -> Unit = { _, _ -> }
+    onOpenWorkout: (Long, Long) -> Unit = { _, _ -> },
+    onOpenExercise: (Long) -> Unit = {}
 ) {
-    val prs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
+    val allPrs by viewModel.getPrsForExerciseFlow(exercise.id).collectAsState(initial = emptyList())
     val estimate by viewModel.get1rmEstimateForExerciseFlow(exercise.id).collectAsState(initial = null)
     val category = exercise.prCategory()
+    val prs = remember(allPrs, category) {
+        if (category == PrCategory.WEIGHT_REPS) allPrs.filter { it.repsInt > 0 } else allPrs
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -74,7 +80,8 @@ fun PrDetailPanel(
                 tint = Color.Unspecified
             )
             Spacer(Modifier.width(12.dp))
-            Text(text = exercise.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = exercise.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onOpenExercise(exercise.id) })
         }
 
         HorizontalDivider()
@@ -122,7 +129,7 @@ fun PrDetailPanel(
                         val distMeters = (pr.bucket / 100000.0).roundToHundredth()
                         val reps = (pr.bucket - distMeters * 100000.0).roundToInt()
                         val title = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
-                        val value = UnitConversion.formatWeight(pr.record, displayInKg)
+                        val value = formatPrWeight(pr.record, displayInKg)
                         PrRow(title = title, value = value, timestampUtc = pr.timestampUtc, onClick = { onOpenWorkout(exercise.id, pr.setId) })
                     }
                 }
@@ -145,17 +152,17 @@ fun PrDetailPanel(
                             PrCategory.WEIGHT_REPS -> {
                                 val reps = pr.repsInt
                                 val label = if (reps == 1) "1 Rep Max" else "$reps Rep Max"
-                                label to UnitConversion.formatWeight(pr.weightLbs, displayInKg)
+                                label to formatPrWeight(pr.weightLbs, displayInKg)
                             }
                             PrCategory.TIME_WEIGHT -> {
                                 val weight = pr.bucket
-                                val label = "Duration for ${UnitConversion.formatWeight(weight, displayInKg)}"
+                                val label = "Duration for ${formatPrWeight(weight, displayInKg)}"
                                 val durationVal = UnitConversion.formatDuration(pr.record.toInt())
                                 label to durationVal
                             }
                             PrCategory.DISTANCE_WEIGHT -> {
                                 val weight = pr.bucket
-                                val label = "Distance for ${UnitConversion.formatWeight(weight, displayInKg)}"
+                                val label = "Distance for ${formatPrWeight(weight, displayInKg)}"
                                 val distVal = UnitConversion.formatDistance(pr.record, distanceUnit)
                                 label to distVal
                             }
@@ -179,6 +186,11 @@ fun PrDetailPanel(
 
 private val DistanceChipShape = RoundedCornerShape(6.dp)
 private val PrRowShape = RoundedCornerShape(12.dp)
+
+private fun formatPrWeight(weightLbs: Double, displayInKg: Boolean): String {
+    val weight = if (displayInKg) UnitConversion.lbsToKg(weightLbs) else weightLbs
+    return "${weight.roundToLong()} ${if (displayInKg) "kg" else "lbs"}"
+}
 
 @Composable
 fun DistanceSelectorBar(
@@ -226,26 +238,36 @@ fun PrRow(
     timestampUtc: Long,
     onClick: () -> Unit = {}
 ) {
-    val dateLabel = remember(timestampUtc) {
+    val today = java.time.LocalDate.now()
+    val dateLabel = remember(timestampUtc, today) {
         try {
             val date = java.time.Instant.ofEpochMilli(timestampUtc)
                 .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
             val dow = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
             val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-            "$dow, $month ${date.dayOfMonth}"
+            "$dow, $month ${date.dayOfMonth}" + if (date.year != today.year) ", ${date.year}" else ""
         } catch (e: Exception) { "" }
     }
 
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .clip(PrRowShape)
             .background(PrGold.copy(alpha = 0.08f))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
     ) {
+      if (maxWidth < 240.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrGoldDark)
+            if (dateLabel.isNotEmpty()) {
+                Text(dateLabel, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f))
+            }
+        }
+      } else {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (dateLabel.isNotEmpty()) {
@@ -256,19 +278,21 @@ fun PrRow(
                 )
             }
         }
-        Spacer(Modifier.width(24.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = PrGoldDark
         )
+        }
+      }
     }
 }
 
 @Composable
 fun Estimate1rmRow(estimate: Exercise1rmEstimate, displayInKg: Boolean) {
-    val weightText = UnitConversion.formatWeight(estimate.estimateLbs, displayInKg)
+    val weightText = formatPrWeight(estimate.estimateLbs, displayInKg)
 
     Column(
         modifier = Modifier

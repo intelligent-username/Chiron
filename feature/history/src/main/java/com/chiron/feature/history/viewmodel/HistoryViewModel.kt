@@ -370,6 +370,8 @@ class HistoryViewModel(
         repository.insertExerciseEntry(ExerciseEntry(workoutId = workoutId, exerciseId = exerciseId, slotIndex = repository.getNextSlotIndex(workoutId), sequenceType = SequenceType.NONE.name))
 
     fun updateExerciseEntry(entry: ExerciseEntry) { viewModelScope.launch { runCatching { repository.updateExerciseEntry(entry) } } }
+    suspend fun replaceWorkoutExercise(entryId: Long, expectedExerciseId: Long, replacementId: Long) =
+        repository.replaceWorkoutExercise(entryId, expectedExerciseId, replacementId)
     fun deleteExerciseEntry(workoutId: Long, entryId: Long) {
         viewModelScope.launch {
             val entries = repository.getEntriesForWorkout(workoutId).first()

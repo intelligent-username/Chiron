@@ -32,7 +32,8 @@ class ExercisesViewModel(
                     val prResults = if (state.prSearchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        SearchRanker.rankBySimilarity(state.prSearchQuery, exercises, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.prSearchQuery,
+                            if (state.showArchived) state.archivedExercises else exercises, { it.name }, limit = 100)
                     }
                     state.copy(
                         exercises = exercises,
@@ -54,7 +55,8 @@ class ExercisesViewModel(
                     val prResults = if (state.prSearchQuery.isBlank()) {
                         emptyList()
                     } else {
-                        SearchRanker.rankBySimilarity(state.prSearchQuery, archived, { it.name }, limit = 100)
+                        SearchRanker.rankBySimilarity(state.prSearchQuery,
+                            if (state.showArchived) archived else state.exercises, { it.name }, limit = 100)
                     }
                     state.copy(
                         archivedExercises = archived,

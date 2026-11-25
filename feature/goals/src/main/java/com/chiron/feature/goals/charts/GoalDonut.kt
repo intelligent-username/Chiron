@@ -1,6 +1,7 @@
 package com.chiron.feature.goals
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,11 @@ fun GoalDonut(
     content: @Composable BoxScope.() -> Unit = {}
 ) {
     val target = progress.coerceIn(0f, 1f)
+    val displayedColor by animateColorAsState(
+        targetValue = accentColor,
+        animationSpec = tween(durationMillis = 180),
+        label = "goalDonutColor"
+    )
     val displayed = if (animateProgress && drawRing) {
         val animated by animateFloatAsState(
             targetValue = target,
@@ -54,7 +60,7 @@ fun GoalDonut(
                 style = Stroke(width = stroke, cap = StrokeCap.Round)
             )
             drawArc(
-                color = accentColor,
+                color = displayedColor,
                 startAngle = -90f,
                 sweepAngle = 360f * displayed,
                 useCenter = false,

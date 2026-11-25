@@ -6,7 +6,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,14 +16,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.chiron.core.common.UserSettingsRepository
 import com.chiron.core.database.ChironRepository
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -44,6 +51,20 @@ fun SettingsScreen(
     val customizeTripleTap by repository.metronomeCustomizeTripleTapFlow.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var notificationAccessGranted by remember(context) {
+        mutableStateOf(com.chiron.feature.timer.metronome.ChironNotificationListenerService.isNotificationAccessGranted(context))
+    }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationAccessGranted =
+                    com.chiron.feature.timer.metronome.ChironNotificationListenerService.isNotificationAccessGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
     var isExporting by remember { mutableStateOf(false) }
@@ -130,8 +151,10 @@ fun SettingsScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
         ) {
+            SettingsSectionHeading("Measurements")
             // Unit Setting
             Row(
                 modifier = Modifier
@@ -143,9 +166,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(
-                        text = "Units",
+                        text = "Weight unit",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
@@ -156,6 +179,7 @@ fun SettingsScreen(
                 }
                 
                 Switch(
+                    modifier = Modifier.settingsSwitchSize(),
                     checked = displayInKg,
                     onCheckedChange = { checked ->
                         scope.launch { repository.setDisplayInKg(checked) }
@@ -163,7 +187,7 @@ fun SettingsScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            SettingsDivider()
 
             // Distance unit setting
             Row(
@@ -182,9 +206,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(
-                        text = "Distance Unit",
+                        text = "Distance unit",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
@@ -194,6 +218,7 @@ fun SettingsScreen(
                     )
                 }
                 Switch(
+                    modifier = Modifier.settingsSwitchSize(),
                     checked = distanceUnit == com.chiron.core.common.DistanceUnit.FEET,
                     onCheckedChange = { checked ->
                         scope.launch {
@@ -206,6 +231,7 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsSectionHeading("Playback")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -216,19 +242,20 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(
-                        text = "Spotify Mini-Player",
+                        text = "Spotify mini-player",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (spotifyEnabled) "Showing playback controls\n(Must have Spotify installed)" else "Hidden\n(Must have Spotify installed)",
+                        text = if (spotifyEnabled) "Playback controls shown · Spotify required" else "Playback controls hidden · Spotify required",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Switch(
+                    modifier = Modifier.settingsSwitchSize(),
                     checked = spotifyEnabled,
                     onCheckedChange = { checked ->
                         scope.launch { repository.setSpotifyEnabled(checked) }
@@ -247,7 +274,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                         Text(
                             text = "Match app theme with playing media",
                             style = MaterialTheme.typography.bodyLarge
@@ -260,6 +287,7 @@ fun SettingsScreen(
                     }
 
                     Switch(
+                        modifier = Modifier.settingsSwitchSize(),
                         checked = matchThemeWithMedia,
                         onCheckedChange = { checked ->
                             scope.launch { repository.setMatchThemeWithMedia(checked) }
@@ -269,6 +297,7 @@ fun SettingsScreen(
             }
 
             // Metronome Controls Master Setting
+            SettingsDivider()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -281,7 +310,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(
-                        text = "Metronome Controls",
+                        text = "Metronome controls",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
@@ -292,6 +321,7 @@ fun SettingsScreen(
                 }
 
                 Switch(
+                    modifier = Modifier.settingsSwitchSize(),
                     checked = metronomeControlsEnabled,
                     onCheckedChange = { checked ->
                         scope.launch { repository.setMetronomeControlsEnabled(checked) }
@@ -300,7 +330,7 @@ fun SettingsScreen(
             }
 
             if (metronomeControlsEnabled) {
-                if (!com.chiron.feature.timer.metronome.ChironNotificationListenerService.isNotificationAccessGranted(context)) {
+                if (!notificationAccessGranted) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -315,6 +345,13 @@ fun SettingsScreen(
                             .padding(start = 32.dp, top = 0.dp, bottom = 8.dp, end = 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(
+                            text = "*",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clearAndSetSemantics { }
+                        )
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             text = "Tap to grant notification access in Settings",
                             style = MaterialTheme.typography.bodySmall,
@@ -347,6 +384,7 @@ fun SettingsScreen(
                     }
 
                     Switch(
+                        modifier = Modifier.settingsSwitchSize(),
                         checked = customizeSingleTap,
                         onCheckedChange = { checked ->
                             scope.launch { repository.setMetronomeCustomizeSingleTap(checked) }
@@ -378,6 +416,7 @@ fun SettingsScreen(
                     }
 
                     Switch(
+                        modifier = Modifier.settingsSwitchSize(),
                         checked = customizeDoubleTap,
                         onCheckedChange = { checked ->
                             scope.launch { repository.setMetronomeCustomizeDoubleTap(checked) }
@@ -409,6 +448,7 @@ fun SettingsScreen(
                     }
 
                     Switch(
+                        modifier = Modifier.settingsSwitchSize(),
                         checked = customizeTripleTap,
                         onCheckedChange = { checked ->
                             scope.launch { repository.setMetronomeCustomizeTripleTap(checked) }
@@ -417,7 +457,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            SettingsSectionHeading("Workout history")
 
             Row(
                 modifier = Modifier
@@ -438,12 +478,12 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f).padding(end = 16.dp)
                 )
-                Switch(checked = showWorkoutVolume, onCheckedChange = null)
+                Switch(checked = showWorkoutVolume, onCheckedChange = null, modifier = Modifier.settingsSwitchSize())
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            SettingsSectionHeading("Data")
 
-            Button(
+            OutlinedButton(
                 onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) exportData(null)
                     else exportFileLauncher.launch("Chiron.zip")
@@ -452,23 +492,23 @@ fun SettingsScreen(
                 enabled = !isExporting && !isImporting
             ) {
                 Text(
-                    text = if (isExporting) "Exporting…" else "Export Data",
+                    text = if (isExporting) "Exporting…" else "Export data",
                     style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Button(
+            OutlinedButton(
                 onClick = {
-                    if (isImporting) return@Button
+                    if (isImporting) return@OutlinedButton
                     filePickerLauncher.launch("*/*")
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImporting && !isExporting
             ) {
                 Text(
-                    text = if (isImporting) "Importing…" else "Import Data",
+                    text = if (isImporting) "Importing…" else "Import data",
                     style = MaterialTheme.typography.labelLarge.copy(shadow = null, fontWeight = FontWeight.SemiBold)
                 )
             }
@@ -547,6 +587,28 @@ fun SettingsScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun SettingsSectionHeading(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+    )
+}
+
+private fun Modifier.settingsSwitchSize(): Modifier = graphicsLayer {
+    scaleX = 0.85f
+    scaleY = 0.85f
+}
+
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
 }

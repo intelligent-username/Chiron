@@ -69,10 +69,15 @@ fun BodyweightGraphCard(
                 val current = state.stats.current
 
                 Column {
-                    Text(text = "Weight trend", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text(text = "Touch chart to inspect", color = CoolGray, fontSize = 12.sp)
+                    Box(Modifier.height(24.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(text = "Weight trend", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Box(Modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(text = "Touch chart to inspect", color = CoolGray, fontSize = 12.sp)
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
+                    Box(Modifier.height(24.dp), contentAlignment = Alignment.CenterEnd) {
                     key(localInKg, current != null) {
                         val target = current?.let { if (localInKg) UnitConversion.lbsToKg(it) else it }
                         val displayed by animateFloatAsState(targetValue = target?.toFloat() ?: 0f,
@@ -85,6 +90,7 @@ fun BodyweightGraphCard(
                             fontFamily = MonospaceFamily,
                             fontSize = 16.sp
                         )
+                    }
                     }
                     Row(
                         modifier = Modifier.heightIn(min = 48.dp).toggleable(
@@ -108,14 +114,6 @@ fun BodyweightGraphCard(
                         )
                         Text("Calories", color = CoolGray, fontSize = 11.sp)
                     }
-                }
-            }
-        },
-        units = {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(unit, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
-                if (caloriesEnabled) {
-                    Text("kcal", color = Color(0xFFFFA726), style = MaterialTheme.typography.labelSmall)
                 }
             }
         },

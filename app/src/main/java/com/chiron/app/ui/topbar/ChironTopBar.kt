@@ -53,7 +53,8 @@ fun ChironTopBar(
     onOpenPresets: () -> Unit,
     onRefreshVolume: () -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPrScreenOpen: Boolean = false
 ) {
     TopAppBar(
         modifier = modifier,
@@ -73,6 +74,7 @@ fun ChironTopBar(
             }
             Box(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(
+                    enabled = !(selectedTab == NavTab.EXERCISES && isPrScreenOpen),
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = toggle

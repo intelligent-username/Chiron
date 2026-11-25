@@ -50,7 +50,8 @@ fun BottomNavBar(
     isVolumeMode: Boolean = false,
     isGoalsMode: Boolean = false,
     isBodyweightMode: Boolean = false,
-    drawBackgroundAndBorder: Boolean = true
+    drawBackgroundAndBorder: Boolean = true,
+    exercisesEnabled: Boolean = true
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -124,6 +125,7 @@ fun BottomNavBar(
                             .weight(1f)
                             .fillMaxHeight()
                             .clickable(
+                                enabled = tab != NavTab.EXERCISES || exercisesEnabled,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = { onTabSelected(tab) }

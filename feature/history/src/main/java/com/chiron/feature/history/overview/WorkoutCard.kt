@@ -61,6 +61,7 @@ fun WorkoutCard(
             ) {
                 Text(
                     text = workout.dayTag.ifBlank { "Untitled Workout" },
+                    modifier = Modifier.workoutPreviewAnchor(workout.id, "title"),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -69,6 +70,7 @@ fun WorkoutCard(
                 )
                 Text(
                     text = DateUtils.formatWorkoutCardDate(workout),
+                    modifier = Modifier.workoutPreviewAnchor(workout.id, "date"),
                     style = MaterialTheme.typography.bodyLarge,
                     color = CoolGray
                 )
@@ -81,11 +83,13 @@ fun WorkoutCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (volumeLbs != null) {
-                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
+                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg,
+                        modifier = Modifier.workoutPreviewAnchor(workout.id, "volume"))
                 }
                 if (workout.locationTag.isNotBlank()) {
                     Box(
                         modifier = Modifier
+                            .workoutPreviewAnchor(workout.id, "location")
                             .clip(RoundedCornerShape(4.dp))
                             .background(ThinOutline)
                             .padding(horizontal = 8.dp, vertical = 2.dp)

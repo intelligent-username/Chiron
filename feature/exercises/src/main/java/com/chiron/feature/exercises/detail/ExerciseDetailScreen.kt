@@ -1,7 +1,6 @@
 package com.chiron.feature.exercises
 
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,18 +79,18 @@ fun ExerciseDetailScreen(
         return
     }
 
-    var nameState by remember { mutableStateOf(exercise.name) }
-    var descState by remember { mutableStateOf(exercise.description ?: "") }
-    var iconState by remember { mutableStateOf(exercise.iconName ?: "default") }
+    var nameState by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.name) }
+    var descState by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.description ?: "") }
+    var iconState by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.iconName ?: "default") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showPermanentDeleteConfirmation by remember { mutableStateOf(false) }
     var showImmutabilityError by remember { mutableStateOf(false) }
 
-    var weightEnabled by remember(exercise.id) { mutableStateOf(exercise.isWeightBased == 1) }
-    var distanceEnabled by remember(exercise.id) { mutableStateOf(exercise.isDistanceBased == 1) }
-    var useReps by remember(exercise.id) { mutableStateOf(exercise.isTimeBased != 1) }
-    var bodyweightEnabled by remember(exercise.id) { mutableStateOf(exercise.isBodyweight == 1) }
-    var percentText by remember(exercise.id) { mutableStateOf(formatBodyweightPercent(exercise.percentBodyweight)) }
+    var weightEnabled by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.isWeightBased == 1) }
+    var distanceEnabled by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.isDistanceBased == 1) }
+    var useReps by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.isTimeBased != 1) }
+    var bodyweightEnabled by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(exercise.isBodyweight == 1) }
+    var percentText by androidx.compose.runtime.saveable.rememberSaveable(exercise.id) { mutableStateOf(formatBodyweightPercent(exercise.percentBodyweight)) }
     val initialIsBodyweight = remember(exercise.id) { exercise.isBodyweight == 1 }
     var showPresets by remember(exercise.id) { mutableStateOf(false) }
 
@@ -118,23 +117,7 @@ fun ExerciseDetailScreen(
     }
 
     Scaffold(
-        modifier = modifier.pointerInput(exercise.id) {
-            val threshold = 64.dp.toPx()
-            var distance = 0f
-            detectHorizontalDragGestures(
-                onDragStart = { distance = 0f },
-                onDragCancel = { distance = 0f },
-                onDragEnd = {
-                    if (distance < -threshold) navigate(true)
-                    else if (distance > threshold) navigate(false)
-                    distance = 0f
-                },
-                onHorizontalDrag = { change, amount ->
-                    change.consume()
-                    distance += amount
-                }
-            )
-        },
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(

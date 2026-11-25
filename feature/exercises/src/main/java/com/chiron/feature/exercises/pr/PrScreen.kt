@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,22 +52,26 @@ fun PrScreen(
     initialExerciseId: Long? = null,
     onClose: () -> Unit,
     onOpenWorkout: (Long, Long) -> Unit = { _, _ -> },
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenExercise: (Long) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var exercisesWithPrs by remember { mutableStateOf<List<Exercise>>(emptyList()) }
-    LaunchedEffect(uiState.showArchived) {
-        val ids = viewModel.getExerciseIdsWithPrs().toSet()
-        val source = if (uiState.showArchived) uiState.archivedExercises else uiState.exercises
-        exercisesWithPrs = source.filter { it.id in ids }
+    var exerciseIdsWithPrs by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    LaunchedEffect(uiState.showArchived, uiState.exercises, uiState.archivedExercises) {
+        exerciseIdsWithPrs = viewModel.getExerciseIdsWithPrs().toSet()
+    }
+    val source = if (uiState.showArchived) uiState.archivedExercises else uiState.exercises
+    val exercisesWithPrs = remember(source, exerciseIdsWithPrs) {
+        source.filter { it.id in exerciseIdsWithPrs }
     }
 
-    var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
+    var selectedExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val selectedExercise = exercisesWithPrs.firstOrNull { it.id == selectedExerciseId }
     LaunchedEffect(initialExerciseId, exercisesWithPrs) {
         val targetId = initialExerciseId ?: return@LaunchedEffect
         val target = exercisesWithPrs.firstOrNull { it.id == targetId }
         if (target != null) {
-            selectedExercise = target
+            selectedExerciseId = target.id
         }
     }
     androidx.activity.compose.BackHandler(enabled = uiState.prSearchQuery.isNotBlank()) {
@@ -79,6 +84,7 @@ fun PrScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
@@ -89,7 +95,7 @@ fun PrScreen(
                         Text("Personal Records", fontWeight = FontWeight.Bold)
                     }
                 },
-                navigationIcon = {
+                actions = {
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
                 }
             )
@@ -107,7 +113,7 @@ fun PrScreen(
                 selectedExercise = selectedExercise,
                 focusManager = focusManager,
                 viewModel = viewModel,
-                onSelectExercise = { selectedExercise = it }
+                onSelectExercise = { selectedExerciseId = it.id }
             )
 
             VerticalDivider()
@@ -131,7 +137,8 @@ fun PrScreen(
                         viewModel = viewModel,
                         displayInKg = displayInKg,
                         distanceUnit = distanceUnit,
-                        onOpenWorkout = onOpenWorkout
+                        onOpenWorkout = onOpenWorkout,
+                        onOpenExercise = onOpenExercise
                     )
                 }
             }

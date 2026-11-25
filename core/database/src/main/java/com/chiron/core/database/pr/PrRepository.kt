@@ -80,30 +80,33 @@ class PrRepository(
      * Full PR rebuild for one exercise. Safe to call after deletions or bulk fixes.
      * Support all PR categories (WEIGHT_REPS, TIME_WEIGHT, DISTANCE_WEIGHT, DISTANCE_TIME).
      */
-    suspend fun rebuildPrsForExercise(exerciseId: Long) {
+    suspend fun rebuildPrsForExercise(exerciseId: Long, recomputeHistoricalFlags: Boolean = false) {
         val exercise = exerciseDao.getById(exerciseId) ?: return
         val category = exercise.prCategory()
 
         exercisePrDao.clearAllForExercise(exerciseId)
 
-        val allSets = setEntryDao.getAllSetsForExerciseAny(exerciseId)
+        val recordedSets = setEntryDao.getAllSetsForExerciseAny(exerciseId)
+        if (recomputeHistoricalFlags) setEntryDao.clearPrFlagsForExercise(exerciseId)
+        val allSets = if (recomputeHistoricalFlags) recordedSets.map { it.copy(isPr = 0) } else recordedSets
         val sortedSets = allSets.sortedWith(compareBy({ it.timestampUtc }, { it.id }))
 
         when (category) {
             PrCategory.WEIGHT_REPS -> {
                 val bestPerReps = mutableMapOf<Int, SetEntry>()
-                for (set in allSets) {
+                for (set in sortedSets) {
                     val reps = set.reps ?: continue
                     val weight = set.weightLbs ?: continue
-                    if (set.isFailed != 0) continue
+                    if (set.isFailed != 0 || reps <= 0) continue
                     val current = bestPerReps[reps]
                     if (current == null || weight > current.weightLbs!!) {
                         bestPerReps[reps] = set
+                        if (recomputeHistoricalFlags) setEntryDao.updateSet(set.copy(isPr = 1))
                     }
                 }
 
                 for ((_, set) in bestPerReps) {
-                    if (set.isPr != 1) {
+                    if (!recomputeHistoricalFlags && set.isPr != 1) {
                         setEntryDao.updateSet(set.copy(isPr = 1))
                     }
                     exercisePrDao.upsert(

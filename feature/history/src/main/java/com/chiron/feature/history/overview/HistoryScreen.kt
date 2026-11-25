@@ -2,6 +2,7 @@ package com.chiron.feature.history
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -28,19 +29,70 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.chiron.core.model.WorkoutSession
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
+
+internal class WorkoutHeaderMotion {
+    private val positions = mutableMapOf<Pair<Long, String>, Offset>()
+    var workoutId by mutableStateOf<Long?>(null)
+    val origins = mutableMapOf<String, Offset>()
+    val progress = Animatable(1f)
+
+    fun capture(id: Long, part: String, position: Offset) {
+        positions[id to part] = position
+    }
+
+    fun begin(id: Long) {
+        origins.clear()
+        listOf("title", "date", "location", "volume").forEach { part ->
+            positions[id to part]?.let { origins[part] = it }
+        }
+        workoutId = id
+    }
+}
+
+internal val LocalWorkoutHeaderMotion = staticCompositionLocalOf<WorkoutHeaderMotion?> { null }
+
+@Composable
+internal fun Modifier.workoutPreviewAnchor(id: Long, part: String): Modifier {
+    val motion = LocalWorkoutHeaderMotion.current ?: return this
+    return onGloballyPositioned { motion.capture(id, part, it.positionInWindow()) }
+}
+
+@Composable
+internal fun Modifier.workoutDetailAnchor(id: Long, part: String): Modifier {
+    val motion = LocalWorkoutHeaderMotion.current ?: return this
+    var destination by remember(id, part) { mutableStateOf<Offset?>(null) }
+    return onGloballyPositioned { destination = it.positionInWindow() }
+        .graphicsLayer {
+            val start = motion.origins[part]
+            val end = destination
+            if (motion.workoutId == id && start != null && end != null) {
+                val remaining = 1f - motion.progress.value
+                translationX = (start.x - end.x) * remaining
+                translationY = (start.y - end.y) * remaining
+            }
+        }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +114,16 @@ fun HistoryScreen(
     val listState = rememberLazyListState()
     val editingId = if (state.isEditorOpen) state.editingWorkoutId else null
     val target = editingId ?: Long.MIN_VALUE
+    val headerMotion = remember { WorkoutHeaderMotion() }
+    LaunchedEffect(target, headerMotion.workoutId) {
+        if (target != headerMotion.workoutId) return@LaunchedEffect
+        headerMotion.progress.snapTo(0f)
+        withFrameNanos { }
+        headerMotion.progress.animateTo(1f, tween(180))
+        headerMotion.workoutId = null
+    }
 
+    CompositionLocalProvider(LocalWorkoutHeaderMotion provides headerMotion) {
     Crossfade(
         targetState = target,
         animationSpec = tween(180),
@@ -194,7 +255,7 @@ fun HistoryScreen(
                     Box {
                         WorkoutCard(
                             workout = workout,
-                            onClick = { viewModel.openEditor(workout.id) },
+                            onClick = { headerMotion.begin(workout.id); viewModel.openEditor(workout.id) },
                             onLongClick = { expandedWorkoutId = workout.id },
                             volumeLbs = if (state.showWorkoutVolume) state.workoutVolumesLbs[workout.id] ?: 0.0 else null,
                             displayInKg = state.displayInKg
@@ -259,6 +320,7 @@ fun HistoryScreen(
             },
             onDismiss = { showDeleteDialog = false; workoutToDelete = null }
         )
+    }
     }
     }
 }

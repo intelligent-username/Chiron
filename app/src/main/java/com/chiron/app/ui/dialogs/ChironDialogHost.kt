@@ -25,6 +25,7 @@ fun ChironDialogHost(
     bodyweightDisplayInKg: Boolean = true,
     onClosePrScreen: () -> Unit,
     onOpenWorkoutFromPr: (Long, Long) -> Unit,
+    onOpenExerciseFromPr: (Long) -> Unit,
     isPresetsOpen: Boolean,
     presets: List<TimerPreset>,
     countdownSeconds: Int,
@@ -48,6 +49,7 @@ fun ChironDialogHost(
             initialExerciseId = prTargetExerciseId,
             onClose = onClosePrScreen,
             onOpenWorkout = onOpenWorkoutFromPr,
+            onOpenExercise = onOpenExerciseFromPr,
             modifier = Modifier.fillMaxSize()
         )
     }

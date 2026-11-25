@@ -1,6 +1,8 @@
 package com.chiron.feature.history
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -61,7 +63,7 @@ import kotlinx.coroutines.launch
  *
  * Supports press-and-hold last-session preview (single exercise and superset variants).
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ExerciseEntryCard(
     entry: ExerciseEntry,
@@ -83,6 +85,7 @@ fun ExerciseEntryCard(
 ) {
     val sets by viewModel.getSetsForEntry(entry.id).collectAsState(initial = emptyList())
     var exercise by remember { mutableStateOf<Exercise?>(null) }
+    var showReplaceExercise by remember(entry.id) { mutableStateOf(false) }
     var exerciseNotes by remember { mutableStateOf(entry.notes ?: "") }
     var committedExerciseNotes by remember(entry.id) { mutableStateOf(entry.notes ?: "") }
     var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
@@ -127,6 +130,10 @@ fun ExerciseEntryCard(
     val exercisesNeededInSuperset = numExercisesInSuperset - currentExercisesInSuperset
     val contentAlpha = if (isPreviewingLastSession) 0.55f else 1f
 
+    if (showReplaceExercise && isEditable) {
+        ReplaceWorkoutExerciseDialog(entry, exercise, viewModel, onDismiss = { showReplaceExercise = false })
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,7 +169,11 @@ fun ExerciseEntryCard(
                         contentDescription = exercise?.name,
                         modifier = Modifier
                             .size(48.dp)
-                            .clickable { onOpenPrForExercise(entry.exerciseId) },
+                            .combinedClickable(
+                                onClick = { onOpenPrForExercise(entry.exerciseId) },
+                                onLongClickLabel = "Replace exercise",
+                                onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
+                            ),
                         tint = Color.Unspecified
                     )
                 }
@@ -243,7 +254,11 @@ fun ExerciseEntryCard(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clickable { onOpenExerciseDetail(entry.exerciseId) }
+                                modifier = Modifier.combinedClickable(
+                                    onClick = { onOpenPrForExercise(entry.exerciseId) },
+                                    onLongClickLabel = "Replace exercise",
+                                    onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
+                                )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             FlowRow(
