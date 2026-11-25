@@ -30,8 +30,7 @@ fun GoalsContent(
     onNextWeek: () -> Unit,
     onOpenGoal: (GoalWithProgress) -> Unit,
     modifier: Modifier = Modifier,
-    gridState: LazyGridState = rememberLazyGridState(),
-    motion: GoalMotionState? = null
+    gridState: LazyGridState = rememberLazyGridState()
 ) {
     val weekLabel = if (state.isAtCurrentWeek) {
         "This Week"
@@ -81,9 +80,7 @@ fun GoalsContent(
                     GoalCard(
                         goal = goal,
                         index = index,
-                        onOpen = onOpenGoal,
-                        motion = motion,
-                        progressKey = state.currentWeekStart
+                        onOpen = onOpenGoal
                     )
                 }
             }

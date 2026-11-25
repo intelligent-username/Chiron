@@ -70,7 +70,14 @@ fun VolumeLineGraph(
         if (motion.frame == target) return@LaunchedEffect
         val from = motion.frame
         progress.snapTo(0f)
-        progress.animateTo(1f, tween(180)) { motion.frame = blendVolumeFrame(from, target, value) }
+        // Markers interpolate independently of the line and read as a point wandering
+        // on its own. Show them only once the line has settled.
+        motion.animating = true
+        try {
+            progress.animateTo(1f, tween(180)) { motion.frame = blendVolumeFrame(from, target, value) }
+        } finally {
+            motion.animating = false
+        }
         motion.frame = target
     }
     val unit = if (displayInKg) "kg" else "lbs"
@@ -187,13 +194,15 @@ fun VolumeLineGraph(
                     color = lineAccentColor.copy(alpha = frame.alpha),
                     style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
-                val stride = ceil(frame.markers.size * 10f / graphW).toInt().coerceAtLeast(1)
-                frame.markers.values.forEachIndexed { i, marker ->
-                    if (marker.value > 0.0 &&
-                        ((mode == VolumeMode.BY_DAY && i % stride == 0) ||
-                            i % maxOf(7, stride) == 0 || i == frame.markers.size - 1)) {
-                        drawCircle(lineAccentColor.copy(alpha = marker.alpha), 3f,
-                            Offset(padLeft + marker.x * graphW, yOf(marker.value)))
+                if (!motion.animating) {
+                    val stride = ceil(frame.markers.size * 10f / graphW).toInt().coerceAtLeast(1)
+                    frame.markers.values.forEachIndexed { i, marker ->
+                        if (marker.value > 0.0 &&
+                            ((mode == VolumeMode.BY_DAY && i % stride == 0) ||
+                                i % maxOf(7, stride) == 0 || i == frame.markers.size - 1)) {
+                            drawCircle(lineAccentColor.copy(alpha = marker.alpha), 3f,
+                                Offset(padLeft + marker.x * graphW, yOf(marker.value)))
+                        }
                     }
                 }
             }
@@ -288,6 +297,7 @@ private data class VolumeFrame(
 )
 private class VolumeMotion(initial: VolumeFrame) {
     var frame by mutableStateOf(initial)
+    var animating by mutableStateOf(false)
 }
 
 private fun volumeFrame(points: List<VolumePoint>, inKg: Boolean, max: Double): VolumeFrame {

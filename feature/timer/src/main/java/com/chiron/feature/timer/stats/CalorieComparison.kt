@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -96,7 +97,10 @@ internal fun CalorieComparison(
     state: BodyweightUiState,
     end: LocalDate,
     weeks: Int,
-    showCalorieGoal: Boolean = true
+    maxWeeks: Int,
+    onWeeksChange: (Int) -> Unit,
+    showCalorieGoal: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     var overlay by rememberSaveable { mutableStateOf(false) }
     var lag by rememberSaveable { mutableIntStateOf(0) }
@@ -119,7 +123,6 @@ internal fun CalorieComparison(
     val weightMin = validWeights.minOrNull() ?: 0.0
     val weightMax = (validWeights.maxOrNull() ?: weightMin).coerceAtLeast(weightMin + if (state.displayInKg) 0.5 else 1.0)
 
-    // Missing or zero-calorie days should not determine the visible calorie range.
     val dailyTarget = history.globalTarget()?.calories
     val calorieValuesForScale = points.map { it.calories }.filter { it > 0.0 } +
         listOfNotNull(dailyTarget.takeIf { showCalorieGoal })
@@ -156,7 +159,9 @@ internal fun CalorieComparison(
         targetValue = latestTarget.toFloat(),
         animationSpec = tween(180), label = "currentCalories")
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    StatsChartCard(
+        modifier = modifier,
+        header = {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Calorie trend", style = MaterialTheme.typography.titleMedium)
@@ -178,17 +183,20 @@ internal fun CalorieComparison(
                 }
             }
         }
+        },
+        units = {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("kcal", color = CalorieColor, style = MaterialTheme.typography.labelSmall)
             if (motion.frame.overlayAlpha > 0f) Text(if (state.displayInKg) "kg" else "lbs", color = WeightColor,
                 modifier = Modifier.graphicsLayer { alpha = motion.frame.overlayAlpha },
                 style = MaterialTheme.typography.labelSmall)
         }
+        },
+        chart = {
         val selectedPoint = points.getOrNull(selected)
         Canvas(
             Modifier
-                .fillMaxWidth()
-                .height(260.dp)
+                .fillMaxSize()
                 .semantics {
                     contentDescription = (selectedPoint ?: points.lastOrNull())?.let {
                         "${it.date}: ${it.calories} calories, ${it.protein} grams protein"
@@ -235,13 +243,13 @@ internal fun CalorieComparison(
             // Grid lines and axis labels
             for (tick in 0..4) {
                 val py = top + plotHeight * (1f - tick / 4f)
-                drawLine(colors.outline.copy(alpha = 0.6f), Offset(left, py), Offset(left + plotWidth, py), 1.dp.toPx())
+                drawLine(colors.outline.copy(alpha = 0.6f), Offset(left - 8.dp.toPx(), py), Offset(left + plotWidth + 8.dp.toPx(), py), 1.dp.toPx())
                 val label = measurer.measure("%.0f".format(frame.min + (frame.max - frame.min) * tick / 4), axisStyle)
                 drawText(label, topLeft = Offset(left - label.size.width - 6.dp.toPx(), py - label.size.height / 2f))
                 if (frame.overlayAlpha > 0f) {
                     val weightLabel = measurer.measure("%.1f".format(frame.secondaryMin +
                         (frame.secondaryMax - frame.secondaryMin) * tick / 4), axisStyle.copy(color = WeightColor))
-                    drawText(weightLabel, topLeft = Offset(left + plotWidth + 6.dp.toPx(), py - weightLabel.size.height / 2f),
+                    drawText(weightLabel, topLeft = Offset(left + plotWidth + 14.dp.toPx(), py - weightLabel.size.height / 2f),
                         alpha = frame.overlayAlpha)
                 }
             }
@@ -348,9 +356,29 @@ internal fun CalorieComparison(
                 drawText(layout, topLeft = Offset(tx, ty))
             }
         }
-        if (overlay && !showWeightAxis) Text("No weight history to overlay", style = MaterialTheme.typography.bodySmall,
-            color = colors.onSurfaceVariant)
-    }
+        },
+        footer = {
+            Column {
+                if (overlay && !showWeightAxis) Text("No weight history to overlay", style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant)
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Range: $weeks week${if (weeks == 1) "" else "s"}",
+                        style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                }
+                Slider(
+                    value = weeks.toFloat(),
+                    onValueChange = { onWeeksChange(it.roundToInt()) },
+                    valueRange = 1f..maxWeeks.toFloat(),
+                    steps = (maxWeeks - 2).coerceAtLeast(0),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                )
+            }
+        }
+    )
     if (explanation) {
         AlertDialog(onDismissRequest = { explanation = false }, title = { Text("Overlay weight") },
             text = { Text("Show weight on this calorie chart using a separate scale on the right. Missing weight readings use the same estimates as the Weight tab. Tap Weight again to set a lag from −3 to +3 days. Negative lag uses earlier weight dates; positive lag uses later dates.") },

@@ -1,5 +1,7 @@
 package com.chiron.feature.history
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -58,24 +60,34 @@ fun HistoryScreen(
     var deleteMode by remember { mutableStateOf("archive") }
 
     val listState = rememberLazyListState()
+    val editingId = if (state.isEditorOpen) state.editingWorkoutId else null
+    val target = editingId ?: Long.MIN_VALUE
 
-    if (state.isEditorOpen && state.editingWorkoutId != null) {
-        val workout = (state.workouts + state.archivedWorkouts).find { it.id == state.editingWorkoutId }
-        key(state.editingWorkoutId) {
-            WorkoutEditor(
-                workout = workout,
-                viewModel = viewModel,
-                onClose = { viewModel.closeEditor() },
-                onOpenPrForExercise = onOpenPrForExercise,
-                onOpenExerciseDetail = onOpenExerciseDetail,
-                onOpenSetInWorkout = onOpenSetInWorkout,
-                modifier = modifier
-            )
+    Crossfade(
+        targetState = target,
+        animationSpec = tween(180),
+        modifier = modifier.fillMaxSize(),
+        label = "history-workout"
+    ) { shownId ->
+        if (shownId != Long.MIN_VALUE) {
+            val workout = (state.workouts + state.archivedWorkouts).find { it.id == shownId }
+            if (workout != null) {
+                key(shownId) {
+                    WorkoutEditor(
+                        workout = workout,
+                        viewModel = viewModel,
+                        onClose = { viewModel.closeEditor() },
+                        onOpenPrForExercise = onOpenPrForExercise,
+                        onOpenExerciseDetail = onOpenExerciseDetail,
+                        onOpenSetInWorkout = onOpenSetInWorkout,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            return@Crossfade
         }
-        return
-    }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             // Day tag filters (whole row for more space)
             if (state.dayTags.isNotEmpty()) {
@@ -247,5 +259,6 @@ fun HistoryScreen(
             },
             onDismiss = { showDeleteDialog = false; workoutToDelete = null }
         )
+    }
     }
 }

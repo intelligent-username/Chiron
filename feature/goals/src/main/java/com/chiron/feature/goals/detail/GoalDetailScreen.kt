@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,8 +60,7 @@ fun GoalDetailScreen(
     onDelete: () -> Unit,
     onBack: () -> Unit,
     onNavigate: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    motion: GoalMotionState? = null
+    modifier: Modifier = Modifier
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val progress = if (goal.weeklyTarget > 0) (goal.daysDone.toFloat() / goal.weeklyTarget).coerceIn(0f, 1f) else 0f
@@ -72,10 +70,6 @@ fun GoalDetailScreen(
         MaterialTheme.colorScheme.tertiary
     )
     val accent = accents[currentIndex.coerceAtLeast(0) % accents.size]
-    val density = LocalDensity.current
-    val radius = with(density) { 20.dp.toPx() }
-    val stroke = with(density) { 10.dp.toPx() }
-    val hidden = motion?.hides(goal.id, true) == true
 
     Column(
         modifier = modifier
@@ -108,34 +102,31 @@ fun GoalDetailScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
         Card(
-            modifier = Modifier.fillMaxWidth()
-                .goalAnchor(motion, goal.id, true, false, radius, stroke, progress, accent),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = if (hidden) Color.Transparent else SolidSlate),
-            border = if (hidden) null else BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = if (hidden) 0.dp else 2.dp)
+            colors = CardDefaults.cardColors(containerColor = SolidSlate),
+            border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp)) {
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            IconButton(
-                onClick = { if (currentIndex > 0) onNavigate(currentIndex - 1) },
-                enabled = currentIndex > 0,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
-            }
-            GoalDonut(
-                progress = progress,
-                modifier = Modifier.size(160.dp)
-                    .goalAnchor(motion, goal.id, true, true, radius, stroke, progress, accent),
-                strokeWidth = 10.dp,
-                accentColor = accent,
-                drawRing = !hidden,
-                animateProgress = false
-            ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp)) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(
+                        onClick = { if (currentIndex > 0) onNavigate(currentIndex - 1) },
+                        enabled = currentIndex > 0,
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous goal", tint = if (currentIndex > 0) Color.White else CoolGray.copy(alpha = 0.4f))
+                    }
+                    GoalDonut(
+                        progress = progress,
+                        modifier = Modifier.size(160.dp),
+                        strokeWidth = 10.dp,
+                        accentColor = accent,
+                        animateProgress = false
+                    ) {
                 Text(
                     text = "${goal.daysDone}/${goal.weeklyTarget}",
                     color = if (completed) accent else Color.White,

@@ -1,5 +1,12 @@
 package com.chiron.feature.history
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -118,63 +125,30 @@ fun WorkoutEditorHeader(
                     .clickable(enabled = isEditable) { showNameDialog = true }
             )
 
-            if (showNameDialog) {
-                val isKnownDayTag = dayTags.contains(editableDayTag)
-                var nameSelectedOption by remember(workout.id, editableDayTag) {
-                    mutableStateOf(if (isKnownDayTag) editableDayTag else "Custom")
-                }
-                var nameCustomInput by remember(workout.id, editableDayTag) {
-                    mutableStateOf(if (isKnownDayTag) "" else editableDayTag)
-                }
-
-                AlertDialog(
-                    onDismissRequest = { showNameDialog = false },
-                    title = { Text("Workout Name") },
-                    text = {
-                        SelectionInput(
-                            label = "Name",
-                            options = dayTags,
-                            selectedOption = nameSelectedOption,
-                            onOptionSelected = { option ->
-                                nameSelectedOption = option
-                                if (option != "Custom") {
-                                    nameCustomInput = ""
-                                    onDayTagChange(option)
-                                }
-                            },
-                            customInput = nameCustomInput,
-                            onCustomInputChange = {
-                                nameCustomInput = it
-                                onDayTagChange(it)
-                            }
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showNameDialog = false }) {
-                            Text("Done")
+            Crossfade(
+                targetState = isEditable,
+                animationSpec = tween(150),
+                label = "header-actions"
+            ) { editing ->
+                if (editing) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onShowDuplicateDialog) {
+                            Icon(
+                                Icons.Outlined.ContentCopy,
+                                "Duplicate Workout",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    }
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isEditable) {
-                    IconButton(onClick = onShowDuplicateDialog) {
-                        Icon(
-                            Icons.Outlined.ContentCopy,
-                            "Duplicate Workout",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onShowDeleteDialog) {
-                        Icon(
-                            Icons.Default.Delete,
-                            if (workout.archived != 0) "Delete Workout Permanently" else "Archive Workout",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
-                        )
-                    }
-                    TextButton(onClick = onDone) {
-                        Text("Done", style = MaterialTheme.typography.titleMedium)
+                        IconButton(onClick = onShowDeleteDialog) {
+                            Icon(
+                                Icons.Default.Delete,
+                                if (workout.archived != 0) "Delete Workout Permanently" else "Archive Workout",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                            )
+                        }
+                        TextButton(onClick = onDone) {
+                            Text("Done", style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 } else {
                     IconButton(onClick = onEnableEdit) {
@@ -184,157 +158,217 @@ fun WorkoutEditorHeader(
             }
         }
 
-        // Row 2: Date + Location
-        Row(
-                    modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!isEditable) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = DateUtils.formatWorkoutCardDate(workout),
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            textAlign = TextAlign.Start
+        val filteredLocations = remember(editableLocation, allLocations) {
+            allLocations.filter { it.contains(editableLocation, ignoreCase = true) }.take(5)
+        }
+
+        // Row 2: Date + Location - Crossfade entire row for stable layout
+        Crossfade(
+            targetState = isEditable,
+            animationSpec = tween(150),
+            label = "header-date-location"
+        ) { editing ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left side: date/time
+                if (!editing) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = DateUtils.formatWorkoutCardDate(workout),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Start
+                            )
                         )
-                    )
+                        Text(
+                            text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Start
+                            )
+                        )
+                    }
+                } else {
                     Text(
                         text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             textAlign = TextAlign.Start
-                        )
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { isTimeDialogOpen = true }
+                            .padding(vertical = 8.dp)
                     )
                 }
-            } else {
-                Text(
-                    text = "${DateUtils.getStartStr(workout)} - ${DateUtils.getEndStr(workout)}",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Start
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { isTimeDialogOpen = true }
-                        .padding(vertical = 8.dp)
-                )
-            }
 
-            if (isTimeDialogOpen) {
-                WorkoutTimeDialog(
-                    initialStartDate = DateUtils.getDateStr(workout),
-                    initialStart = DateUtils.getStartStr(workout),
-                    initialEndDate = DateUtils.getEndDateStr(workout),
-                    initialEnd = DateUtils.getEndStr(workout),
-                    onReset = onResetTimes,
-                    onDismiss = { isTimeDialogOpen = false },
-                    onConfirm = { startDate, startTime, endDate, endTime ->
-                        tryUpdateTimes(startDate, startTime, endDate, endTime)
-                        isTimeDialogOpen = false
-                    }
-                )
-            }
-
-            val filteredLocations = remember(editableLocation, allLocations) {
-                allLocations.filter { it.contains(editableLocation, ignoreCase = true) }.take(5)
-            }
-
-            Column(
-                modifier = Modifier.width(160.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (volumeLbs != null) {
-                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
-                }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    if (volumeLbs != null) {
-                        BasicTextField(
-                            value = editableLocation,
-                            onValueChange = {
-                                if (isEditable) {
-                                    onLocationChange(it)
-                                    expandedLocation = true
+                // Right side: location (view) or location editor (edit)
+                if (!editing) {
+                    // View mode: show location as text
+                    Text(
+                        text = editableLocation,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            textAlign = TextAlign.End,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.width(160.dp).align(Alignment.CenterVertically).padding(top = 8.dp)
+                    )
+                } else {
+                    // Edit mode: location editor (animated)
+                    AnimatedVisibility(
+                        visible = isEditable,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut(),
+                        modifier = Modifier.width(160.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.width(160.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (volumeLbs != null) {
+                                    WorkoutVolumeTag(volumeLbs = volumeLbs, displayInKg = displayInKg)
                                 }
-                            },
-                            readOnly = !isEditable,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                textAlign = TextAlign.End,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .semantics { contentDescription = "Location" },
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    if (editableLocation.isBlank()) {
-                                        Text(
-                                            "Location",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (volumeLbs != null) {
+                                        BasicTextField(
+                                            value = editableLocation,
+                                            onValueChange = {
+                                                if (isEditable) {
+                                                    onLocationChange(it)
+                                                    expandedLocation = true
+                                                }
+                                            },
+                                            readOnly = !isEditable,
+                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                textAlign = TextAlign.End,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            ),
+                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                                            singleLine = true,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .semantics { contentDescription = "Location" },
+                                            decorationBox = { innerTextField ->
+                                                Box(
+                                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                                    contentAlignment = Alignment.CenterEnd
+                                                ) {
+                                                    if (editableLocation.isBlank()) {
+                                                        Text(
+                                                            "Location",
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    innerTextField()
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        TextField(
+                                            value = editableLocation,
+                                            onValueChange = {
+                                                if (!isEditable) return@TextField
+                                                onLocationChange(it)
+                                                expandedLocation = true
+                                            },
+                                            readOnly = !isEditable,
+                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                textAlign = TextAlign.End,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            ),
+                                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                                            colors = TextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                focusedIndicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                                unfocusedIndicatorColor = Color.Transparent,
+                                                disabledIndicatorColor = Color.Transparent
+                                            ),
+                                            singleLine = true,
+                                            placeholder = {
+                                                Text("Location", textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
-                                    innerTextField()
+                                }
+
+                                DropdownMenu(
+                                    expanded = expandedLocation && filteredLocations.isNotEmpty(),
+                                    onDismissRequest = { expandedLocation = false },
+                                    properties = PopupProperties(focusable = false),
+                                    modifier = Modifier.border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
+                                ) {
+                                    filteredLocations.forEach { loc ->
+                                        DropdownMenuItem(
+                                            text = { Text(loc) },
+                                            onClick = {
+                                                onLocationChange(loc)
+                                                expandedLocation = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
-                        )
-                    } else {
-                        TextField(
-                            value = editableLocation,
-                            onValueChange = {
-                                if (!isEditable) return@TextField
-                                onLocationChange(it)
-                                expandedLocation = true
-                            },
-                            readOnly = !isEditable,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                textAlign = TextAlign.End,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            ),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                            colors = transparentTextFieldColors(),
-                            singleLine = true,
-                            placeholder = {
-                                Text("Location", textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = expandedLocation && filteredLocations.isNotEmpty(),
-                        onDismissRequest = { expandedLocation = false },
-                        properties = PopupProperties(focusable = false),
-                        modifier = Modifier.border(1.dp, ThinOutline, RoundedCornerShape(8.dp))
-                    ) {
-                        filteredLocations.forEach { loc ->
-                            DropdownMenuItem(
-                                text = { Text(loc) },
-                                onClick = {
-                                    onLocationChange(loc)
-                                    expandedLocation = false
-                                }
-                            )
                         }
                     }
                 }
             }
         }
 
+        if (isTimeDialogOpen) {
+            WorkoutTimeDialog(
+                initialStartDate = DateUtils.getDateStr(workout),
+                initialStart = DateUtils.getStartStr(workout),
+                initialEndDate = DateUtils.getEndDateStr(workout),
+                initialEnd = DateUtils.getEndStr(workout),
+                onReset = onResetTimes,
+                onDismiss = { isTimeDialogOpen = false },
+                onConfirm = { startDate, startTime, endDate, endTime ->
+                    tryUpdateTimes(startDate, startTime, endDate, endTime)
+                    isTimeDialogOpen = false
+                }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = !isEditable && editableLocation.isNotBlank(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+            modifier = Modifier
+                .width(160.dp)
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 8.dp)
+        ) {
+            Text(
+                text = editableLocation,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            )
+        }
+
         // Notes field
-        if (isEditable || editableNotes.isNotBlank()) {
+        AnimatedVisibility(
+            visible = isEditable || editableNotes.isNotBlank(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
             OutlinedTextField(
                 value = editableNotes,
                 onValueChange = { if (isEditable) onNotesChange(it) },
@@ -382,7 +416,7 @@ fun WorkoutEditorHeader(
 
 /** Shared transparent [TextFieldDefaults.colors] for all inline header fields. */
 @Composable
-private fun transparentTextFieldColors() = TextFieldDefaults.colors(
+internal fun transparentTextFieldColors() = TextFieldDefaults.colors(
     focusedContainerColor = Color.Transparent,
     unfocusedContainerColor = Color.Transparent,
     focusedIndicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),

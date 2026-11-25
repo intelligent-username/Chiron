@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.chiron.core.ui.theme.SolidSlate
 import com.chiron.core.ui.theme.ThinOutline
@@ -51,7 +52,7 @@ class GoalMotionState internal constructor() {
     var active by mutableStateOf(false)
         private set
 
-    fun hides(id: Long, detail: Boolean) = active && destination == (id to detail)
+    fun hides(id: Long) = active && destination?.first == id
 
     private fun visible(rect: Rect): Boolean {
         val size = host?.takeIf { it.isAttached }?.size ?: return false
@@ -145,19 +146,28 @@ internal fun rememberGoalMotionState(): GoalMotionState {
     val generation = state.request
     val target = state.target
     LaunchedEffect(generation) {
-        if (state.active && state.target == null) {
-            // Allow destination placement, not a timed wait or scroll to manufacture a target.
+        if (!state.active) return@LaunchedEffect
+        // Destination anchors report during layout. Waiting a few frames instead of
+        // cancelling after one avoids dropping the motion when the destination's first
+        // composition lands late (the usual case on a cold goal-detail screen).
+        var frames = 0
+        while (state.request == generation && state.target == null && frames < 6) {
             withFrameNanos { }
-            if (state.request == generation && state.target == null) state.cancel()
+            frames++
         }
+        if (state.request == generation && state.target == null) state.cancel()
     }
     LaunchedEffect(generation, target) {
-        if (state.active && target != null) {
-            state.fraction.snapTo(0f)
-            state.start(generation)
-            state.fraction.animateTo(1f, tween(durationMillis = 180, delayMillis = 0))
-            state.finish(generation)
-        }
+        if (!state.active || target == null) return@LaunchedEffect
+        // The destination's first composition/layout is the most expensive frame of the
+        // transition. Let it finish before the tween clock starts; otherwise the whole
+        // 180ms tween can be consumed inside that single long frame and render as a jump.
+        withFrameNanos { }
+        if (state.request != generation || state.target == null) return@LaunchedEffect
+        state.fraction.snapTo(0f)
+        state.start(generation)
+        state.fraction.animateTo(1f, tween(durationMillis = 180, delayMillis = 0))
+        state.finish(generation)
     }
     return state
 }
@@ -175,36 +185,34 @@ internal fun Modifier.goalAnchor(
     state.measure(id, detail, ring, it, radius, stroke, progress, accent)
 }
 
-/** Shell is behind the single destination's text; the ring is above its hidden ring. */
+/** Shell and ring are drawn above the destination, so the card reads as one moving object. */
 @Composable
-internal fun GoalMotionOverlay(state: GoalMotionState, ringOnly: Boolean) {
+internal fun GoalMotionOverlay(state: GoalMotionState) {
     val solidSlate = SolidSlate
     val thinOutline = ThinOutline
+    val strokeWidth = LocalDensity.current.run { 1.dp.toPx() }
     Canvas(Modifier.fillMaxSize()) {
         if (!state.active) return@Canvas
         val geometry = state.frame() ?: return@Canvas
-        if (!ringOnly) {
-            drawRoundRect(
-                solidSlate, geometry.card.topLeft, geometry.card.size,
-                CornerRadius(geometry.radius)
-            )
-            drawRoundRect(
-                thinOutline.copy(alpha = thinOutline.alpha * geometry.borderAlpha),
-                geometry.card.topLeft, geometry.card.size,
-                CornerRadius(geometry.radius), style = Stroke(1.dp.toPx())
-            )
-        } else {
-            val ring = geometry.ring
-            // Match GoalDonut's existing stroke-centered oval geometry.
-            drawArc(
-                thinOutline, -90f, 360f, false, ring.topLeft, ring.size,
-                style = Stroke(geometry.stroke, cap = StrokeCap.Round)
-            )
-            drawArc(
-                geometry.accent, -90f, 360f * geometry.progress.coerceIn(0f, 1f),
-                false, ring.topLeft, ring.size,
-                style = Stroke(geometry.stroke, cap = StrokeCap.Round)
-            )
-        }
+        drawRoundRect(
+            solidSlate, geometry.card.topLeft, geometry.card.size,
+            CornerRadius(geometry.radius)
+        )
+        drawRoundRect(
+            thinOutline.copy(alpha = thinOutline.alpha * geometry.borderAlpha),
+            geometry.card.topLeft, geometry.card.size,
+            CornerRadius(geometry.radius), style = Stroke(strokeWidth)
+        )
+        val ring = geometry.ring
+        // Match GoalDonut's existing stroke-centered oval geometry.
+        drawArc(
+            thinOutline, -90f, 360f, false, ring.topLeft, ring.size,
+            style = Stroke(geometry.stroke, cap = StrokeCap.Round)
+        )
+        drawArc(
+            geometry.accent, -90f, 360f * geometry.progress.coerceIn(0f, 1f),
+            false, ring.topLeft, ring.size,
+            style = Stroke(geometry.stroke, cap = StrokeCap.Round)
+        )
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -26,9 +25,8 @@ fun GoalsScreen(
     val state by viewModel.uiState.collectAsState()
     val form by viewModel.goalForm.collectAsState()
     val gridState = rememberLazyGridState()
-    val motion = rememberGoalMotionState()
+
     val closeDetail: () -> Unit = {
-        state.selectedGoal?.let { motion.begin(it.id, fromDetail = true) }
         viewModel.closeDetail()
     }
 
@@ -40,8 +38,7 @@ fun GoalsScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { motion.host = it }) {
-        GoalMotionOverlay(motion, ringOnly = false)
+    Box(modifier = modifier.fillMaxSize()) {
         when {
             state.isLoading -> {
                 CircularProgressIndicator(
@@ -59,30 +56,24 @@ fun GoalsScreen(
                         exercises = state.selectedGoalExercises,
                         weekStart = state.currentWeekStart,
                         onEdit = { viewModel.openEditDialog(goal) },
-                        onArchive = { motion.cancel(); viewModel.archiveSelected() },
-                        onDelete = { motion.cancel(); viewModel.deleteSelected() },
+                        onArchive = { viewModel.archiveSelected() },
+                        onDelete = { viewModel.deleteSelected() },
                         onBack = closeDetail,
-                        onNavigate = { motion.cancel(); viewModel.openDetailAtIndex(it) },
-                        modifier = Modifier.fillMaxSize(),
-                        motion = motion
+                        onNavigate = { viewModel.openDetailAtIndex(it) },
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
             else -> {
                 GoalsContent(
                     state = state,
-                    onPrevWeek = { motion.cancel(); viewModel.goToPreviousWeek() },
-                    onNextWeek = { motion.cancel(); viewModel.goToNextWeek() },
-                    onOpenGoal = {
-                        motion.begin(it.id, fromDetail = false)
-                        viewModel.openDetail(it)
-                    },
-                    gridState = gridState,
-                    motion = motion
+                    onPrevWeek = { viewModel.goToPreviousWeek() },
+                    onNextWeek = { viewModel.goToNextWeek() },
+                    onOpenGoal = { viewModel.openDetail(it) },
+                    gridState = gridState
                 )
             }
         }
-        GoalMotionOverlay(motion, ringOnly = true)
 
         if (!state.isDetailOpen && !state.isLoading) {
             FloatingActionButton(

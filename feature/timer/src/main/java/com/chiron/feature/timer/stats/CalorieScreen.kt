@@ -37,7 +37,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,7 +58,6 @@ import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.CalorieTarget
 import java.time.LocalDate
-import kotlin.math.roundToInt
 import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -251,18 +249,19 @@ fun CalorieScreen(
         }
         error?.let { message -> item(key = "error") { Text(message, color = MaterialTheme.colorScheme.error) } }
         item(key = "graph") {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp), modifier = graphModifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CalorieComparison(history, weightState, graphWindow.end, displayedWeeks, showCalorieGoal)
-                    Text("Range: $displayedWeeks week${if (displayedWeeks == 1) "" else "s"}",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Slider(value = displayedWeeks.toFloat(), onValueChange = {
-                        weeks = it.roundToInt()
-                        graphEnd = today
-                    }, valueRange = 1f..maxWeeks.toFloat(), steps = (maxWeeks - 2).coerceAtLeast(0))
-                }
-            }
+            CalorieComparison(
+                history = history,
+                state = weightState,
+                end = graphWindow.end,
+                weeks = displayedWeeks,
+                maxWeeks = maxWeeks,
+                onWeeksChange = {
+                    weeks = it
+                    graphEnd = today
+                },
+                showCalorieGoal = showCalorieGoal,
+                modifier = graphModifier
+            )
         }
         item(key = "range") {
             val formatter = DateTimeFormatter.ofPattern("MMM d")

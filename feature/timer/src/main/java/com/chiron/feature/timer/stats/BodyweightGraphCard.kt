@@ -3,26 +3,21 @@ package com.chiron.feature.timer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -48,8 +43,6 @@ import com.chiron.core.common.UnitConversion
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.MonospaceFamily
-import com.chiron.core.ui.theme.SolidSlate
-import com.chiron.core.ui.theme.ThinOutline
 import kotlin.math.roundToInt
 
 @Composable
@@ -69,13 +62,9 @@ fun BodyweightGraphCard(
     val calorieOverlay = remember(state.points, calorieHistory.entries, calorieLag, caloriesEnabled) {
         if (caloriesEnabled) WeightCalorieOverlayCalculator.build(state.points, calorieHistory.entries, calorieLag) else null
     }
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = SolidSlate),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, ThinOutline)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    StatsChartCard(
+        modifier = modifier,
+        header = {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 val current = state.stats.current
 
@@ -121,16 +110,22 @@ fun BodyweightGraphCard(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Keep one chart owner even when data becomes empty, so outgoing runs can settle.
-            Box(Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
+        },
+        units = {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(unit, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                if (caloriesEnabled) {
+                    Text("kcal", color = Color(0xFFFFA726), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        },
+        chart = {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BodyweightLineGraph(
                     points = state.points,
                     localInKg = localInKg,
                     mode = state.mode,
-                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    modifier = Modifier.fillMaxSize(),
                     calorieOverlay = calorieOverlay
                 )
                 if (state.points.isEmpty() || state.points.all { it.weightLbs == 0.0 }) {
@@ -142,41 +137,43 @@ fun BodyweightGraphCard(
                     )
                 }
             }
-
-            // Week-range slider: from 1 week up to total weeks spanning earliest entry to today
-            val maxWeeks = kotlin.math.max(2, state.maxWeekCount)
-            val currentWeekVal = state.weekCount.toFloat().coerceIn(1f, maxWeeks.toFloat())
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Range: ${state.weekCount} week${if (state.weekCount == 1) "" else "s"}",
-                    color = CoolGray,
-                    fontSize = 12.sp
-                )
-                if (state.earliestDate != null) {
+        },
+        footer = {
+            Column {
+                // Week-range slider: from 1 week up to total weeks spanning earliest entry to today
+                val maxWeeks = kotlin.math.max(2, state.maxWeekCount)
+                val currentWeekVal = state.weekCount.toFloat().coerceIn(1f, maxWeeks.toFloat())
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = StatsChartGeometry.RowHeight),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "First log: ${state.earliestDate}",
+                        text = "Range: ${state.weekCount} week${if (state.weekCount == 1) "" else "s"}",
                         color = CoolGray,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
+                    )
+                    if (state.earliestDate != null) {
+                        Text(
+                            text = "First log: ${state.earliestDate}",
+                            color = CoolGray,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                if (maxWeeks > 1) {
+                    Slider(
+                        value = currentWeekVal,
+                        onValueChange = { onWeekCountChange(it.roundToInt()) },
+                        valueRange = 1f..maxWeeks.toFloat(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     )
                 }
             }
-            if (maxWeeks > 1) {
-                Slider(
-                    value = currentWeekVal,
-                    onValueChange = { onWeekCountChange(it.roundToInt()) },
-                    valueRange = 1f..maxWeeks.toFloat(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                )
-            }
         }
-    }
+    )
     if (showExplanation) {
         AlertDialog(
             onDismissRequest = { showExplanation = false },

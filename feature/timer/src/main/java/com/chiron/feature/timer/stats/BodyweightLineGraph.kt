@@ -148,7 +148,6 @@ fun BodyweightLineGraph(
             clipRect(left - 4.dp.toPx(), top - 4.dp.toPx(), left + width + 4.dp.toPx(), top + height + 4.dp.toPx()) {
                 drawChartSeries(frame.primary, frame.min, frame.max, left, top, width, height,
                     electricBlue, solidSlate)
-                // Secondary dashes sit above the solid line; coincident runs retain both identities.
                 drawChartSeries(frame.secondary, frame.secondaryMin, frame.secondaryMax, left, top, width, height,
                     Color(0xFFFFA726), solidSlate, frame.overlayAlpha, dashed = true)
                 val secondaryStride = ceil(frame.secondary.markers.size * 16.dp.toPx() / width).toInt().coerceAtLeast(1)
@@ -223,7 +222,6 @@ internal class ChartMotion(initial: ChartFrame) {
 
 @Composable
 internal fun rememberChartMotion(target: ChartFrame, unitKey: Any): ChartMotion {
-    // Replacing the complete frame on a unit change avoids blending kg with pounds.
     val motion = remember(unitKey) { ChartMotion(target) }
     val progress = remember(unitKey) { Animatable(1f) }
     LaunchedEffect(target, motion) {
@@ -264,7 +262,6 @@ internal fun chartSeries(values: List<Double?>, ids: List<String>, actualIds: Se
     val samples = (0..256).map { i ->
         val x = i / 256.0
         val value = sample(x)
-        // Never connect across a null observation, including gaps narrower than a sample.
         val previousX = (i - 1).coerceAtLeast(0) / 256.0
         val lo = floor(previousX * values.lastIndex.coerceAtLeast(0)).toInt()
         val hi = ceil(x * values.lastIndex.coerceAtLeast(0)).toInt()
@@ -297,11 +294,9 @@ private fun blendChartFrame(a: ChartFrame, b: ChartFrame, t: Float): ChartFrame 
         }
         return ChartSeries(samples, markers)
     }
-    // When hiding an overlay, retain its geometry/scale until alpha reaches zero.
     val secondary = if (b.overlayAlpha == 0f) a.secondary else b.secondary
     val secondaryMin = if (b.overlayAlpha == 0f) a.secondaryMin else b.secondaryMin
     val secondaryMax = if (b.overlayAlpha == 0f) a.secondaryMax else b.secondaryMax
-    // A previously absent scale has no visible origin: initialize it at the real overlay scale.
     val fromSecondaryMin = if (a.overlayAlpha == 0f) secondaryMin else a.secondaryMin
     val fromSecondaryMax = if (a.overlayAlpha == 0f) secondaryMax else a.secondaryMax
     val fromMin = if (a.primary.markers.isEmpty()) b.min else a.min
@@ -319,7 +314,6 @@ internal fun DrawScope.drawChartSeries(
     val span = (max - min).coerceAtLeast(.000001)
     fun p(i: Int) = Offset(left + width * i / 256f,
         top + height * (1f - ((series.samples[i].value - min) / span).toFloat()))
-    // Group contiguous equal-opacity segments so dashes do not restart at every sample.
     var index = 1
     while (index < series.samples.size) {
         val opacity = (alpha * series.samples[index].edgeAlpha *
