@@ -16,11 +16,30 @@ import com.chiron.core.model.ExerciseEntry
 fun groupExercisesBySuperset(
     entries: List<ExerciseEntry>
 ): List<List<ExerciseEntry>> {
+    val linkedGroups = entries.filter { it.groupId != null }.groupBy { it.groupId }
+    val emittedIds = mutableSetOf<Long>()
+    val orderedEntries = buildList {
+        entries.forEach { entry ->
+            if (entry.id in emittedIds) return@forEach
+            val linked = linkedGroups[entry.groupId]
+            if (linked != null && linked.any { it.sequenceType == "SUPERSET_START" }) {
+                val sorted = linked.sortedWith(
+                    compareBy<ExerciseEntry> { it.sequenceType != "SUPERSET_START" }
+                        .thenBy { it.slotIndex }
+                )
+                addAll(sorted)
+                emittedIds.addAll(sorted.map { it.id })
+            } else {
+                add(entry)
+                emittedIds.add(entry.id)
+            }
+        }
+    }
     val groups = mutableListOf<List<ExerciseEntry>>()
     var currentGroup = mutableListOf<ExerciseEntry>()
     var isBuildingSuperset = false
 
-    for (entry in entries) {
+    for (entry in orderedEntries) {
         when (entry.sequenceType) {
             "SUPERSET_START" -> {
                 if (currentGroup.isNotEmpty()) {

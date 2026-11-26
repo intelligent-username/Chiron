@@ -370,6 +370,62 @@ class HistoryViewModel(
         repository.insertExerciseEntry(ExerciseEntry(workoutId = workoutId, exerciseId = exerciseId, slotIndex = repository.getNextSlotIndex(workoutId), sequenceType = SequenceType.NONE.name))
 
     fun updateExerciseEntry(entry: ExerciseEntry) { viewModelScope.launch { runCatching { repository.updateExerciseEntry(entry) } } }
+
+    suspend fun addSupersetExercise(workoutId: Long, parentEntryId: Long, exerciseId: Long) {
+        val current = repository.getEntriesForWorkout(workoutId).first()
+        val parent = current.find { it.id == parentEntryId } ?: return
+        val groupId = parent.groupId ?: parent.id
+        val members = current.filter { it.id == parent.id || it.groupId == groupId }
+            .sortedWith(compareBy<ExerciseEntry> { it.id != parent.id }.thenBy { it.slotIndex })
+        if (members.size >= 5 || members.any { it.exerciseId == exerciseId }) return
+        val count = members.size + 1
+        val newEntry = ExerciseEntry(
+            workoutId = workoutId,
+            exerciseId = exerciseId,
+            slotIndex = repository.getNextSlotIndex(workoutId),
+            groupId = groupId,
+            sequenceType = "SUPERSET_END",
+            numExercisesInSuperset = count
+        )
+        repository.insertExerciseEntry(newEntry)
+        members.forEachIndexed { index, member ->
+            repository.updateExerciseEntry(
+                member.copy(
+                    groupId = groupId,
+                    sequenceType = if (index == 0) "SUPERSET_START" else "SUPERSET_MIDDLE",
+                    numExercisesInSuperset = count
+                )
+            )
+        }
+    }
+
+    suspend fun reduceSuperset(parentEntryId: Long, workoutId: Long) {
+        val current = repository.getEntriesForWorkout(workoutId).first()
+        val parent = current.find { it.id == parentEntryId } ?: return
+        val groupId = parent.groupId ?: parent.id
+        val members = current.filter { it.id == parent.id || it.groupId == groupId }
+            .sortedWith(compareBy<ExerciseEntry> { it.id != parent.id }.thenBy { it.slotIndex })
+        if (members.size < 2) return
+        val remaining = members.dropLast(1)
+        // Unlink rather than delete the removed exercise and its logged sets.
+        repository.updateExerciseEntry(
+            members.last().copy(groupId = null, sequenceType = "NONE", numExercisesInSuperset = 1)
+        )
+        remaining.forEachIndexed { index, member ->
+            repository.updateExerciseEntry(
+                member.copy(
+                    groupId = if (remaining.size == 1) null else groupId,
+                    sequenceType = when {
+                        remaining.size == 1 -> "NONE"
+                        index == 0 -> "SUPERSET_START"
+                        index == remaining.lastIndex -> "SUPERSET_END"
+                        else -> "SUPERSET_MIDDLE"
+                    },
+                    numExercisesInSuperset = remaining.size
+                )
+            )
+        }
+    }
     suspend fun replaceWorkoutExercise(entryId: Long, expectedExerciseId: Long, replacementId: Long) =
         repository.replaceWorkoutExercise(entryId, expectedExerciseId, replacementId)
     fun deleteExerciseEntry(workoutId: Long, entryId: Long) {

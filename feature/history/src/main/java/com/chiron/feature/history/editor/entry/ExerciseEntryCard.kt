@@ -170,7 +170,7 @@ fun ExerciseEntryCard(
                         modifier = Modifier
                             .size(48.dp)
                             .combinedClickable(
-                                onClick = { onOpenPrForExercise(entry.exerciseId) },
+                                onClick = { onOpenExerciseDetail(entry.exerciseId) },
                                 onLongClickLabel = "Replace exercise",
                                 onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
                             ),
@@ -396,17 +396,6 @@ fun ExerciseEntryCard(
                     isSupersetEnabled = isSupersetEnabled,
                     onSupersetToggle = { newValue ->
                         if (newValue) {
-                            isSupersetEnabled = true
-                            val groupId = entry.groupId ?: entry.id
-                            scope.launch {
-                                viewModel.updateExerciseEntry(
-                                    entry.copy(
-                                        sequenceType = "SUPERSET_START",
-                                        groupId = groupId,
-                                        numExercisesInSuperset = numExercisesInSuperset.coerceAtLeast(2)
-                                    )
-                                )
-                            }
                             onRequestAddExercise()
                         } else {
                             isSupersetEnabled = false
@@ -441,21 +430,8 @@ fun ExerciseEntryCard(
                         }
                     },
                     onIncrement = {
-                        if (numExercisesInSuperset < 5) {
-                            numExercisesInSuperset++
-                            scope.launch {
-                                viewModel.updateExerciseEntry(
-                                    entry.copy(
-                                        numExercisesInSuperset = numExercisesInSuperset,
-                                        sequenceType = "SUPERSET_START",
-                                        groupId = entry.groupId ?: entry.id
-                                    )
-                                )
-                            }
-                        }
-                    },
-                    exercisesNeeded = exercisesNeededInSuperset,
-                    onAddExercises = { onRequestAddExercise() }
+                        onRequestAddExercise()
+                    }
                 )
             }
         }

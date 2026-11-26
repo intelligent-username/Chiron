@@ -47,16 +47,23 @@ fun AddExerciseDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var allExercises by remember { mutableStateOf(emptyList<Exercise>()) }
+    var isAdding by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         allExercises = viewModel.getAllExercises()
     }
 
+    val parent = entries.find { it.id == parentEntryId }
+    val groupId = parent?.groupId ?: parent?.id
+    val memberExerciseIds = if (parent == null) emptySet() else entries
+        .filter { it.id == parent.id || it.groupId == groupId }
+        .map { it.exerciseId }.toSet()
+    val selectableExercises = allExercises.filter { it.id !in memberExerciseIds }
     val filteredExercises = if (searchQuery.isBlank()) {
-        allExercises
+        selectableExercises
     } else {
-        allExercises.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        selectableExercises.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
     AlertDialog(
@@ -83,7 +90,8 @@ fun AddExerciseDialog(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable(enabled = !isAdding) {
+                                    isAdding = true
                                     scope.launch {
                                         if (parentEntryId == null) {
                                             viewModel.addExerciseEntry(workoutId, exercise.id)
@@ -92,60 +100,7 @@ fun AddExerciseDialog(
                                             return@launch
                                         }
 
-                                        val parentEntry = entries.find { it.id == parentEntryId }
-                                        if (parentEntry == null) {
-                                            onDismiss()
-                                            return@launch
-                                        }
-
-                                        val groupIdentifier = parentEntry.groupId ?: parentEntry.id
-                                        val existingSupersetEntries = entries.filter {
-                                            it.id == parentEntry.id || it.groupId == groupIdentifier
-                                        }
-
-                                        // Prevent adding the same exercise twice to the superset
-                                        if (existingSupersetEntries.any { it.exerciseId == exercise.id }) {
-                                            return@launch
-                                        }
-
-                                        viewModel.updateExerciseEntry(
-                                            parentEntry.copy(
-                                                sequenceType = "SUPERSET_START",
-                                                groupId = groupIdentifier,
-                                                numExercisesInSuperset = parentEntry.numExercisesInSuperset.coerceAtLeast(2)
-                                            )
-                                        )
-
-                                        // Demote the current tail to MIDDLE
-                                        val oldTail = existingSupersetEntries
-                                            .filter { it.id != parentEntry.id }
-                                            .maxByOrNull { it.slotIndex }
-
-                                        if (oldTail != null) {
-                                            viewModel.updateExerciseEntry(
-                                                oldTail.copy(
-                                                    sequenceType = "SUPERSET_MIDDLE",
-                                                    groupId = groupIdentifier
-                                                )
-                                            )
-                                        }
-
-                                        val newEntryId = viewModel.addExerciseEntrySuspend(workoutId, exercise.id)
-                                        val newSlotIndex = (entries.maxOfOrNull { it.slotIndex } ?: 0) + 1
-
-                                        viewModel.updateExerciseEntry(
-                                            ExerciseEntry(
-                                                id = newEntryId,
-                                                workoutId = workoutId,
-                                                exerciseId = exercise.id,
-                                                slotIndex = newSlotIndex,
-                                                groupId = groupIdentifier,
-                                                sequenceType = "SUPERSET_END",
-                                                notes = null,
-                                                archived = 0,
-                                                numExercisesInSuperset = parentEntry.numExercisesInSuperset.coerceAtLeast(2)
-                                            )
-                                        )
+                                        viewModel.addSupersetExercise(workoutId, parentEntryId, exercise.id)
 
                                         onExerciseAdded()
                                         onDismiss()

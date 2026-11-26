@@ -122,7 +122,7 @@ fun SupersetExerciseColumn(
             modifier = Modifier
                 .size(40.dp)
                 .combinedClickable(
-                    onClick = { onOpenPrForExercise(entry.exerciseId) },
+                    onClick = { onOpenExerciseDetail(entry.exerciseId) },
                     onLongClickLabel = "Replace exercise",
                     onLongClick = if (isEditable) ({ showReplaceExercise = true }) else null
                 ),
