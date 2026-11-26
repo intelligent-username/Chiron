@@ -56,8 +56,6 @@ fun WorkoutEditor(
 
     // ── Superset add-exercise plumbing ─────────────────────────────────────────
     var supersetParentEntryId by remember { mutableStateOf<Long?>(null) }
-    var pendingIncrementSupersetParentEntryId by remember { mutableStateOf<Long?>(null) }
-    var didAddExerciseInDialog by remember { mutableStateOf(false) }
 
     // ── Set editing ────────────────────────────────────────────────────────────
     var editingSetEntry by remember { mutableStateOf<Triple<Long, Int, Long>?>(null) }
@@ -205,11 +203,9 @@ fun WorkoutEditor(
             onOpenPrForExercise = onOpenPrForExercise,
             onOpenExerciseDetail = onOpenExerciseDetail,
             onOpenSetInWorkout = onOpenSetInWorkout,
-            onRequestAddExercise = { parentEntryId, fromIncrement ->
+            onRequestAddExercise = { parentEntryId, _ ->
                 if (!isEditable) return@WorkoutEditorGrid
-                didAddExerciseInDialog = false
                 supersetParentEntryId = parentEntryId
-                pendingIncrementSupersetParentEntryId = if (fromIncrement) parentEntryId else null
                 showAddExerciseDialog = true
             },
             focusManager = focusManager
@@ -261,26 +257,10 @@ fun WorkoutEditor(
         onDismissDuplicate = { showDuplicateConfirmation = false },
         showAddExerciseDialog = showAddExerciseDialog,
         supersetParentEntryId = supersetParentEntryId,
-        onExerciseAdded = { didAddExerciseInDialog = true },
+        onExerciseAdded = {},
         onDismissAddExercise = {
-            val pendingId = pendingIncrementSupersetParentEntryId
-            if (pendingId != null && !didAddExerciseInDialog) {
-                val parent = entries.find { it.id == pendingId }
-                if (parent != null) {
-                    val decremented = (parent.numExercisesInSuperset - 1).coerceAtLeast(2)
-                    viewModel.updateExerciseEntry(
-                        parent.copy(
-                            numExercisesInSuperset = decremented,
-                            sequenceType = "SUPERSET_START",
-                            groupId = parent.groupId ?: parent.id
-                        )
-                    )
-                }
-            }
             showAddExerciseDialog = false
             supersetParentEntryId = null
-            pendingIncrementSupersetParentEntryId = null
-            didAddExerciseInDialog = false
         },
         editingSetEntry = editingSetEntry,
         onSaveSet = { updatedSet ->

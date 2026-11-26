@@ -55,13 +55,13 @@ fun SupersetCounterRow(
         )
         if (!isSupersetEnabled) {
             Switch(
-            checked = isSupersetEnabled,
-            onCheckedChange = onSupersetToggle,
-            colors = SwitchDefaults.colors(
-                uncheckedThumbColor = CoolGray,
-                uncheckedTrackColor = SolidSlate,
-                uncheckedBorderColor = ThinOutline
-            )
+                checked = false,
+                onCheckedChange = onSupersetToggle,
+                colors = SwitchDefaults.colors(
+                    uncheckedThumbColor = CoolGray,
+                    uncheckedTrackColor = SolidSlate,
+                    uncheckedBorderColor = ThinOutline
+                )
             )
         } else {
             Row(

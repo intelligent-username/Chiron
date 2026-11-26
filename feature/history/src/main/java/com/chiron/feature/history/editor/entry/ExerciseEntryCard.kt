@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -88,7 +87,6 @@ fun ExerciseEntryCard(
     var showReplaceExercise by remember(entry.id) { mutableStateOf(false) }
     var exerciseNotes by remember { mutableStateOf(entry.notes ?: "") }
     var committedExerciseNotes by remember(entry.id) { mutableStateOf(entry.notes ?: "") }
-    var numExercisesInSuperset by remember { mutableIntStateOf(entry.numExercisesInSuperset) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
@@ -108,26 +106,6 @@ fun ExerciseEntryCard(
 
     val hasHistory = lastSessionPreview != null || lastSessionSupersetPreview != null
 
-    val currentExercisesInSuperset = remember(allEntries, entry.id) {
-        var count = 1
-        val currentIndex = allEntries.indexOfFirst { it.id == entry.id }
-        if (currentIndex >= 0) {
-            for (i in (currentIndex + 1) until allEntries.size) {
-                when (allEntries[i].sequenceType) {
-                    "SUPERSET_MIDDLE" -> count++
-                    "SUPERSET_END" -> { count++; break }
-                    else -> break
-                }
-            }
-        }
-        count
-    }
-
-    var isSupersetEnabled by remember(entry.sequenceType, currentExercisesInSuperset) {
-        mutableStateOf(entry.sequenceType == "SUPERSET_START" && currentExercisesInSuperset > 1)
-    }
-
-    val exercisesNeededInSuperset = numExercisesInSuperset - currentExercisesInSuperset
     val contentAlpha = if (isPreviewingLastSession) 0.55f else 1f
 
     if (showReplaceExercise && isEditable) {
@@ -165,7 +143,7 @@ fun ExerciseEntryCard(
                     modifier = Modifier.padding(top = 3.dp)
                 ) {
                     ExerciseAsyncIcon(
-                        iconName = if (isSupersetEnabled) "link" else exercise?.iconName,
+                        iconName = exercise?.iconName,
                         contentDescription = exercise?.name,
                         modifier = Modifier
                             .size(48.dp)
@@ -393,42 +371,14 @@ fun ExerciseEntryCard(
             // ── Superset controls (hidden during preview) ──────────────────────
             if (isEditable && !isPreviewingLastSession) {
                 SupersetCounterRow(
-                    isSupersetEnabled = isSupersetEnabled,
+                    isSupersetEnabled = false,
                     onSupersetToggle = { newValue ->
                         if (newValue) {
                             onRequestAddExercise()
-                        } else {
-                            isSupersetEnabled = false
-                            scope.launch {
-                                val groupId = entry.groupId
-                                if (entry.sequenceType == "SUPERSET_START" && groupId != null) {
-                                    allEntries.filter { it.groupId == groupId }.forEach { e ->
-                                        viewModel.updateExerciseEntry(
-                                            e.copy(sequenceType = "NONE", groupId = null, numExercisesInSuperset = 2)
-                                        )
-                                    }
-                                }
-                                viewModel.updateExerciseEntry(
-                                    entry.copy(sequenceType = "NONE", groupId = null, numExercisesInSuperset = 2)
-                                )
-                            }
                         }
                     },
-                    numExercisesInSuperset = numExercisesInSuperset,
-                    onDecrement = {
-                        if (numExercisesInSuperset > 2) {
-                            numExercisesInSuperset--
-                            scope.launch {
-                                viewModel.updateExerciseEntry(
-                                    entry.copy(
-                                        numExercisesInSuperset = numExercisesInSuperset,
-                                        sequenceType = "SUPERSET_START",
-                                        groupId = entry.groupId ?: entry.id
-                                    )
-                                )
-                            }
-                        }
-                    },
+                    numExercisesInSuperset = 1,
+                    onDecrement = {},
                     onIncrement = {
                         onRequestAddExercise()
                     }
