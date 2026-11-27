@@ -3,11 +3,12 @@ package com.chiron.feature.timer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
@@ -26,7 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.CalorieEntry
@@ -71,6 +76,8 @@ fun CalorieHistoryList(
     val displayedDays = remember(days, safePage, safePageSize) {
         days.drop(safePage * safePageSize).take(safePageSize)
     }
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
 
     HistoryListCard(
         modifier = modifier,
@@ -94,23 +101,40 @@ fun CalorieHistoryList(
                     if (day.key == editingDate) {
                         editor()
                     } else {
-                    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
-                        val dateLabel: @Composable () -> Unit = {
-                            Text(day.key.format(FoodLogDateFormatter),
-                                 style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        if (maxWidth < 320.dp || LocalDensity.current.fontScale > 1.3f) {
-                            Column {
-                                dateLabel()
-                                FoodDayActions(day.key, onEdit, onDelete)
-                            }
-                        } else {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { dateLabel() }
-                                FoodDayActions(day.key, onEdit, onDelete)
-                            }
-                        }
+                    val calories = day.value.sumOf { it.calories }
+                    val protein = day.value.sumOf { it.protein }
+                    val numberTextWidth = listOf(
+                        foodDayValueText(calories, target?.calories),
+                        foodDayValueText(protein, target?.protein)
+                    ).maxOf { text ->
+                        textMeasurer.measure(
+                            text,
+                            style = TextStyle(fontFamily = MonospaceFamily, fontSize = 11.sp)
+                        ).size.width
+                    }
+                    val unitTextWidth = textMeasurer.measure(
+                        "cal", style = TextStyle(fontFamily = MonospaceFamily, fontSize = 11.sp)
+                    ).size.width
+                    val numberWidth = with(density) { numberTextWidth.toDp() }
+                    val sideWidth = maxOf(
+                        112.dp * density.fontScale,
+                        with(density) { (numberTextWidth + unitTextWidth).toDp() } + 28.dp
+                    )
+                    val summary: @Composable () -> Unit = {
+                        FoodDayTotals(calories, protein, target, numberWidth, Modifier.width(sideWidth))
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            day.key.format(FoodLogDateFormatter),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        summary()
                     }
                     day.value.forEachIndexed { index, entry ->
                         Row(
@@ -128,11 +152,7 @@ fun CalorieHistoryList(
                         }
                         if (index == day.value.lastIndex) {
                             Box(Modifier.padding(start = 12.dp)) {
-                                FoodDayTotals(
-                                    calories = day.value.sumOf { it.calories },
-                                    protein = day.value.sumOf { it.protein },
-                                    target = target
-                                )
+                                FoodDayActions(day.key, onEdit, onDelete, Modifier.width(sideWidth))
                             }
                         }
                         }
@@ -161,13 +181,19 @@ fun CalorieHistoryList(
     }
 }
 
-@Composable
-private fun FoodDayTotals(calories: Double, protein: Double, target: CalorieTarget?) {
-    fun total(value: Double, goal: Double?, unit: String): String =
-        formatCalorieNumber(value) +
-            (goal?.let { "/${formatCalorieNumber(it)}" } ?: "") + " $unit"
+private fun foodDayValueText(value: Double, goal: Double?): String =
+    formatCalorieNumber(value) + (goal?.let { "/${formatCalorieNumber(it)}" } ?: "")
 
+@Composable
+private fun FoodDayTotals(
+    calories: Double,
+    protein: Double,
+    target: CalorieTarget?,
+    numberWidth: Dp,
+    modifier: Modifier = Modifier
+) {
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(3.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
         border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f))
@@ -175,23 +201,29 @@ private fun FoodDayTotals(calories: Double, protein: Double, target: CalorieTarg
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalAlignment = Alignment.End
+            horizontalAlignment = Alignment.Start
         ) {
-            Text(
-                total(calories, target?.calories, "cal"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = MonospaceFamily,
-                fontSize = 11.sp,
-                lineHeight = 14.sp
+            FoodDayTotalLine(
+                foodDayValueText(calories, target?.calories), "cal", numberWidth
             )
-            Text(
-                total(protein, target?.protein, "p"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = MonospaceFamily,
-                fontSize = 11.sp,
-                lineHeight = 14.sp
+            FoodDayTotalLine(
+                foodDayValueText(protein, target?.protein), "p", numberWidth
             )
         }
+    }
+}
+
+@Composable
+private fun FoodDayTotalLine(value: String, unit: String, numberWidth: Dp) {
+    val style = TextStyle(
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontFamily = MonospaceFamily,
+        fontSize = 11.sp,
+        lineHeight = 14.sp
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(value, modifier = Modifier.width(numberWidth), style = style, maxLines = 1)
+        Text(unit, style = style, maxLines = 1)
     }
 }
 
@@ -199,12 +231,25 @@ private fun FoodDayTotals(calories: Double, protein: Double, target: CalorieTarg
 private fun FoodDayActions(
     date: LocalDate,
     onEdit: (LocalDate) -> Unit,
-    onDelete: (LocalDate) -> Unit
+    onDelete: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { onEdit(date) }) { Text("Edit", color = ElectricBlue) }
-        TextButton(onClick = { onDelete(date) }) {
-            Text("Delete", color = MaterialTheme.colorScheme.error)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceBetween) {
+        TextButton(
+            onClick = { onEdit(date) },
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text("Edit", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start,
+                color = ElectricBlue)
+        }
+        TextButton(
+            onClick = { onDelete(date) },
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text("Delete", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End,
+                color = MaterialTheme.colorScheme.error)
         }
     }
 }

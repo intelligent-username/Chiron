@@ -6,11 +6,15 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.MediaPlayer
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Process
+import android.os.SystemClock
+import android.util.Log
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -18,9 +22,11 @@ import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import com.chiron.core.common.UserSettingsRepository
+import com.chiron.core.common.MetronomeTiming
 import com.chiron.core.ui.R
 import com.chiron.feature.timer.metronome.ExternalMediaManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +36,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 class MetronomeService : Service() {
 
@@ -37,18 +44,17 @@ class MetronomeService : Service() {
     private lateinit var notificationManager: NotificationManager
     private lateinit var userSettingsRepository: UserSettingsRepository
     private var tickJob: Job? = null
-    private var mediaPlayer: MediaPlayer? = null
-    private var currentTickAsset: String? = null
+    private lateinit var soundPool: SoundPool
+    private val loadedTicks = mutableMapOf<String, CompletableDeferred<Int>>()
+    private val pendingLoads = mutableMapOf<Int, CompletableDeferred<Int>>()
     private var isControlsEnabled: Boolean = false
     private var isCustomizeSingleTap: Boolean = false
     private var isCustomizeDoubleTap: Boolean = false
     private var isCustomizeTripleTap: Boolean = false
 
-    // MediaPlayer must be created/used on a thread with a Looper (its callbacks are
-    // delivered there). Building it on the main thread every beat is what caused the
-    // notification-shade jank, so the whole tick loop runs on a dedicated background thread.
-    private val tickThread = HandlerThread("MetronomeTicks").apply { start() }
-    private val tickScope = CoroutineScope(SupervisorJob() + Handler(tickThread.looper).asCoroutineDispatcher())
+    private val tickThread = HandlerThread("MetronomeTicks", Process.THREAD_PRIORITY_AUDIO).apply { start() }
+    private val tickHandler = Handler(tickThread.looper)
+    private val tickScope = CoroutineScope(SupervisorJob() + tickHandler.asCoroutineDispatcher())
 
     // Only used for UI/notification work.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -57,6 +63,7 @@ class MetronomeService : Service() {
         super.onCreate()
         notificationManager = getSystemService(NotificationManager::class.java)
         userSettingsRepository = UserSettingsRepository(applicationContext)
+        preloadTicks()
 
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -217,35 +224,62 @@ class MetronomeService : Service() {
     }
 
     private fun startTickLoop() {
-        tickJob?.cancel()
+        // BPM and notification settings must not restart the beat phase.
+        if (tickJob?.isActive == true) return
         tickJob = tickScope.launch {
-            while (MetronomeController.isRunning.value) {
-                playTick(MetronomeController.tickAsset.value)
-                delay(60_000L / MetronomeController.bpm.value.coerceAtLeast(1))
+            val firstSound = loadedTicks[MetronomeController.tickAsset.value]?.await() ?: 0
+            if (firstSound == 0) {
+                MetronomeController.pause()
+                return@launch
+            }
+            // Open the audio output silently before establishing the first audible beat.
+            val warmup = soundPool.play(firstSound, 0f, 0f, 1, 0, 1f)
+            delay(60L)
+            soundPool.stop(warmup)
+            var nextBeat = SystemClock.elapsedRealtimeNanos()
+            var beatIndex = 0L
+            while (isActive && MetronomeController.isRunning.value) {
+                val waitNanos = nextBeat - SystemClock.elapsedRealtimeNanos()
+                if (waitNanos > 0) delay((waitNanos + 999_999L) / 1_000_000L)
+                if (!isActive || !MetronomeController.isRunning.value) break
+                val soundId = loadedTicks[MetronomeController.tickAsset.value]?.await() ?: 0
+                if (soundId == 0 || soundPool.play(soundId, 1f, 1f, 1, 0, 1f) == 0) {
+                    Log.e("Metronome", "Unable to play the selected tick")
+                    MetronomeController.pause()
+                    break
+                }
+                val now = SystemClock.elapsedRealtimeNanos()
+                val bpm = MetronomeController.bpm.value
+                val interval = MetronomeTiming.intervalNanos(bpm)
+                MetronomeController.beat.value = MetronomeBeat(beatIndex++, now, interval)
+                // Never emit a burst of catch-up beats after a scheduler stall.
+                nextBeat = MetronomeTiming.nextBeatNanos(nextBeat, now, bpm)
             }
         }
     }
 
-    private fun playTick(fileName: String) {
-        try {
-            // Reuse a single MediaPlayer: only (re)build it when the tick asset changes,
-            // then just rewind and replay. Creating a new MediaPlayer every beat is what
-            // caused the notification-shade jank.
-            if (mediaPlayer == null || currentTickAsset != fileName) {
-                mediaPlayer?.release()
-                val afd = assets.openFd("audio/$fileName")
-                val player = MediaPlayer()
-                player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                afd.close()
-                player.prepare()
-                mediaPlayer = player
-                currentTickAsset = fileName
+    private fun preloadTicks() {
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(4)
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build())
+            .build()
+        soundPool.setOnLoadCompleteListener { _, soundId, status ->
+            pendingLoads.remove(soundId)?.complete(if (status == 0) soundId else 0)
+            if (status != 0) Log.e("Metronome", "Tick decoding failed: $status")
+        }
+        for (fileName in assets.list("audio").orEmpty().filter { it.endsWith(".mp3", ignoreCase = true) }) {
+            val ready = CompletableDeferred<Int>()
+            loadedTicks[fileName] = ready
+            try {
+                val soundId = assets.openFd("audio/$fileName").use { soundPool.load(it, 1) }
+                if (soundId == 0) ready.complete(0) else pendingLoads[soundId] = ready
+            } catch (error: java.io.IOException) {
+                Log.e("Metronome", "Cannot load tick $fileName", error)
+                ready.complete(0)
             }
-            mediaPlayer?.apply {
-                seekTo(0)
-                start()
-            }
-        } catch (_: Exception) {
         }
     }
 
@@ -322,8 +356,13 @@ class MetronomeService : Service() {
         tickJob?.cancel()
         serviceScope.cancel()
         tickScope.cancel()
-        tickThread.quitSafely()
-        mediaPlayer?.release()
+        soundPool.setOnLoadCompleteListener(null)
+        pendingLoads.values.forEach { it.cancel() }
+        tickHandler.post {
+            soundPool.release()
+            tickThread.quitSafely()
+        }
+        MetronomeController.beat.value = null
         mediaSession.release()
         notificationManager.cancel(NOTIFICATION_ID)
         super.onDestroy()

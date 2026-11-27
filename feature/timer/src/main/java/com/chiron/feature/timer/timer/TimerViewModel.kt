@@ -27,6 +27,7 @@ data class TimerUiState(
     val countdownSeconds: Int = 60,
     val countdownRemaining: Int = 60,
     val isCountdownRunning: Boolean = false,
+    val hasCountdownStarted: Boolean = false,
     val isConstantCycling: Boolean = false,
 
     // Stopwatch state
@@ -135,7 +136,8 @@ class TimerViewModel(
             it.copy(
                 countdownSeconds = seconds,
                 countdownRemaining = seconds,
-                isCountdownRunning = false
+                isCountdownRunning = false,
+                hasCountdownStarted = false
             )
         }
     }
@@ -147,7 +149,7 @@ class TimerViewModel(
     fun startCountdown() {
         if (_uiState.value.isCountdownRunning) return
 
-        _uiState.update { it.copy(isCountdownRunning = true) }
+        _uiState.update { it.copy(isCountdownRunning = true, hasCountdownStarted = true) }
 
         var startTime = System.currentTimeMillis()
         var totalDurationMs = _uiState.value.countdownRemaining * 1000L
@@ -166,7 +168,8 @@ class TimerViewModel(
                         totalDurationMs = _uiState.value.countdownSeconds * 1000L
                         continue
                     } else {
-                        _uiState.update { it.copy(countdownRemaining = it.countdownSeconds, isCountdownRunning = false) }
+                        _uiState.update { it.copy(countdownRemaining = it.countdownSeconds,
+                            isCountdownRunning = false, hasCountdownStarted = false) }
                         _timerFinished.emit(Unit)
                         break
                     }
@@ -190,6 +193,7 @@ class TimerViewModel(
         _uiState.update {
             it.copy(
                 isCountdownRunning = false,
+                hasCountdownStarted = false,
                 countdownRemaining = it.countdownSeconds
             )
         }

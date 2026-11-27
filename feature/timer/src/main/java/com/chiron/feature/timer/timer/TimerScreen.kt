@@ -89,11 +89,11 @@ fun TimerScreen(
                 label = "timerSubtabs"
             ) { tab ->
             when (tab) {
-                TimerTab.TIMER -> CountdownContent(viewModel = viewModel)
+                TimerTab.TIMER -> CountdownContent(viewModel = viewModel, modifier = Modifier.fillMaxSize())
                 TimerTab.STOPWATCH -> StopwatchContent(viewModel = viewModel)
                 TimerTab.METRONOME -> MetronomeContent(
                     viewModel = viewModel,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             }

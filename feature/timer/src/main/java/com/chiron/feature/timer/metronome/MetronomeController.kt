@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 
+data class MetronomeBeat(val index: Long, val timeNanos: Long, val intervalNanos: Long)
+
 object MetronomeController {
     const val ACTION_START = "com.chiron.app.metronome.START"
     const val ACTION_PAUSE = "com.chiron.app.metronome.PAUSE"
@@ -17,10 +19,12 @@ object MetronomeController {
     val tickAsset = MutableStateFlow("Tick1.mp3")
     val isRunning = MutableStateFlow(false)
     val isActive = MutableStateFlow(false)
+    val beat = MutableStateFlow<MetronomeBeat?>(null)
 
     fun init(context: Context) { appContext = context.applicationContext }
 
     fun start() {
+        if (!isRunning.value) beat.value = null
         if (!isActive.value) {
             isActive.value = true
             ContextCompat.startForegroundService(
@@ -31,11 +35,15 @@ object MetronomeController {
         isRunning.value = true
     }
 
-    fun pause() { isRunning.value = false }
+    fun pause() {
+        isRunning.value = false
+        beat.value = null
+    }
 
     fun stop() {
         isActive.value = false
         isRunning.value = false
+        beat.value = null
         appContext.stopService(Intent(appContext, MetronomeService::class.java))
     }
 

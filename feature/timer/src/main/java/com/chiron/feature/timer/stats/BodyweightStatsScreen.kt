@@ -71,7 +71,10 @@ fun BodyweightStatsScreen(
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
-                TabRow(selectedTabIndex = displayedTab) {
+                TabRow(
+                    selectedTabIndex = displayedTab,
+                    containerColor = MaterialTheme.colorScheme.background
+                ) {
                     listOf("Weight", "Calories").forEachIndexed { index, title ->
                         val tabColor by animateColorAsState(
                             targetValue = MaterialTheme.colorScheme.onSurface.copy(

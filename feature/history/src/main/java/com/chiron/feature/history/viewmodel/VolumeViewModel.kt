@@ -205,7 +205,9 @@ class VolumeViewModel(
         return state.copy(
             currentPeriodEnd = window.end,
             points = if (state.abridgeGaps) {
-                points.filter { it.volumeLbs > 0.0 }
+                val nonZeroPoints = points.filter { it.volumeLbs > 0.0 }
+                // A lone point needs the surrounding days to show its context.
+                if (nonZeroPoints.size == 1) points else nonZeroPoints
             } else points,
             isAtFirstWeek = !window.canGoPrevious,
             isAtCurrentWeek = !window.canGoNext

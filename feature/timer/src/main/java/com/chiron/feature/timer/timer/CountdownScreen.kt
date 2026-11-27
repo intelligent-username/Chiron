@@ -3,9 +3,16 @@ package com.chiron.feature.timer
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,13 +29,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.ui.components.WheelPicker
@@ -46,16 +53,27 @@ fun CountdownContent(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
-    val isIdle = !state.isCountdownRunning && state.countdownRemaining == state.countdownSeconds
+    val isIdle = !state.hasCountdownStarted
+    val timerTextStyle = MaterialTheme.typography.displayMedium.copy(
+        fontSize = 54.sp,
+        fontWeight = FontWeight.Medium,
+        fontFamily = FontFamily.Monospace,
+        letterSpacing = (-1).sp
+    )
 
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+        val diameter = minOf(368.dp, maxWidth, maxHeight)
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(320.dp)
+            modifier = Modifier.size(diameter)
         ) {
             val arcTrackColor = ThinOutline
             val progressColor = ElectricBlue
@@ -93,7 +111,16 @@ fun CountdownContent(
                 )
             }
 
-            if (isIdle) {
+            AnimatedContent(
+                targetState = isIdle,
+                transitionSpec = {
+                    (fadeIn(tween(240)) + scaleIn(tween(240), initialScale = 0.97f))
+                        .togetherWith(fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.97f))
+                },
+                contentAlignment = Alignment.Center,
+                label = "countdownMode"
+            ) { idle ->
+            if (idle) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -103,21 +130,20 @@ fun CountdownContent(
                         count = 100,
                         value = state.countdownRemaining / 60,
                         onValueChange = { newMin ->
-                            val currentSec = state.countdownRemaining % 60
-                            viewModel.setCountdownPreset(newMin * 60 + currentSec)
+                            if (isIdle && newMin != state.countdownRemaining / 60) {
+                                val currentSec = state.countdownRemaining % 60
+                                viewModel.setCountdownPreset(newMin * 60 + currentSec)
+                            }
                         },
                         itemHeight = 80.dp,
                         visibleCount = 3,
-                        textStyle = MaterialTheme.typography.displayMedium.copy(fontSize = 54.sp)
+                        wheelWidth = 96.dp,
+                        textStyle = timerTextStyle
                     )
 
                     Text(
                         ":",
-                        style = MaterialTheme.typography.displayLarge.copy(
-                            fontSize = 54.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        ),
+                        style = timerTextStyle,
                         modifier = Modifier.padding(horizontal = 4.dp).offset(y = (-4).dp)
                     )
 
@@ -125,21 +151,45 @@ fun CountdownContent(
                         count = 60,
                         value = state.countdownRemaining % 60,
                         onValueChange = { newSec ->
-                            val currentMin = state.countdownRemaining / 60
-                            viewModel.setCountdownPreset(currentMin * 60 + newSec)
+                            if (isIdle && newSec != state.countdownRemaining % 60) {
+                                val currentMin = state.countdownRemaining / 60
+                                viewModel.setCountdownPreset(currentMin * 60 + newSec)
+                            }
                         },
                         itemHeight = 80.dp,
                         visibleCount = 3,
-                        textStyle = MaterialTheme.typography.displayMedium.copy(fontSize = 54.sp)
+                        wheelWidth = 96.dp,
+                        textStyle = timerTextStyle
                     )
                 }
             } else {
-                CountdownText(countdownRemaining = state.countdownRemaining)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    Text(
+                        "%02d".format(state.countdownRemaining / 60),
+                        modifier = Modifier.width(96.dp),
+                        style = timerTextStyle,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(":", style = timerTextStyle,
+                        modifier = Modifier.padding(horizontal = 4.dp).offset(y = (-4).dp))
+                    Text(
+                        "%02d".format(state.countdownRemaining % 60),
+                        modifier = Modifier.width(96.dp),
+                        style = timerTextStyle,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
+            }
+        }
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -159,18 +209,4 @@ fun CountdownContent(
             )
         }
     }
-}
-
-@Composable
-private fun CountdownText(countdownRemaining: Int) {
-    val text = remember(countdownRemaining) { TimerViewModel.formatCountdown(countdownRemaining) }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.displayLarge.copy(
-            fontSize = 72.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = (-1).sp
-        )
-    )
 }

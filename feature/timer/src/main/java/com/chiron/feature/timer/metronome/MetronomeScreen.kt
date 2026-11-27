@@ -1,7 +1,7 @@
 package com.chiron.feature.timer
 
+import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -48,24 +48,22 @@ fun MetronomeContent(
             ?: listOf("Tick1.mp3", "Tick2.mp3", "Tick3.mp3"))
     }
 
-    LaunchedEffect(state.isMetronomeRunning, state.metronomeBpm) {
+    LaunchedEffect(state.isMetronomeRunning) {
         if (!state.isMetronomeRunning) {
-            pendulumAngle.snapTo(0f)
+            pendulumAngle.animateTo(0f, tween(180))
             return@LaunchedEffect
         }
-        val durationMs = (60_000 / state.metronomeBpm.coerceAtLeast(1)).toInt()
-        var target = 45f
-        // Start from one side to swing back and forth
-        pendulumAngle.snapTo(-target)
-        while (isActive && state.isMetronomeRunning) {
-            pendulumAngle.animateTo(
-                targetValue = target,
-                animationSpec = tween(
-                    durationMillis = durationMs,
-                    easing = FastOutSlowInEasing
-                )
-            )
-            target = -target
+        while (isActive) {
+            val angle = withFrameNanos {
+                val beat = MetronomeController.beat.value
+                if (beat == null) 0f else {
+                    val phase = ((SystemClock.elapsedRealtimeNanos() - beat.timeNanos)
+                        .toDouble() / beat.intervalNanos).coerceIn(0.0, 1.0)
+                    val side = if (beat.index % 2L == 0L) -1 else 1
+                    (side * 45 * cos(Math.PI * phase)).toFloat()
+                }
+            }
+            pendulumAngle.snapTo(angle)
         }
     }
 
@@ -76,15 +74,20 @@ fun MetronomeContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .wrapContentHeight(),
+            .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Circular pendulum indicator (Compact: 180.dp) ──────────────────────────────
+        // Keep the controls near Start and use the remaining space for the pendulum.
         val trackColor = ThinOutline
         val pendulumColor = ElectricBlue
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+        val diameter = minOf(240.dp, maxWidth, maxHeight)
         Box(
-            modifier = Modifier.size(180.dp),
+            modifier = Modifier.size(diameter),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -124,6 +127,7 @@ fun MetronomeContent(
                 )
             }
         }
+        }
 
         // BPM Wheel picker (Compact height & text)
         WheelPicker(
@@ -133,7 +137,9 @@ fun MetronomeContent(
             visibleCount = 3,
             itemHeight = 56.dp,
             wheelWidth = 200.dp,
-            animateExternalChanges = false,
+            highlightWidthFraction = 0.65f,
+            highlightHeightScale = 1.05f,
+            animateExternalChanges = true,
             textStyle = MaterialTheme.typography.displayLarge.copy(
                 fontSize = 54.sp,
                 fontWeight = FontWeight.Bold
