@@ -227,6 +227,7 @@ fun ExerciseEntryCard(
                         }
 
                         else -> {
+                            val blankSetSize = Modifier.size(width = 56.dp, height = 32.dp)
                             Text(
                                 exercise?.name ?: "Loading…",
                                 style = MaterialTheme.typography.titleMedium,
@@ -246,6 +247,9 @@ fun ExerciseEntryCard(
                             ) {
                                 sets.forEachIndexed { index, set ->
                                     val isHighlighted = entry.id == highlightedEntryId && (index + 1) == highlightedSetIndex
+                                    val isBlank = set.weightLbs == null && set.reps == null &&
+                                        set.durationSeconds == null && set.distanceMeters == null
+                                    val setModifier = if (isBlank) blankSetSize else Modifier
                                     if (exercise != null) {
                                         SetPill(
                                             set = set,
@@ -254,7 +258,8 @@ fun ExerciseEntryCard(
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
                                             highlighted = isHighlighted,
-                                            onClick = { if (isEditable) onSetClick(index + 1) }
+                                            onClick = { if (isEditable) onSetClick(index + 1) },
+                                            modifier = setModifier
                                         )
                                     } else {
                                         SetPill(
@@ -263,15 +268,15 @@ fun ExerciseEntryCard(
                                             distanceUnit = distanceUnit,
                                             isPr = set.isPr == 1,
                                             highlighted = isHighlighted,
-                                            onClick = { if (isEditable) onSetClick(index + 1) }
+                                            onClick = { if (isEditable) onSetClick(index + 1) },
+                                            modifier = setModifier
                                         )
                                     }
                                 }
-                                // Match SetPill size and shape exactly for consistency
+                                // The new blank set occupies the add button's previous slot.
                                 if (isEditable) {
                                     Box(
-                                        modifier = Modifier
-                                            .height(32.dp)
+                                        modifier = blankSetSize
                                             .clip(RoundedCornerShape(16.dp))
                                             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                                             .clickable(onClick = onAddSet)
