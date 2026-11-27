@@ -199,7 +199,7 @@ private fun FoodDayTotals(
         border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             horizontalAlignment = Alignment.Start
         ) {
@@ -221,7 +221,7 @@ private fun FoodDayTotalLine(value: String, unit: String, numberWidth: Dp) {
         fontSize = 11.sp,
         lineHeight = 14.sp
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(value, modifier = Modifier.width(numberWidth), style = style, maxLines = 1)
         Text(unit, style = style, maxLines = 1)
     }

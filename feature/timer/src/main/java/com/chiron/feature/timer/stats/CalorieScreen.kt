@@ -2,6 +2,7 @@ package com.chiron.feature.timer
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -38,7 +39,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -55,11 +55,22 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
@@ -384,25 +395,114 @@ fun CalorieScreen(
 
 @Composable
 private fun NutritionTotal(
-    label: String, value: Double, target: Double?, unit: String, prominent: Boolean,
-    trailing: @Composable () -> Unit = {}
+    label: String, value: Double, target: Double?, unit: String, prominent: Boolean
 ) {
-    val progress by animateFloatAsState(
-        targetValue = target?.takeIf { it > 0 }?.let { (value / it).toFloat().coerceIn(0f, 1f) } ?: 0f,
-        animationSpec = tween(StatsMotionMillis), label = "nutritionProgress"
-    )
     val shownValue = statsPresentedNumber(value, unit)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    val currentText = formatCalorieNumber(shownValue)
+    val goal = target?.takeIf { it > 0 }
+    val rawFraction = goal?.let { (value / it).toFloat() } ?: 0f
+    val progress by animateFloatAsState(
+        targetValue = rawFraction.coerceIn(0f, 1f),
+        animationSpec = tween(StatsMotionMillis),
+        label = "nutritionProgress"
+    )
+    val excess = (rawFraction - 1f).coerceIn(0f, 1f)
+    val valueStyle = (if (prominent) MaterialTheme.typography.titleLarge
+        else MaterialTheme.typography.titleMedium).copy(fontFamily = MonospaceFamily)
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    val fillColor = if (excess > 0f) {
+        MaterialTheme.colorScheme.error.copy(alpha = 0.4f + 0.6f * excess)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val trackComposite = lerp(
+        MaterialTheme.colorScheme.surface,
+        MaterialTheme.colorScheme.onSurface,
+        0.08f
+    )
+    val fillComposite = lerp(trackComposite, fillColor, fillColor.alpha)
+    fun contrastOn(bg: Color) = if (bg.luminance() > 0.45f) Color.Black else Color.White
+    val labelColor = contrastOn(lerp(trackComposite, fillComposite, progress))
+    val currentColor = contrastOn(if (progress > 0f) fillComposite else trackComposite)
+    val slashColor = contrastOn(if (progress >= 0.5f) fillComposite else trackComposite)
+    val goalColor = contrastOn(if (progress >= 0.99f) fillComposite else trackComposite)
+    val cellModifier = if (goal != null) {
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(trackColor)
+            .drawBehind {
+                drawRect(
+                    color = fillColor,
+                    size = Size(size.width * progress.coerceIn(0f, 1f), size.height)
+                )
+            }
+    } else {
+        Modifier.fillMaxWidth()
+    }
+    Column(
+        modifier = cellModifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         Text(
-            text = formatCalorieNumber(shownValue) + (target?.let { " / ${formatCalorieNumber(it)}" } ?: ""),
-            fontFamily = MonospaceFamily,
-            style = if (prominent) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            label,
+            color = labelColor,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        trailing()
-        if (target != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        if (goal != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedValueText(currentText, currentColor, valueStyle)
+                OutlinedValueText(
+                    "/",
+                    slashColor,
+                    valueStyle,
+                    modifier = Modifier.padding(horizontal = 2.dp)
+                )
+                OutlinedValueText(
+                    formatCalorieNumber(goal),
+                    goalColor,
+                    valueStyle,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.End
+                )
+            }
+        } else {
+            OutlinedValueText(currentText, currentColor, valueStyle)
+        }
+    }
+}
+
+@Composable
+private fun OutlinedValueText(
+    text: String,
+    color: Color,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign? = null
+) {
+    val outlineStyle = style.copy(
+        color = if (color.luminance() < 0.5f) Color.White else Color.Black,
+        drawStyle = Stroke(width = 4f, join = StrokeJoin.Round)
+    )
+    val innerModifier = if (textAlign != null) Modifier.fillMaxWidth() else Modifier
+    Box(modifier) {
+        Text(
+            text,
+            modifier = innerModifier,
+            style = outlineStyle,
+            textAlign = textAlign,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text,
+            modifier = innerModifier,
+            style = style.copy(color = color),
+            textAlign = textAlign,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
