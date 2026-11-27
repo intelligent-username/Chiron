@@ -35,7 +35,8 @@ internal data class FoodDraft(
     val name: String = "",
     val calories: String = "",
     val protein: String = "",
-    val servings: String = "1"
+    val servings: String = "1",
+    val description: String = ""
 )
 
 internal data class FoodEditorSession(
@@ -59,7 +60,7 @@ private val FoodEditorSessionSaver = listSaver<FoodEditorSession?, Any>(
                 addAll(originalIds)
                 add(session.rows.size)
                 session.rows.forEach { row ->
-                    addAll(listOf(row.id, row.name, row.calories, row.protein, row.servings))
+                    addAll(listOf(row.id, row.name, row.calories, row.protein, row.servings, row.description))
                 }
             }
         }
@@ -74,13 +75,16 @@ private val FoodEditorSessionSaver = listSaver<FoodEditorSession?, Any>(
             val originalCount = saved[index++] as Int
             val originalIds = List(originalCount) { saved[index++] as String }.toSet()
             val rowCount = saved[index++] as Int
+            // Older saved drafts have five fields per row, without a description.
+            val hasDescriptions = rowCount > 0 && saved.size - index == rowCount * 6
             val rows = List(rowCount) {
                 FoodDraft(
                     id = saved[index++] as String,
                     name = saved[index++] as String,
                     calories = saved[index++] as String,
                     protein = saved[index++] as String,
-                    servings = saved[index++] as String
+                    servings = saved[index++] as String,
+                    description = if (hasDescriptions) saved[index++] as String else ""
                 )
             }
             FoodEditorSession(date, rows, originalIds.takeIf { replacing })
@@ -146,7 +150,14 @@ internal fun PersistentFoodEditor(
                                     DropdownMenuItem(
                                         text = {
                                             Column {
-                                                Text(suggestion.name)
+                                                 Text(suggestion.name)
+                                                 if (suggestion.description.isNotBlank()) {
+                                                     Text(
+                                                         suggestion.description,
+                                                         style = MaterialTheme.typography.bodySmall,
+                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                     )
+                                                 }
                                                 Text(
                                                     "${suggestion.caloriesPerServing} kcal · ${suggestion.proteinPerServing} g protein per serving",
                                                     style = MaterialTheme.typography.bodySmall,
@@ -161,7 +172,8 @@ internal fun PersistentFoodEditor(
                                                  suggestionMessage = true
                                             } else {
                                                 change(row.copy(
-                                                    name = suggestion.name,
+                                                     name = suggestion.name,
+                                                     description = suggestion.description,
                                                     calories = suggestion.caloriesPerServing.toString(),
                                                     protein = suggestion.proteinPerServing.toString()
                                                 ))
@@ -172,8 +184,14 @@ internal fun PersistentFoodEditor(
                                 }
                             }
                         }
-                        OutlinedTextField(
-                            row.calories, { change(row.copy(calories = it)) },
+                         OutlinedTextField(
+                             row.description, { change(row.copy(description = it)) },
+                             label = { Text("Description (optional)") },
+                             minLines = 2,
+                             modifier = Modifier.fillMaxWidth()
+                         )
+                         OutlinedTextField(
+                             row.calories, { change(row.copy(calories = it)) },
                             label = { Text("Calories per serving") }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth()
@@ -214,7 +232,7 @@ internal fun PersistentFoodEditor(
                     rows.map { row ->
                         CalorieEntry(
                             row.id, session.date, row.name.trim(), row.calories.toDouble(),
-                            row.protein.toDouble(), row.servings.toDouble()
+                             row.protein.toDouble(), row.servings.toDouble(), row.description.trim()
                         )
                     }
                 }

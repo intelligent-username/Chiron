@@ -1,15 +1,19 @@
 package com.chiron.feature.timer
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -22,9 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chiron.core.common.CalorieEntry
+import com.chiron.core.common.CalorieTarget
 import com.chiron.core.ui.theme.CoolGray
 import com.chiron.core.ui.theme.ElectricBlue
 import com.chiron.core.ui.theme.MonospaceFamily
@@ -48,7 +54,8 @@ fun CalorieHistoryList(
     controlledPage: Int? = null,
     controlledPageSize: Int? = null,
     onControlledPageChange: (Int) -> Unit = {},
-    onControlledPageSizeChange: (Int) -> Unit = {}
+    onControlledPageSizeChange: (Int) -> Unit = {},
+    target: CalorieTarget? = null
 ) {
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
@@ -80,10 +87,9 @@ fun CalorieHistoryList(
             )
         } else {
             Column(Modifier.fillMaxWidth()) {
-                displayedDays.forEachIndexed { dayIndex, day ->
+                displayedDays.forEach { day ->
                   // Page identity disposes any in-flight row geometry; pagination is instant.
                   key(safePage, safePageSize, day.key) {
-                    if (dayIndex > 0) HorizontalDivider(color = ThinOutline, thickness = 1.5.dp)
                     StatsEditorGeometry(day.key == editingDate, enabled = editorMotionEnabled) {
                     if (day.key == editingDate) {
                         editor()
@@ -91,7 +97,7 @@ fun CalorieHistoryList(
                     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
                         val dateLabel: @Composable () -> Unit = {
                             Text(day.key.format(FoodLogDateFormatter),
-                                style = MaterialTheme.typography.titleSmall,
+                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface)
                         }
                         if (maxWidth < 320.dp || LocalDensity.current.fontScale > 1.3f) {
@@ -106,17 +112,34 @@ fun CalorieHistoryList(
                             }
                         }
                     }
-                    day.value.forEach { entry ->
-                        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                            Text(entry.name.ifBlank { "Unnamed food" },
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text("${formatCalorieNumber(entry.calories)}cal ${formatCalorieNumber(entry.protein)}p",
-                                color = CoolGray, fontFamily = MonospaceFamily, fontSize = 12.sp)
+                    day.value.forEachIndexed { index, entry ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                              Text(entry.name.ifBlank { "Unnamed food" },
+                                  color = MaterialTheme.colorScheme.onSurface,
+                                  fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                                  maxLines = 1, overflow = TextOverflow.Ellipsis)
+                             Text("${formatCalorieNumber(entry.calories)}cal ${formatCalorieNumber(entry.protein)}p",
+                                 color = CoolGray, fontFamily = MonospaceFamily, fontSize = 12.sp,
+                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (index == day.value.lastIndex) {
+                            Box(Modifier.padding(start = 12.dp)) {
+                                FoodDayTotals(
+                                    calories = day.value.sumOf { it.calories },
+                                    protein = day.value.sumOf { it.protein },
+                                    target = target
+                                )
+                            }
+                        }
                         }
                     }
                     }
                     }
+                    HorizontalDivider(color = ThinOutline, thickness = 1.5.dp)
                   }
                 }
             }
@@ -133,6 +156,40 @@ fun CalorieHistoryList(
                     currentPage = it.coerceIn(0, totalPages - 1)
                     onControlledPageChange(currentPage)
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FoodDayTotals(calories: Double, protein: Double, target: CalorieTarget?) {
+    fun total(value: Double, goal: Double?, unit: String): String =
+        formatCalorieNumber(value) +
+            (goal?.let { "/${formatCalorieNumber(it)}" } ?: "") + " $unit"
+
+    Surface(
+        shape = RoundedCornerShape(3.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+        border = BorderStroke(1.dp, ThinOutline.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                total(calories, target?.calories, "cal"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = MonospaceFamily,
+                fontSize = 11.sp,
+                lineHeight = 14.sp
+            )
+            Text(
+                total(protein, target?.protein, "p"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = MonospaceFamily,
+                fontSize = 11.sp,
+                lineHeight = 14.sp
             )
         }
     }

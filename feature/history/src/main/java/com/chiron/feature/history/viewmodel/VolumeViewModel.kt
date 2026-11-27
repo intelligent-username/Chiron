@@ -205,10 +205,7 @@ class VolumeViewModel(
         return state.copy(
             currentPeriodEnd = window.end,
             points = if (state.abridgeGaps) {
-                // Keep endpoints even when empty so the displayed date limits stay truthful.
-                points.filterIndexed { index, point ->
-                    index == 0 || index == points.lastIndex || point.volumeLbs > 0.0
-                }
+                points.filter { it.volumeLbs > 0.0 }
             } else points,
             isAtFirstWeek = !window.canGoPrevious,
             isAtCurrentWeek = !window.canGoNext

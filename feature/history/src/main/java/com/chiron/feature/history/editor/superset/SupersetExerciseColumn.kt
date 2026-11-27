@@ -143,12 +143,19 @@ fun SupersetExerciseColumn(
                         isPr = set.isPr == 1,
                         compact = true,
                         onClick = { onOpenSetInWorkout(set.id) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().height(24.dp)
                     )
                 }
             } else {
                 sets.forEachIndexed { index, set ->
                     val isHighlighted = highlighted && (index + 1) == highlightedSetIndex
+                    val isBlank = set.weightLbs == null && set.reps == null &&
+                        set.durationSeconds == null && set.distanceMeters == null
+                    val setModifier = if (isBlank) {
+                        Modifier.size(width = 48.dp, height = 24.dp)
+                    } else {
+                        Modifier.fillMaxWidth().height(24.dp)
+                    }
                     if (exercise != null) {
                         SetPill(
                             set = set,
@@ -159,7 +166,7 @@ fun SupersetExerciseColumn(
                             compact = true,
                             highlighted = isHighlighted,
                             onClick = { onSetClick(index + 1) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = setModifier
                         )
                     } else {
                         SetPill(
@@ -170,7 +177,7 @@ fun SupersetExerciseColumn(
                             compact = true,
                             highlighted = isHighlighted,
                             onClick = { if (isEditable) onSetClick(index + 1) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = setModifier
                         )
                     }
                 }
@@ -180,13 +187,13 @@ fun SupersetExerciseColumn(
                         onClick = onAddSet,
                         contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier
-                            .height(28.dp)
-                            .width(50.dp),
+                            .height(24.dp)
+                            .width(48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Icon(Icons.Default.Add, "Add", modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Add, "Add", modifier = Modifier.size(12.dp))
                     }
                 }
             }

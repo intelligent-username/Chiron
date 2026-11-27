@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +60,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.chiron.core.common.CalorieEntry
 import com.chiron.core.common.CalorieHistory
 import com.chiron.core.common.CalorieTarget
@@ -117,14 +120,6 @@ fun CalorieScreen(
     val listState = rememberLazyListState()
     var historyPage by rememberSaveable { mutableStateOf(0) }
     var historyPageSize by rememberSaveable { mutableStateOf(10) }
-    val dates = entries.map { it.date }.distinct().sortedDescending()
-    val safeSize = historyPageSize.coerceIn(5, 50)
-    val pages = ((dates.size + safeSize - 1) / safeSize).coerceAtLeast(1)
-    val safeHistoryPage = historyPage.coerceIn(0, pages - 1)
-    val visibleDates = dates.drop(safeHistoryPage * safeSize).take(safeSize)
-    val editInHistory = editorSession?.let {
-        it.originalIds != null && it.date in visibleDates
-    } == true
     val editorTicket = editorGeneration
     val editor: @Composable () -> Unit = {
         editorSession?.let { session ->
@@ -228,17 +223,7 @@ fun CalorieScreen(
                 }
             }
 
-          StatsEditorGeometry(
-              editorSession != null && !editInHistory,
-              enabled = !editorHasImmediateMessage,
-               resetKey = safeHistoryPage to safeSize
-          ) {
-            if (editorSession != null && !editInHistory) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.padding(12.dp)) { editor() }
-                }
-            } else Button(onClick = {
+            Button(onClick = {
                 // Opening another slot must never discard an active raw draft.
                 if (editorSession == null) {
                     editorGeneration++
@@ -250,7 +235,6 @@ fun CalorieScreen(
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("Log food", modifier = Modifier.padding(start = 8.dp))
             }
-          }
             }
         }
         error?.let { message -> item(key = "error") { Text(message, color = MaterialTheme.colorScheme.error) } }
@@ -283,8 +267,9 @@ fun CalorieScreen(
         item(key = "history") {
             CalorieHistoryList(
                 entries = entries,
-                editingDate = editorSession?.date?.takeIf { editInHistory },
-                editor = editor,
+                target = target,
+                editingDate = null,
+                editor = {},
                 editorMotionEnabled = !editorHasImmediateMessage,
                 controlledPage = historyPage,
                 controlledPageSize = historyPageSize,
@@ -298,8 +283,9 @@ fun CalorieScreen(
                       editorSession = FoodEditorSession(
                         selectedDate,
                         dayEntries.map { entry ->
-                            FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
-                                entry.proteinPerServing.toString(), entry.servings.toString())
+                             FoodDraft(entry.id, entry.name, entry.caloriesPerServing.toString(),
+                                 entry.proteinPerServing.toString(), entry.servings.toString(),
+                                 entry.description)
                         },
                         dayEntries.map { it.id }.toSet()
                     )
@@ -314,6 +300,27 @@ fun CalorieScreen(
                     }
                 }
             )
+        }
+    }
+    if (editorSession != null) {
+        Dialog(onDismissRequest = {
+            editorSession = null
+            editorGeneration++
+            editorHasImmediateMessage = false
+        }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth().imePadding()
+            ) {
+                Box(
+                    Modifier.heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
+                ) {
+                    editor()
+                }
+            }
         }
     }
     if (showTargets) {

@@ -11,7 +11,8 @@ data class CalorieEntry(
     val name: String,
     val caloriesPerServing: Double,
     val proteinPerServing: Double,
-    val servings: Double
+    val servings: Double,
+    val description: String = ""
 ) {
     init {
         require(id.isNotBlank())
@@ -64,7 +65,8 @@ data class CalorieHistory(
             entries.forEach { entry ->
                 put(JSONObject().put("id", entry.id).put("date", entry.date.toString())
                     .put("name", entry.name).put("calories", entry.caloriesPerServing)
-                    .put("protein", entry.proteinPerServing).put("servings", entry.servings))
+                    .put("protein", entry.proteinPerServing).put("servings", entry.servings)
+                    .put("description", entry.description))
             }
         })
         put("targets", JSONArray().apply {
@@ -87,7 +89,7 @@ data class CalorieHistory(
                     val row = entries.getJSONObject(it)
                     CalorieEntry(row.getString("id"), LocalDate.parse(row.getString("date")),
                         row.getString("name"), row.getDouble("calories"), row.getDouble("protein"),
-                        row.getDouble("servings"))
+                         row.getDouble("servings"), row.optString("description", ""))
                 },
                 targets = (0 until targets.length()).map {
                     val row = targets.getJSONObject(it)
